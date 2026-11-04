@@ -8,17 +8,16 @@ public struct KeychainClient {
     private func query(_ key: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
-         kSecAttrAccount as String: key,
-         kSecUseDataProtectionKeychain as String: true]
+         kSecAttrAccount as String: key]
     }
 
-    public func set(_ value: String, for key: String) {
+    @discardableResult
+    public func set(_ value: String, for key: String) -> OSStatus {
         let data = Data(value.utf8)
         var q = query(key)
         SecItemDelete(q as CFDictionary)
         q[kSecValueData as String] = data
-        q[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        SecItemAdd(q as CFDictionary, nil)
+        return SecItemAdd(q as CFDictionary, nil)
     }
 
     public func get(_ key: String) -> String? {

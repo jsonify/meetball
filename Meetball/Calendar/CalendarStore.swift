@@ -57,7 +57,10 @@ public final class CalendarStore: ObservableObject {
                     if Task.isCancelled { return }
                     evs += try await client.events(for: cal, range: range)
                 }
-            } catch { firstError = error.localizedDescription }
+            } catch {
+                if case MeetySessionError.noAccount = error { session.invalidate(email: acct.email) }
+                firstError = error.localizedDescription
+            }
         }
         calendars = cals
         events = evs.sorted { $0.start < $1.start }

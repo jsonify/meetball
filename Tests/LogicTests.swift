@@ -51,3 +51,12 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(store.calendarRules.map(\.calendarKey), ["a|2"])
     }
 }
+
+final class KeychainTests: XCTestCase {
+    func testRoundTrip() {
+        let k = KeychainClient(service: "app.meetball.test.\(UUID())")
+        k.set("tok", for: "x")
+        XCTAssertEqual(k.get("x"), "tok", "Keychain write/read failed (signing/entitlements?)")
+        k.remove("x"); XCTAssertNil(k.get("x"))
+    }
+}
