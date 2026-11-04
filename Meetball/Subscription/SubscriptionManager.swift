@@ -16,7 +16,9 @@ public final class SubscriptionManager: ObservableObject {
     @Published public var lastErrorMessage: String?
 
     /// Dev override: MEETBALL_FORCE_PRO=1 in the scheme environment.
+    /// Pro is unlocked when PRO_UNLOCKED=YES in Info.plist (set in project.yml) or MEETBALL_FORCE_PRO=1 is in the environment.
     private let forcePro = ProcessInfo.processInfo.environment["MEETBALL_FORCE_PRO"] == "1"
+        || AppConfig.string("PRO_UNLOCKED").uppercased() == "YES"
     private var updates: Task<Void, Never>?
 
     public var isPremiumActive: Bool { forcePro || entitlementState == .pro }

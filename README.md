@@ -21,9 +21,9 @@ xcodebuild -project Meetball.xcodeproj -scheme Meetball build
 xcodebuild -project Meetball.xcodeproj -scheme MeetballTests test   # or ⌘U in Xcode
 ```
 ## Configuration (use your own credentials)
-In `project.yml` (or build settings): `GOOGLE_CLIENT_ID` (a Google Cloud "Desktop app" OAuth client, Calendar API enabled),
+Copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (gitignored; never commit it) and set `GOOGLE_CLIENT_ID` (a Google Cloud "Desktop app" OAuth client, Calendar API enabled),
 optional `GOOGLE_CLIENT_SECRET`, and `PRO_PRODUCT_IDS` (comma-separated App Store product IDs).
-Set `MEETBALL_FORCE_PRO=1` in the scheme environment to test Pro features without StoreKit.
+Pro is unlocked by default for personal builds (`PRO_UNLOCKED: "YES"` in `project.yml`; set to `NO` to enforce StoreKit). Also `MEETBALL_FORCE_PRO=1` in the scheme environment to test Pro features without StoreKit.
 
 ## Known gaps vs. the original
 Not recovered (no decompiler was used): exact alert timings/copy, Supabase push-sync backend (this app polls Google directly),

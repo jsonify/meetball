@@ -31,11 +31,14 @@ targets:
         GOOGLE_CLIENT_ID: "$(GOOGLE_CLIENT_ID)"
         GOOGLE_CLIENT_SECRET: "$(GOOGLE_CLIENT_SECRET)"
         PRO_PRODUCT_IDS: "$(PRO_PRODUCT_IDS)"
+        PRO_UNLOCKED: "$(PRO_UNLOCKED)"
+    configFiles:
+      Debug: Config/Base.xcconfig
+      Release: Config/Base.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.meetball.Meetball
-        GOOGLE_CLIENT_ID: ""
-        GOOGLE_CLIENT_SECRET: ""
+        PRO_UNLOCKED: "YES"
         PRO_PRODUCT_IDS: "app.meetball.pro.monthly,app.meetball.pro.yearly"
         GENERATE_INFOPLIST_FILE: NO
         CODE_SIGN_IDENTITY: "-"

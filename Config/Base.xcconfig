@@ -1,0 +1,4 @@
+// Tracked defaults. Real credentials live in Secrets.xcconfig (gitignored).
+GOOGLE_CLIENT_ID =
+GOOGLE_CLIENT_SECRET =
+#include? "Secrets.xcconfig"

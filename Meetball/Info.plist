@@ -30,5 +30,7 @@
 	<string>15.0</string>
 	<key>PRO_PRODUCT_IDS</key>
 	<string>$(PRO_PRODUCT_IDS)</string>
+	<key>PRO_UNLOCKED</key>
+	<string>$(PRO_UNLOCKED)</string>
 </dict>
 </plist>
