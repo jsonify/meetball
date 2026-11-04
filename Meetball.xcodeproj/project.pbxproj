@@ -1,0 +1,537 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		005709274540003CA533D24A /* GuardianManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 459F00052D74703344E4150B /* GuardianManager.swift */; };
+		015F3CA121B05AA83E3A90F6 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B657146BFB9E92CE449D35 /* SessionManager.swift */; };
+		1409142A6A094F9C85FD16EF /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B7508A51C0355251E4C503 /* LogicTests.swift */; };
+		1E1065EB9AA51EEEB3328DA6 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056FD024BCBF7F3CD4FF0870 /* Models.swift */; };
+		450287F7474F7EE5343F51E8 /* MeetballApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A499B3E5245CF808108529 /* MeetballApp.swift */; };
+		55E1B0789432B0766251648A /* GoogleAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4863979B7141CDC587449D27 /* GoogleAuth.swift */; };
+		5901915B566A43F690C9C2F1 /* CalendarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FD841BC534057508842B4B /* CalendarStore.swift */; };
+		6692F6751C45D3E8DA3FE839 /* KeychainClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD766BCA4078588D0A2240FA /* KeychainClient.swift */; };
+		973115E1E092F27288912CA7 /* GoogleCalendarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7FBE9D8EEDC8A141C2B6236 /* GoogleCalendarClient.swift */; };
+		9A0F4A098A27617056BC4BCD /* Formatters.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007FCAF92E43A7702EDAAB53 /* Formatters.swift */; };
+		AACB4A5E4D093FD84B57C354 /* CalendarViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 506F6F645DBCFF4332F13767 /* CalendarViews.swift */; };
+		B4E04B4139DD746EF64A3FE6 /* GuardianStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00C17F5E71DCC1A48987D5A2 /* GuardianStore.swift */; };
+		C3D455C92C47F1F36F64E865 /* Layout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E44A3AC0F42200798501F09 /* Layout.swift */; };
+		C4303AC68C0871A1AE9106E2 /* GuardianViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = C367F266E1B91417ABC2E13A /* GuardianViews.swift */; };
+		CDA279E21A11B65157D4A238 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63ED11C391E98AF43533B39D /* Components.swift */; };
+		D4AA18F71EE5999F40566A2D /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06474DBFAB05B242D0795163 /* SubscriptionManager.swift */; };
+		EB5D1682750B6163C6F4A6ED /* SubscriptionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137A24B7B630C8D6F09C73D9 /* SubscriptionViews.swift */; };
+		FE2138D2EBD11E34C61F2A2A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		66DB7A76D95CCC9AFC982BFE /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8F117615CEFEBB51C50EAEEA /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 291C403C38B4F9A9C2C90063;
+			remoteInfo = Meetball;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		007FCAF92E43A7702EDAAB53 /* Formatters.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Formatters.swift; sourceTree = "<group>"; };
+		00C17F5E71DCC1A48987D5A2 /* GuardianStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianStore.swift; sourceTree = "<group>"; };
+		0218A00DA0BAF28D44521AD6 /* Meetball.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Meetball.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		056FD024BCBF7F3CD4FF0870 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		06474DBFAB05B242D0795163 /* SubscriptionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionManager.swift; sourceTree = "<group>"; };
+		07B7508A51C0355251E4C503 /* LogicTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LogicTests.swift; sourceTree = "<group>"; };
+		137A24B7B630C8D6F09C73D9 /* SubscriptionViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionViews.swift; sourceTree = "<group>"; };
+		1E44A3AC0F42200798501F09 /* Layout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Layout.swift; sourceTree = "<group>"; };
+		43715BD7041FD9D6713AA490 /* MeetballTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MeetballTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		459F00052D74703344E4150B /* GuardianManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianManager.swift; sourceTree = "<group>"; };
+		4863979B7141CDC587449D27 /* GoogleAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleAuth.swift; sourceTree = "<group>"; };
+		4E193061FCD918216FE7DB79 /* Meetball.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Meetball.entitlements; sourceTree = "<group>"; };
+		506F6F645DBCFF4332F13767 /* CalendarViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarViews.swift; sourceTree = "<group>"; };
+		63ED11C391E98AF43533B39D /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		B5A499B3E5245CF808108529 /* MeetballApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetballApp.swift; sourceTree = "<group>"; };
+		B7FBE9D8EEDC8A141C2B6236 /* GoogleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GoogleCalendarClient.swift; sourceTree = "<group>"; };
+		C367F266E1B91417ABC2E13A /* GuardianViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianViews.swift; sourceTree = "<group>"; };
+		CD766BCA4078588D0A2240FA /* KeychainClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainClient.swift; sourceTree = "<group>"; };
+		D8FD841BC534057508842B4B /* CalendarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarStore.swift; sourceTree = "<group>"; };
+		E5B657146BFB9E92CE449D35 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
+		E62613057E6DD164566C4B5E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		414803E5FF7504E226E72BA6 /* MeetingGuardian */ = {
+			isa = PBXGroup;
+			children = (
+				459F00052D74703344E4150B /* GuardianManager.swift */,
+				00C17F5E71DCC1A48987D5A2 /* GuardianStore.swift */,
+				C367F266E1B91417ABC2E13A /* GuardianViews.swift */,
+			);
+			path = MeetingGuardian;
+			sourceTree = "<group>";
+		};
+		635D58F4560E5A93E7885FCC = {
+			isa = PBXGroup;
+			children = (
+				673B443AAE675B7CD27E18AD /* Meetball */,
+				891429ABE2105F6DC4F6C044 /* Tests */,
+				FEC4BCF694990F2115DB82F8 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		673B443AAE675B7CD27E18AD /* Meetball */ = {
+			isa = PBXGroup;
+			children = (
+				E62613057E6DD164566C4B5E /* Info.plist */,
+				4E193061FCD918216FE7DB79 /* Meetball.entitlements */,
+				E0228AD2BB8C125DA331F474 /* App */,
+				9A93A68F0E2442E3A77DE58E /* AuthSession */,
+				7460F7FED0A4782D52B4599C /* Calendar */,
+				B7479808ABF71A061AF0127C /* DesignSystem */,
+				414803E5FF7504E226E72BA6 /* MeetingGuardian */,
+				9C17A2E6D757C524FE9BF813 /* SecureStorage */,
+				C25C2794FDDDB812687CDFD8 /* Settings */,
+				B2BDA62D1F60588C7E522EBF /* Subscription */,
+				CFA018429A293E646E378E8A /* Utilities */,
+			);
+			path = Meetball;
+			sourceTree = "<group>";
+		};
+		7460F7FED0A4782D52B4599C /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				D8FD841BC534057508842B4B /* CalendarStore.swift */,
+				506F6F645DBCFF4332F13767 /* CalendarViews.swift */,
+				B7FBE9D8EEDC8A141C2B6236 /* GoogleCalendarClient.swift */,
+				1E44A3AC0F42200798501F09 /* Layout.swift */,
+				056FD024BCBF7F3CD4FF0870 /* Models.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
+		891429ABE2105F6DC4F6C044 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				07B7508A51C0355251E4C503 /* LogicTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		9A93A68F0E2442E3A77DE58E /* AuthSession */ = {
+			isa = PBXGroup;
+			children = (
+				4863979B7141CDC587449D27 /* GoogleAuth.swift */,
+				E5B657146BFB9E92CE449D35 /* SessionManager.swift */,
+			);
+			path = AuthSession;
+			sourceTree = "<group>";
+		};
+		9C17A2E6D757C524FE9BF813 /* SecureStorage */ = {
+			isa = PBXGroup;
+			children = (
+				CD766BCA4078588D0A2240FA /* KeychainClient.swift */,
+			);
+			path = SecureStorage;
+			sourceTree = "<group>";
+		};
+		B2BDA62D1F60588C7E522EBF /* Subscription */ = {
+			isa = PBXGroup;
+			children = (
+				06474DBFAB05B242D0795163 /* SubscriptionManager.swift */,
+				137A24B7B630C8D6F09C73D9 /* SubscriptionViews.swift */,
+			);
+			path = Subscription;
+			sourceTree = "<group>";
+		};
+		B7479808ABF71A061AF0127C /* DesignSystem */ = {
+			isa = PBXGroup;
+			children = (
+				63ED11C391E98AF43533B39D /* Components.swift */,
+			);
+			path = DesignSystem;
+			sourceTree = "<group>";
+		};
+		C25C2794FDDDB812687CDFD8 /* Settings */ = {
+			isa = PBXGroup;
+			children = (
+				FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */,
+			);
+			path = Settings;
+			sourceTree = "<group>";
+		};
+		CFA018429A293E646E378E8A /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				007FCAF92E43A7702EDAAB53 /* Formatters.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		E0228AD2BB8C125DA331F474 /* App */ = {
+			isa = PBXGroup;
+			children = (
+				B5A499B3E5245CF808108529 /* MeetballApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		FEC4BCF694990F2115DB82F8 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				0218A00DA0BAF28D44521AD6 /* Meetball.app */,
+				43715BD7041FD9D6713AA490 /* MeetballTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		291C403C38B4F9A9C2C90063 /* Meetball */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E167677CF3F6FD6AC90946DB /* Build configuration list for PBXNativeTarget "Meetball" */;
+			buildPhases = (
+				CB70B20B538D79EE8149E776 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Meetball;
+			packageProductDependencies = (
+			);
+			productName = Meetball;
+			productReference = 0218A00DA0BAF28D44521AD6 /* Meetball.app */;
+			productType = "com.apple.product-type.application";
+		};
+		4174149C88CA89621BF9796E /* MeetballTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CB1941B8B0A694028D3344E3 /* Build configuration list for PBXNativeTarget "MeetballTests" */;
+			buildPhases = (
+				07190016AFAE7FDD0522A2E5 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B1FA2C33B21CEF69B941A90A /* PBXTargetDependency */,
+			);
+			name = MeetballTests;
+			packageProductDependencies = (
+			);
+			productName = MeetballTests;
+			productReference = 43715BD7041FD9D6713AA490 /* MeetballTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8F117615CEFEBB51C50EAEEA /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = EE33EC927B2C8BC0E7AD62C5 /* Build configuration list for PBXProject "Meetball" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 635D58F4560E5A93E7885FCC;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = FEC4BCF694990F2115DB82F8 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				291C403C38B4F9A9C2C90063 /* Meetball */,
+				4174149C88CA89621BF9796E /* MeetballTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		07190016AFAE7FDD0522A2E5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1409142A6A094F9C85FD16EF /* LogicTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CB70B20B538D79EE8149E776 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5901915B566A43F690C9C2F1 /* CalendarStore.swift in Sources */,
+				AACB4A5E4D093FD84B57C354 /* CalendarViews.swift in Sources */,
+				CDA279E21A11B65157D4A238 /* Components.swift in Sources */,
+				9A0F4A098A27617056BC4BCD /* Formatters.swift in Sources */,
+				55E1B0789432B0766251648A /* GoogleAuth.swift in Sources */,
+				973115E1E092F27288912CA7 /* GoogleCalendarClient.swift in Sources */,
+				005709274540003CA533D24A /* GuardianManager.swift in Sources */,
+				B4E04B4139DD746EF64A3FE6 /* GuardianStore.swift in Sources */,
+				C4303AC68C0871A1AE9106E2 /* GuardianViews.swift in Sources */,
+				6692F6751C45D3E8DA3FE839 /* KeychainClient.swift in Sources */,
+				C3D455C92C47F1F36F64E865 /* Layout.swift in Sources */,
+				450287F7474F7EE5343F51E8 /* MeetballApp.swift in Sources */,
+				1E1065EB9AA51EEEB3328DA6 /* Models.swift in Sources */,
+				015F3CA121B05AA83E3A90F6 /* SessionManager.swift in Sources */,
+				FE2138D2EBD11E34C61F2A2A /* SettingsView.swift in Sources */,
+				D4AA18F71EE5999F40566A2D /* SubscriptionManager.swift in Sources */,
+				EB5D1682750B6163C6F4A6ED /* SubscriptionViews.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B1FA2C33B21CEF69B941A90A /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 291C403C38B4F9A9C2C90063 /* Meetball */;
+			targetProxy = 66DB7A76D95CCC9AFC982BFE /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		333BA80223A6DB93A50F312C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		41050BB16B1D45CB6ED64BDE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.meetball.MeetballTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Meetball.app/Contents/MacOS/Meetball";
+			};
+			name = Release;
+		};
+		56628AFA85570BDEC638F069 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Meetball/Meetball.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				GOOGLE_CLIENT_ID = "";
+				GOOGLE_CLIENT_SECRET = "";
+				INFOPLIST_FILE = Meetball/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.meetball.Meetball;
+				PRO_PRODUCT_IDS = "app.meetball.pro.monthly,app.meetball.pro.yearly";
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		7E07F5C8758DC95BCCD217CE /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.0;
+				MARKETING_VERSION = 0.1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7FF038D73D6E6D03AFDED223 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.meetball.MeetballTests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Meetball.app/Contents/MacOS/Meetball";
+			};
+			name = Debug;
+		};
+		FC59A2A760781D2E97E04B7D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Meetball/Meetball.entitlements;
+				CODE_SIGN_IDENTITY = "-";
+				COMBINE_HIDPI_IMAGES = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				GOOGLE_CLIENT_ID = "";
+				GOOGLE_CLIENT_SECRET = "";
+				INFOPLIST_FILE = Meetball/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = app.meetball.Meetball;
+				PRO_PRODUCT_IDS = "app.meetball.pro.monthly,app.meetball.pro.yearly";
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CB1941B8B0A694028D3344E3 /* Build configuration list for PBXNativeTarget "MeetballTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7FF038D73D6E6D03AFDED223 /* Debug */,
+				41050BB16B1D45CB6ED64BDE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		E167677CF3F6FD6AC90946DB /* Build configuration list for PBXNativeTarget "Meetball" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				56628AFA85570BDEC638F069 /* Debug */,
+				FC59A2A760781D2E97E04B7D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		EE33EC927B2C8BC0E7AD62C5 /* Build configuration list for PBXProject "Meetball" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				7E07F5C8758DC95BCCD217CE /* Debug */,
+				333BA80223A6DB93A50F312C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8F117615CEFEBB51C50EAEEA /* Project object */;
+}
