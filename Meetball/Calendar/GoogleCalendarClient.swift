@@ -50,15 +50,17 @@ struct GoogleCalendarClient {
         struct L: Decodable {
             struct T: Decodable { let dateTime: String?; let date: String? }
             struct A: Decodable {
-                let email: String?; let responseStatus: String?; let isSelf: Bool?
-                enum CodingKeys: String, CodingKey { case email, responseStatus, isSelf = "self" }
+                let email: String?; let displayName: String?; let responseStatus: String?; let isSelf: Bool?; let organizer: Bool?
+                enum CodingKeys: String, CodingKey { case email, displayName, responseStatus, organizer, isSelf = "self" }
             }
+            struct O: Decodable { let email: String?; let displayName: String? }
             struct EP: Decodable { let entryPointType: String?; let uri: String? }
             struct CD: Decodable { let entryPoints: [EP]? }
             struct I: Decodable {
                 let id: String; let summary: String?; let status: String?
                 let start: T?; let end: T?; let hangoutLink: String?; let location: String?
                 let attendees: [A]?; let htmlLink: String?; let conferenceData: CD?
+                let description: String?; let organizer: O?
             }
             let items: [I]; let nextPageToken: String?
         }
@@ -88,7 +90,14 @@ struct GoogleCalendarClient {
                                          meetURL: meet, location: i.location,
                                          attendees: (i.attendees ?? []).compactMap(\.email),
                                          htmlLink: i.htmlLink.flatMap(URL.init), colorHex: cal.colorHex,
-                                         isDeclined: (i.attendees ?? []).contains { $0.isSelf == true && $0.responseStatus == "declined" }))
+                                         isDeclined: (i.attendees ?? []).contains { $0.isSelf == true && $0.responseStatus == "declined" },
+                                         notes: i.description,
+                                         organizer: i.organizer.flatMap { $0.displayName ?? $0.email },
+                                         participants: (i.attendees ?? []).map {
+                                             EventAttendee(email: $0.email, name: $0.displayName,
+                                                           response: AttendeeResponse(rawValue: $0.responseStatus ?? "") ?? .needsAction,
+                                                           isOrganizer: $0.organizer ?? false, isSelf: $0.isSelf ?? false)
+                                         }))
             }
             pageToken = page.nextPageToken
         } while pageToken != nil

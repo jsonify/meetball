@@ -150,3 +150,33 @@ public enum MenuAgendaBuilder {
         }
     }
 }
+
+/// Hours spent in meetings on one day.
+public struct DayMeetingLoad: Identifiable, Equatable {
+    public let day: Date
+    public let hours: Double
+    public let count: Int
+    public var id: Date { day }
+}
+
+public enum MeetingLoadBuilder {
+    /// Time in meetings per day for `days` days from `start`: timed, non-declined events, clipped to the day,
+    /// with overlapping meetings counted once.
+    public static func build(events: [CalendarEvent], from start: Date, days: Int = 7, calendar: Calendar = .current) -> [DayMeetingLoad] {
+        let first = calendar.startOfDay(for: start)
+        return (0..<max(0, days)).compactMap { i in
+            guard let day = calendar.date(byAdding: .day, value: i, to: first),
+                  let next = calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
+            let onDay = events.filter { !$0.isDeclined && !$0.isBarEvent(calendar: calendar) && $0.start < next && $0.end > day }
+            let intervals = onDay.map { (max($0.start, day), min($0.end, next)) }.sorted { $0.0 < $1.0 }
+            var total: TimeInterval = 0
+            var current: (Date, Date)?
+            for iv in intervals {
+                if let c = current, iv.0 <= c.1 { current = (c.0, max(c.1, iv.1)) }
+                else { if let c = current { total += c.1.timeIntervalSince(c.0) }; current = iv }
+            }
+            if let c = current { total += c.1.timeIntervalSince(c.0) }
+            return DayMeetingLoad(day: day, hours: total / 3600, count: onDay.count)
+        }
+    }
+}

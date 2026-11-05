@@ -37,13 +37,39 @@ final class AppleCalendarClient {
         return store.events(matching: pred).compactMap { e in
             guard e.status != .canceled, let s = e.startDate, let en = e.endDate else { return nil }
             let base = e.eventIdentifier ?? UUID().uuidString
+            let people = (e.attendees ?? []).map(Self.attendee)
             return CalendarEvent(id: "\(base)@\(Int(s.timeIntervalSince1970))", calendarID: cal.id, accountEmail: cal.accountEmail,
                                  title: e.title ?? "(No title)", start: s, end: en, isAllDay: e.isAllDay,
                                  meetURL: Self.joinURL(in: [e.url?.absoluteString, e.location, e.notes]),
                                  location: e.location,
-                                 attendees: (e.attendees ?? []).compactMap { $0.url.absoluteString.hasPrefix("mailto:") ? String($0.url.absoluteString.dropFirst(7)) : nil },
-                                 htmlLink: nil, colorHex: cal.colorHex)
+                                 attendees: people.compactMap(\.email),
+                                 htmlLink: nil, colorHex: cal.colorHex,
+                                 isDeclined: people.contains { $0.isSelf && $0.response == .declined },
+                                 notes: e.notes,
+                                 organizer: e.organizer.map { Self.attendee($0).displayName },
+                                 participants: people,
+                                 calendarAppURL: e.eventIdentifier.flatMap(Self.calendarAppURL))
         }
+    }
+
+    private static func attendee(_ p: EKParticipant) -> EventAttendee {
+        let raw = p.url.absoluteString
+        let email = raw.lowercased().hasPrefix("mailto:") ? String(raw.dropFirst(7)) : nil
+        let response: AttendeeResponse
+        switch p.participantStatus {
+        case .accepted: response = .accepted
+        case .declined: response = .declined
+        case .tentative: response = .tentative
+        default: response = .needsAction
+        }
+        return EventAttendee(email: email, name: p.name, response: response,
+                             isOrganizer: p.participantRole == .chair, isSelf: p.isCurrentUser)
+    }
+
+    /// Calendar.app's URL scheme for showing a specific event.
+    static func calendarAppURL(_ eventIdentifier: String) -> URL? {
+        guard let id = eventIdentifier.addingPercentEncoding(withAllowedCharacters: .alphanumerics) else { return nil }
+        return URL(string: "ical://ekevent/\(id)?method=show&options=more")
     }
 
     private static let joinPattern = try! NSRegularExpression(
