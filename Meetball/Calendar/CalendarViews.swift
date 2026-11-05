@@ -12,14 +12,19 @@ struct CalendarContainerView: View {
     var body: some View {
         Group {
             if !onboardingCompleted || !store.hasAnySource {
-                OnboardingView().sk1Chassis()
+                OnboardingView()
+                    .sk1WindowChrome(centered: true) { SK1WindowTitle(text: "Setup") }
+                    .sk1Chassis()
             } else {
-                NavigationSplitView {
-                    // The sidebar column draws its own material, so the chassis goes on each column, not behind the split view.
-                    CalendarSidebarView().scrollContentBackground(.hidden).sk1Chassis()
-                } detail: {
-                    detail.scrollContentBackground(.hidden).sk1Chassis()
+                // Skreener's editor: no stock title bar or toolbar, "MB-1  CALENDAR — …" centred in the title strip
+                // with a grille at the right, then the sidebar beside the content on one chassis.
+                HStack(spacing: 0) {
+                    CalendarSidebarView().listStyle(.sidebar).scrollContentBackground(.hidden).frame(width: 220)
+                    SKGroove(.vertical)
+                    detail.scrollContentBackground(.hidden).frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .sk1WindowChrome(centered: true) { SK1WindowTitle(text: windowTitle) }
+                .sk1Chassis()
             }
         }
         // Rebuild the calendar views when the first weekday or the clock changes (they read them outside SwiftUI).
@@ -68,8 +73,6 @@ struct CalendarContainerView: View {
     var header: some View {
         VStack(spacing: 10) {
             HStack(alignment: .top, spacing: 12) {
-                Text(title).font(.title2.bold()).lineLimit(1).padding(.top, 3)
-                Spacer(minLength: 8)
                 SKKeyTray(caption: "View") {
                     ForEach(CalendarViewMode.allCases) { mode in
                         Button(mode.title) { store.viewMode = mode }
@@ -87,6 +90,7 @@ struct CalendarContainerView: View {
                         .accessibilityLabel("Next")
                 }
                 SyncKeyTray()
+                Spacer(minLength: 8)
                 SKKeyTray(caption: "New") {
                     Button { store.composer = .quickAdd(nil) } label: { Label("Event", systemImage: "plus") }
                         .buttonStyle(.sk1Key(.orange)).help("Quick add an event (⌘N)")
@@ -96,6 +100,11 @@ struct CalendarContainerView: View {
                               detail: store.selectedDay.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
         }
         .padding(12)
+    }
+
+    /// What the title strip says after the nickname: the section, and in the calendar the period shown.
+    private var windowTitle: String {
+        store.section == .upcoming ? "Upcoming" : "Calendar \u{2014} \(title)"
     }
 
     private var title: String {
@@ -249,7 +258,6 @@ struct CalendarSidebarView: View {
             }
         }
         .motionAwareAnimation(value: store.calendars)
-        .navigationSplitViewColumnWidth(min: 190, ideal: 220)
     }
 }
 

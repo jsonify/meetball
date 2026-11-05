@@ -50,7 +50,9 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .id(tab)
         }
-        .frame(width: 780, height: 600)
+        // Skreener's Settings: 810 pt wide under a title strip with the caption and a 6 × 2 grille, and a groove.
+        .sk1WindowChrome(grille: (6, 2), groove: true) { SKCaption("Meetball Settings", tone: .soft) }
+        .frame(width: 810, height: 660)
         .sk1Chassis()
         .navigationTitle("Meetball Settings")
     }
