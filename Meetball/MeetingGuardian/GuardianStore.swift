@@ -64,12 +64,19 @@ public struct GuardianSettings: Codable, Equatable {
     var activeEndHour = 19
     /// System sound played with hard alerts (a name from /System/Library/Sounds).
     var soundName = AlertSound.defaultName
+    /// Notify when an upcoming meeting is moved, gets a new link, or is cancelled (#30).
+    var notifyChanges = true
+    /// Confetti when a meeting is cancelled.
+    var celebrateCancellations = true
+    /// Minutes after the start that auto-join opens a meeting nobody joined yet (#24); 0 = at the start.
+    var autoJoinDelayMinutes = 1
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case style, leadMinutes, alsoAtFiveMinutes, playSound, breakThroughFocus, skipWhileScreenSharing, stillJoiningPrompt,
-             repeatIfNotJoined, warnBeforeSleep, limitToActiveHours, activeStartHour, activeEndHour, soundName
+             repeatIfNotJoined, warnBeforeSleep, limitToActiveHours, activeStartHour, activeEndHour, soundName,
+             notifyChanges, celebrateCancellations, autoJoinDelayMinutes
     }
 
     /// Missing keys keep their defaults, so adding a setting never resets the saved ones.
@@ -89,6 +96,9 @@ public struct GuardianSettings: Codable, Equatable {
         activeStartHour = try v(.activeStartHour, activeStartHour)
         activeEndHour = try v(.activeEndHour, activeEndHour)
         soundName = try v(.soundName, soundName)
+        notifyChanges = try v(.notifyChanges, notifyChanges)
+        celebrateCancellations = try v(.celebrateCancellations, celebrateCancellations)
+        autoJoinDelayMinutes = try v(.autoJoinDelayMinutes, autoJoinDelayMinutes)
     }
 }
 
@@ -115,6 +125,10 @@ public final class MeetingGuardianStore: ObservableObject {
     @Published public var importanceRules: [ImportanceRule] = [] { didSet { save() } }
     /// Events whose alerts the user muted, keyed by event uid, valued by the event's end (pruned once it has passed).
     @Published public private(set) var mutedEvents: [String: Date] = [:] { didSet { save() } }
+    /// Single meetings set to auto-join, keyed by event uid, valued by the event's end (pruned once it has passed).
+    @Published public private(set) var autoJoinEvents: [String: Date] = [:] { didSet { save() } }
+    /// Recurring series set to auto-join, keyed by `AutoJoin.seriesKey`.
+    @Published public private(set) var autoJoinSeries: Set<String> = [] { didSet { save() } }
     private let defaults: UserDefaults
     private var loading = false
 
@@ -129,6 +143,13 @@ public final class MeetingGuardianStore: ObservableObject {
             let now = Date()
             mutedEvents = m.filter { $0.value > now }
         }
+        if let d = defaults.data(forKey: "guardian.autoJoin"), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
+            let now = Date()
+            autoJoinEvents = m.filter { $0.value > now }
+        }
+        if let d = defaults.data(forKey: "guardian.autoJoinSeries"), let s = try? JSONDecoder().decode(Set<String>.self, from: d) {
+            autoJoinSeries = s
+        }
     }
     func save() {
         guard !loading else { return }
@@ -136,6 +157,31 @@ public final class MeetingGuardianStore: ObservableObject {
         if let d = try? JSONEncoder().encode(calendarRules) { defaults.set(d, forKey: "guardian.rules") }
         if let d = try? JSONEncoder().encode(importanceRules) { defaults.set(d, forKey: "guardian.importance") }
         if let d = try? JSONEncoder().encode(mutedEvents) { defaults.set(d, forKey: "guardian.muted") }
+        if let d = try? JSONEncoder().encode(autoJoinEvents) { defaults.set(d, forKey: "guardian.autoJoin") }
+        if let d = try? JSONEncoder().encode(autoJoinSeries) { defaults.set(d, forKey: "guardian.autoJoinSeries") }
+    }
+
+    /// Whether auto-join is on for `e`, and for just this meeting or its whole series.
+    public func autoJoinScope(for e: CalendarEvent) -> AutoJoinScope? {
+        if let key = AutoJoin.seriesKey(e), autoJoinSeries.contains(key) { return .series }
+        return autoJoinEvents[e.uid] != nil ? .occurrence : nil
+    }
+    public func isAutoJoin(_ e: CalendarEvent) -> Bool { autoJoinScope(for: e) != nil }
+    /// nil turns auto-join off for this meeting and (if set) its series.
+    public func setAutoJoin(_ scope: AutoJoinScope?, for e: CalendarEvent) {
+        let series = AutoJoin.seriesKey(e)
+        switch scope {
+        case .occurrence?:
+            if let series { autoJoinSeries.remove(series) }
+            autoJoinEvents[e.uid] = e.end
+        case .series?:
+            guard let series else { autoJoinEvents[e.uid] = e.end; return }
+            autoJoinEvents[e.uid] = nil
+            autoJoinSeries.insert(series)
+        case nil:
+            if let series { autoJoinSeries.remove(series) }
+            autoJoinEvents[e.uid] = nil
+        }
     }
     public func isMuted(_ e: CalendarEvent) -> Bool { mutedEvents[e.uid] != nil }
     public func setMuted(_ muted: Bool, for e: CalendarEvent) {

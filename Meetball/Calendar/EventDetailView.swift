@@ -66,6 +66,7 @@ struct EventDetailPopover: View {
             header
             details
             if let url = event.meetURL { joinRow(url) }
+            if event.meetURL != nil, !event.isAllDay, event.end > Date() { autoJoinRow }
             if !people.isEmpty || event.organizer != nil { attendeesSection }
             if !notes.isEmpty { notesSection }
         }
@@ -125,6 +126,29 @@ struct EventDetailPopover: View {
                 .help("Copy meeting link").accessibilityLabel("Copy meeting link")
             Spacer(minLength: 0)
         }
+    }
+
+    /// Auto-join (#24): off, this meeting, or (for a recurring one) every meeting in the series.
+    private var autoJoinRow: some View {
+        let recurring = AutoJoin.seriesKey(event) != nil
+        let options: [SKSegmented<String>.Option] = recurring
+            ? [.init("off", "Off"), .init(AutoJoinScope.occurrence.rawValue, "This one"), .init(AutoJoinScope.series.rawValue, "Every one")]
+            : [.init("off", "Off"), .init(AutoJoinScope.occurrence.rawValue, "On")]
+        let selection = Binding<String>(
+            get: { guardianStore.autoJoinScope(for: event)?.rawValue ?? "off" },
+            set: { guardianStore.setAutoJoin(AutoJoinScope(rawValue: $0), for: event) })
+        let delay = guardianStore.settings.autoJoinDelayMinutes
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label("Auto-join", systemImage: "bolt.circle").font(.callout)
+                Spacer(minLength: 0)
+                SKSegmented(selection: selection, options: options).frame(width: recurring ? 190 : 110)
+            }
+            if guardianStore.isAutoJoin(event) {
+                Text("Opens at \(AutoJoin.joinTime(event, delayMinutes: delay).shortTime) if you haven't joined yet.").sk1Hint()
+            }
+        }
+        .accessibilityElement(children: .contain)
     }
 
     private var people: [EventAttendee] {

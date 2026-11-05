@@ -10,6 +10,7 @@ struct MenuBarContent: View {
     @EnvironmentObject var calendar: CalendarStore
     @EnvironmentObject var join: JoinController
     @EnvironmentObject var shortcuts: AppShortcuts
+    @EnvironmentObject var guardianStore: MeetingGuardianStore
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @State private var month = Date()
@@ -32,7 +33,7 @@ struct MenuBarContent: View {
                     tiles
                 }
                 .padding([.horizontal, .top], 12)
-                MiniMonthView(month: $month, selection: $scopedDay, dots: dots)
+                MiniMonthView(month: $month, selection: $scopedDay, dots: dots, ribbons: ribbons)
                     .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 8)
                 SKGroove()
                 ScrollView {
@@ -53,8 +54,15 @@ struct MenuBarContent: View {
 
     private var events: [CalendarEvent] { showHidden ? calendar.visibleEvents : calendar.meetingEvents }
 
+    private var ribbons: [Date: [MiniMonthRibbon]] {
+        MiniMonthRibbonBuilder.build(events: events, range: CalendarVisibleRangeBuilder.build(anchor: month))
+    }
+
+    /// Dots for everything not already drawn as a ribbon.
     private var dots: [Date: [String]] {
-        MenuAgendaBuilder.dots(events: events, range: CalendarVisibleRangeBuilder.build(anchor: month))
+        let spanned = MiniMonthRibbonBuilder.uids(ribbons)
+        return MenuAgendaBuilder.dots(events: events.filter { !spanned.contains($0.uid) },
+                                      range: CalendarVisibleRangeBuilder.build(anchor: month))
     }
 
     private var signInPrompt: some View {
@@ -77,7 +85,11 @@ struct MenuBarContent: View {
                     Button("Show upcoming") { scopedDay = nil }.buttonStyle(.sk1Key(size: .small))
                 }
             }
-            if let hero { HeroMeetingCard(event: hero, now: now) }
+            if let hero {
+                HeroMeetingCard(event: hero, now: now,
+                                autoJoinAt: guardianStore.isAutoJoin(hero) && hero.meetURL != nil
+                                    ? AutoJoin.joinTime(hero, delayMinutes: guardianStore.settings.autoJoinDelayMinutes) : nil)
+            }
             if groups.isEmpty && hero == nil {
                 if calendar.loadState == .loading && calendar.events.isEmpty {
                     EmptyStateView(symbol: "arrow.triangle.2.circlepath", title: "Loading your calendars\u{2026}")
@@ -168,11 +180,15 @@ struct MenuBarContent: View {
     }
 }
 
-/// Compact month grid with event dots. Click a day to scope the agenda; click again to clear.
+/// Compact month grid with event dots, and ribbons across the days of multi-day events (#28): away and on-call
+/// stretches also tint the dates they cover. Click a day to scope the agenda; click again to clear.
 struct MiniMonthView: View {
     @Binding var month: Date
     @Binding var selection: Date?
     let dots: [Date: [String]]
+    var ribbons: [Date: [MiniMonthRibbon]] = [:]
+    static let numberSize: CGFloat = 22
+    static let laneHeight: CGFloat = 5
     @AppStorage(AppPreferences.Key.weekNumbers) private var showWeekNumbers = false
     @AppStorage(AppPreferences.Key.highlightWeekends) private var highlightWeekends = true
 
@@ -204,16 +220,58 @@ struct MiniMonthView: View {
                         if showWeekNumbers {
                             Text("\(cal.component(.weekOfYear, from: ws))").font(.caption2.monospacedDigit()).foregroundStyle(.tertiary)
                         }
-                        ForEach(0..<7, id: \.self) { i in
-                            if let d = cal.date(byAdding: .day, value: i, to: ws) { dayCell(d) }
-                        }
+                        weekRow(ws)
+                            .gridCellColumns(7)
                     }
                 }
             }
         }
     }
 
-    private func dayCell(_ day: Date) -> some View {
+    /// A week's seven days, with its ribbons drawn over them.
+    private func weekRow(_ weekStart: Date) -> some View {
+        let cal = Calendar.app
+        let row = ribbons[weekStart] ?? []
+        let lanes = (row.map(\.lane).max() ?? -1) + 1
+        return HStack(spacing: 0) {
+            ForEach(0..<7, id: \.self) { i in
+                if let d = cal.date(byAdding: .day, value: i, to: weekStart) { dayCell(d, column: i, lanes: lanes, ribbons: row) }
+            }
+        }
+        .overlay(alignment: .topLeading) {
+            GeometryReader { geo in
+                let colW = geo.size.width / 7
+                ForEach(row) { r in ribbon(r, colW: colW) }
+            }
+        }
+    }
+
+    /// A rounded bar under the dates (square where it carries on into the next or previous week).
+    private func ribbon(_ r: MiniMonthRibbon, colW: CGFloat) -> some View {
+        let inset: CGFloat = 3
+        let x = colW * CGFloat(r.startColumn) + (r.continuesBefore ? 0 : inset)
+        let w = colW * CGFloat(r.endColumn - r.startColumn + 1) - (r.continuesBefore ? 0 : inset) - (r.continuesAfter ? 0 : inset)
+        let radius: CGFloat = 2
+        let shape = UnevenRoundedRectangle(topLeadingRadius: r.continuesBefore ? 0 : radius, bottomLeadingRadius: r.continuesBefore ? 0 : radius,
+                                           bottomTrailingRadius: r.continuesAfter ? 0 : radius, topTrailingRadius: r.continuesAfter ? 0 : radius)
+        return shape.fill(Color(hex: r.event.colorHex).opacity(r.callout == nil ? 0.75 : 1))
+            .frame(width: max(4, w), height: Self.laneHeight - 1)
+            .help(ribbonHelp(r))
+            .eventDetailOnClick(r.event, arrowEdge: .bottom)
+            .accessibilityLabel(ribbonHelp(r))
+            .offset(x: x, y: Self.numberSize + 2 + CGFloat(r.lane) * Self.laneHeight)
+    }
+
+    private func ribbonHelp(_ r: MiniMonthRibbon) -> String {
+        let e = r.event
+        let last = e.end > e.start ? e.end.addingTimeInterval(-1) : e.start
+        let dates = "\(e.start.formatted(.dateTime.month(.abbreviated).day())) \u{2013} \(last.formatted(.dateTime.month(.abbreviated).day()))"
+        return "\(r.callout.map { "\($0.label): " } ?? "")\(e.title), \(dates)"
+    }
+
+    private func dayCell(_ day: Date, column: Int, lanes: Int, ribbons row: [MiniMonthRibbon]) -> some View {
+        // An away or on-call stretch tints the dates it covers, like a highlighter across the week.
+        let callout = row.first { $0.callout != nil && $0.startColumn <= column && column <= $0.endColumn }
         let cal = Calendar.app
         let isToday = cal.isDateInToday(day)
         let isSelected = selection.map { cal.isDate($0, inSameDayAs: day) } ?? false
@@ -225,12 +283,15 @@ struct MiniMonthView: View {
                 Text("\(cal.component(.day, from: day))")
                     .font(.system(size: 11, weight: isToday ? .bold : .regular).monospacedDigit())
                     .foregroundStyle(isToday ? Color.white : (inMonth ? Color.primary : Color.secondary.opacity(0.6)))
-                    .frame(width: 22, height: 22)
+                    .frame(width: Self.numberSize, height: Self.numberSize)
                     .background {
                         // Orange marks what is "on": today, and (fainter) the scoped day.
                         if isToday { Circle().fill(Color(sk1Hex: SK1.orange)) }
                         else if isSelected { Circle().fill(Color(sk1Hex: SK1.orange, opacity: 0.22)) }
                     }
+                    .frame(maxWidth: .infinity)
+                    .background { if let callout { calloutBand(callout, column: column) } }
+                if lanes > 0 { Color.clear.frame(height: CGFloat(lanes) * Self.laneHeight - 2) }
                 HStack(spacing: 2) {
                     ForEach(dots[cal.startOfDay(for: day)] ?? [], id: \.self) { hex in
                         Circle().fill(Color(hex: hex)).frame(width: 4, height: 4)
@@ -243,8 +304,25 @@ struct MiniMonthView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel((isToday ? "Today, " : "") + day.formatted(.dateTime.weekday(.wide).month(.wide).day())
+                            + (callout.map { ", \($0.callout?.label ?? ""): \($0.event.title)" } ?? "")
                             + ((dots[cal.startOfDay(for: day)] ?? []).isEmpty ? "" : ", has events"))
         .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    /// The tint behind the dates of an away or on-call stretch, rounded where the stretch starts and ends.
+    private func calloutBand(_ r: MiniMonthRibbon, column: Int) -> some View {
+        let first = column == r.startColumn && !r.continuesBefore, last = column == r.endColumn && !r.continuesAfter
+        let radius = Self.numberSize / 2
+        return UnevenRoundedRectangle(topLeadingRadius: first ? radius : 0, bottomLeadingRadius: first ? radius : 0,
+                                      bottomTrailingRadius: last ? radius : 0, topTrailingRadius: last ? radius : 0)
+            .fill(Color(hex: r.event.colorHex).opacity(0.2))
+            .frame(height: Self.numberSize)
+            .overlay(alignment: .topTrailing) {
+                if first, let c = r.callout {
+                    Image(systemName: c.symbol).font(.system(size: 6, weight: .bold)).foregroundStyle(Color(hex: r.event.colorHex))
+                        .offset(x: -1, y: 1).accessibilityHidden(true)
+                }
+            }
     }
 
     private func navButton(_ symbol: String, help: String, _ action: @escaping () -> Void) -> some View {
@@ -261,6 +339,8 @@ struct MiniMonthView: View {
 struct HeroMeetingCard: View {
     let event: CalendarEvent
     let now: Date
+    /// When auto-join opens this meeting, if it's set to.
+    var autoJoinAt: Date? = nil
 
     var body: some View {
         let inProgress = event.start <= now
@@ -285,6 +365,9 @@ struct HeroMeetingCard: View {
                 .font(.caption).foregroundStyle(.secondary)
                 if let loc = event.location, !loc.isEmpty {
                     Label(loc, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if let at = autoJoinAt, at > now {
+                    Label("Auto-joins at \(at.shortTime)", systemImage: "bolt.circle").font(.caption).foregroundStyle(.secondary)
                 }
                 if event.meetURL != nil {
                     JoinButton(event: event, size: .large, fillsWidth: true, key: .cream)

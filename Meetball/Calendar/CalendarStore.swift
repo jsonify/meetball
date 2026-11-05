@@ -64,6 +64,13 @@ public final class CalendarStore: ObservableObject {
         didSet { if oldValue != filters { filters.save() } }
     }
 
+    /// Called on the main actor with the upcoming meetings that changed or were cancelled since the previous sync (#30).
+    var onMeetingChanges: (([MeetingChange]) -> Void)?
+    /// The previous sync, compared with each new one to spot changes.
+    private var snapshot: EventSnapshot?
+    /// Events deleted in Meetball, so their disappearance isn't reported as a cancellation.
+    private var locallyRemoved = Set<String>()
+
     let session: SessionManager
     private var client: GoogleCalendarClient
     private let apple = AppleCalendarClient()
@@ -152,6 +159,7 @@ public final class CalendarStore: ObservableObject {
         defer { isRefreshing = false }
         var expired: [String] = []
         var cals: [GCalendar] = []; var evs: [CalendarEvent] = []; var firstError: String?
+        var loadedKeys = Set<String>(), attemptedKeys = Set<String>()
         // fetch a wider window so the menu bar / guardian always has upcoming events
         let r = visibleRange, m = CalendarVisibleRangeBuilder.build(anchor: menuAnchor)
         let range = DateInterval(start: min(r.start, m.start, Date().addingTimeInterval(-86400)),
@@ -160,9 +168,11 @@ public final class CalendarStore: ObservableObject {
             do {
                 let c = try await client.calendars(email: acct.email)
                 cals += c
+                attemptedKeys.formUnion(c.map(\.key))
                 for cal in c where !hiddenCalendarKeys.contains(cal.key) {
                     if Task.isCancelled { return }
                     evs += try await client.events(for: cal, range: range)
+                    loadedKeys.insert(cal.key)
                 }
             } catch {
                 if case MeetySessionError.noAccount = error {
@@ -176,7 +186,11 @@ public final class CalendarStore: ObservableObject {
             if apple.isAuthorized {
                 let c = apple.calendars()
                 cals += c
-                for cal in c where !hiddenCalendarKeys.contains(cal.key) { evs += apple.events(for: cal, range: range) }
+                attemptedKeys.formUnion(c.map(\.key))
+                for cal in c where !hiddenCalendarKeys.contains(cal.key) {
+                    evs += apple.events(for: cal, range: range)
+                    loadedKeys.insert(cal.key)
+                }
             } else {
                 appleAccessDenied = true
                 firstError = firstError ?? "Calendar access is off. Enable Meetball in System Settings › Privacy & Security › Calendars."
@@ -187,6 +201,21 @@ public final class CalendarStore: ObservableObject {
         loadState = firstError.map { .failed($0) } ?? .loaded
         expiredAccounts = expired
         if firstError == nil { lastSynced = Date() }
+        noteChanges(EventSnapshot(events: evs, calendars: loadedKeys, range: range), attempted: attemptedKeys)
+    }
+
+    /// Compares this sync with the previous one and reports upcoming meetings that moved or disappeared.
+    private func noteChanges(_ current: EventSnapshot, attempted: Set<String>) {
+        let now = Date()
+        // Accounts that failed this time keep their previous events, so they're compared again next sync.
+        let next = current.carryingOver(snapshot, hidden: hiddenCalendarKeys, attempted: attempted)
+        defer { snapshot = next }
+        guard let previous = snapshot else { return }
+        let changes = MeetingChangeDetector.diff(old: previous, new: current, now: now, ignoring: locallyRemoved)
+            .filter { !hiddenCalendarKeys.contains($0.event.calendarKey) && EventFilter.hideReason($0.event, settings: filters) == nil }
+        // A local delete is forgotten once a sync has confirmed it.
+        locallyRemoved.subtract(locallyRemoved.filter { previous.events[$0] != nil && current.events[$0] == nil })
+        if !changes.isEmpty { onMeetingChanges?(changes) }
     }
 
     func toggle(_ cal: GCalendar) {
@@ -209,6 +238,7 @@ public final class CalendarStore: ObservableObject {
         if AppleCalendarClient.isApple(e.accountEmail) { actionError = "Apple Calendar events are read-only in Meetball."; return }
         do {
             try await client.delete(e); events.removeAll { $0.uid == e.uid }
+            locallyRemoved.insert(e.uid)
             Toast.show("Deleted \u{201C}\(e.title)\u{201D}", systemImage: "trash")
         }
         catch { actionError = "Could not delete event: \(error.localizedDescription)" }
