@@ -56,7 +56,8 @@ enum CelebrationOverlay {
         NSSound(named: NSSound.Name("Glass"))?.play()
         NSAccessibility.post(element: NSApp as Any, notification: .announcementRequested,
                              userInfo: [.announcement: "Meeting canceled: \(title)", .priority: NSAccessibilityPriorityLevel.high.rawValue])
-        DispatchQueue.main.asyncAfter(deadline: .now() + duration) {
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(duration))
             guard panel === p else { return }
             NSAnimationContext.runAnimationGroup({ $0.duration = 0.3; p.animator().alphaValue = 0 }) {
                 Task { @MainActor in p.orderOut(nil); if panel === p { panel = nil } }

@@ -48,8 +48,12 @@ final class AutoJoinController {
 
     func tick(events: [CalendarEvent], now: Date = Date()) {
         let delay = store.settings.autoJoinDelayMinutes
-        guard let e = AutoJoin.due(events, now: now, delayMinutes: delay, isAutoJoin: store.isAutoJoin,
-                                   hasJoined: { [opened] e in opened.contains(Self.key(e)) || MeetingJoiner.joined(e, since: e.start.addingTimeInterval(-AutoJoin.earlyJoin)) }),
+        let store = store, done = opened
+        guard let e = AutoJoin.due(events, now: now, delayMinutes: delay, isAutoJoin: { store.isAutoJoin($0) },
+                                   hasJoined: { e in
+                                       done.contains(Self.key(e))
+                                           || MeetingJoiner.joined(e, since: e.start.addingTimeInterval(-AutoJoin.earlyJoin))
+                                   }),
               let url = e.meetURL else { return }
         opened.insert(Self.key(e))
         MeetingJoiner.join(url)

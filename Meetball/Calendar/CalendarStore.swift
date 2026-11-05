@@ -65,7 +65,7 @@ public final class CalendarStore: ObservableObject {
     }
 
     /// Called on the main actor with the upcoming meetings that changed or were cancelled since the previous sync (#30).
-    var onMeetingChanges: (([MeetingChange]) -> Void)?
+    var onMeetingChanges: (@MainActor ([MeetingChange]) -> Void)?
     /// The previous sync, compared with each new one to spot changes.
     private var snapshot: EventSnapshot?
     /// Events deleted in Meetball, so their disappearance isn't reported as a cancellation.
