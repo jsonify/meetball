@@ -48,7 +48,7 @@ struct GoogleCalendarClient {
 
     func events(for cal: GCalendar, range: DateInterval) async throws -> [CalendarEvent] {
         struct L: Decodable {
-            struct T: Decodable { let dateTime: String?; let date: String? }
+            struct T: Decodable { let dateTime: String?; let date: String?; let timeZone: String? }
             struct A: Decodable {
                 let email: String?; let displayName: String?; let responseStatus: String?; let isSelf: Bool?; let organizer: Bool?
                 enum CodingKeys: String, CodingKey { case email, displayName, responseStatus, organizer, isSelf = "self" }
@@ -102,7 +102,8 @@ struct GoogleCalendarClient {
                                                            isOrganizer: $0.organizer ?? false, isSelf: $0.isSelf ?? false)
                                          },
                                          organizerIsSelf: i.organizer?.isSelf ?? false,
-                                         seriesID: i.recurringEventId))
+                                         seriesID: i.recurringEventId,
+                                         timeZoneID: i.start?.timeZone))
             }
             pageToken = page.nextPageToken
         } while pageToken != nil

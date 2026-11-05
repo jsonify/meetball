@@ -70,13 +70,13 @@ public enum TimeGridLayoutBuilder {
     }
 
     /// Minutes from the start of `day` to `date`, clamped to the day.
-    public static func minutes(of date: Date, in day: Date, calendar: Calendar = .current) -> Double {
+    public static func minutes(of date: Date, in day: Date, calendar: Calendar = .app) -> Double {
         let start = calendar.startOfDay(for: day)
         return min(max(date.timeIntervalSince(start) / 60, 0), 24 * 60)
     }
 
     /// Time at a vertical offset in a day column, snapped down to `snapMinutes`.
-    public static func date(atY y: Double, hourHeight: Double, day: Date, snapMinutes: Int = 15, calendar: Calendar = .current) -> Date {
+    public static func date(atY y: Double, hourHeight: Double, day: Date, snapMinutes: Int = 15, calendar: Calendar = .app) -> Date {
         let raw = min(max(y / hourHeight * 60, 0), 24 * 60)
         let snapped = Int(raw / Double(snapMinutes)) * snapMinutes
         return calendar.date(byAdding: .minute, value: snapped, to: calendar.startOfDay(for: day)) ?? day
@@ -84,7 +84,7 @@ public enum TimeGridLayoutBuilder {
 
     /// Start/end for a drag between two offsets; at least one snap interval long.
     public static func dragRange(fromY a: Double, toY b: Double, hourHeight: Double, day: Date, snapMinutes: Int = 15,
-                                 calendar: Calendar = .current) -> NewEventDateRange {
+                                 calendar: Calendar = .app) -> NewEventDateRange {
         let t1 = date(atY: min(a, b), hourHeight: hourHeight, day: day, snapMinutes: snapMinutes, calendar: calendar)
         var t2 = date(atY: max(a, b), hourHeight: hourHeight, day: day, snapMinutes: snapMinutes, calendar: calendar)
         if let next = calendar.date(byAdding: .minute, value: snapMinutes, to: t2), max(a, b) > min(a, b) { t2 = next }
@@ -115,7 +115,7 @@ public enum MenuAgendaBuilder {
     /// - With `scopedDay`: every event on that day (past ones included).
     /// - Otherwise: events that haven't ended, from today through `days` days ahead, capped at `limit` timed events.
     public static func build(events: [CalendarEvent], now: Date, scopedDay: Date? = nil, days: Int = 7, limit: Int = 20,
-                             excluding excluded: String? = nil, calendar: Calendar = .current) -> [AgendaDayGroup] {
+                             excluding excluded: String? = nil, calendar: Calendar = .app) -> [AgendaDayGroup] {
         let first = calendar.startOfDay(for: scopedDay ?? now)
         let dayCount = scopedDay == nil ? days : 1
         var remaining = limit
@@ -141,7 +141,7 @@ public enum MenuAgendaBuilder {
     }
 
     /// Colours of up to three events per day, for the mini month's dots.
-    public static func dots(events: [CalendarEvent], range: DateInterval, calendar: Calendar = .current) -> [Date: [String]] {
+    public static func dots(events: [CalendarEvent], range: DateInterval, calendar: Calendar = .app) -> [Date: [String]] {
         let derived = CalendarDerivedEventsBuilder.build(events: events.filter { !$0.isDeclined }, range: range, calendar: calendar)
         return derived.segmentsByDay.mapValues { segs in
             var seen: [String] = []
@@ -162,7 +162,7 @@ public struct DayMeetingLoad: Identifiable, Equatable {
 public enum MeetingLoadBuilder {
     /// Time in meetings per day for `days` days from `start`: timed, non-declined events, clipped to the day,
     /// with overlapping meetings counted once.
-    public static func build(events: [CalendarEvent], from start: Date, days: Int = 7, calendar: Calendar = .current) -> [DayMeetingLoad] {
+    public static func build(events: [CalendarEvent], from start: Date, days: Int = 7, calendar: Calendar = .app) -> [DayMeetingLoad] {
         let first = calendar.startOfDay(for: start)
         return (0..<max(0, days)).compactMap { i in
             guard let day = calendar.date(byAdding: .day, value: i, to: first),

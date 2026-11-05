@@ -4,7 +4,7 @@ import Foundation
 /// Google returns expanded instances (with `recurringEventId`) but not the rule itself; EventKit events
 /// already carry their recurrence and are left alone.
 public enum RecurrenceClassifier {
-    public static func annotate(_ events: [CalendarEvent], calendar: Calendar = .current) -> [CalendarEvent] {
+    public static func annotate(_ events: [CalendarEvent], calendar: Calendar = .app) -> [CalendarEvent] {
         var bySeries: [String: [Int]] = [:]
         for (i, e) in events.enumerated() where e.recurrence == .none {
             guard let s = e.seriesID else { continue }
@@ -20,7 +20,7 @@ public enum RecurrenceClassifier {
 
     /// Daily when consecutive instances are a day apart (weekends may be skipped), weekly when they're whole
     /// weeks apart, otherwise just "recurring".
-    public static func classify(_ starts: [Date], calendar: Calendar = .current) -> EventRecurrence {
+    public static func classify(_ starts: [Date], calendar: Calendar = .app) -> EventRecurrence {
         let days = Set(starts.map { calendar.startOfDay(for: $0) }).sorted()
         guard days.count >= 2 else { return .other }
         let gaps = zip(days, days.dropFirst()).compactMap { calendar.dateComponents([.day], from: $0, to: $1).day }

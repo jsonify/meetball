@@ -2,31 +2,120 @@ import SwiftUI
 import ServiceManagement
 import SK1UI
 
-struct SettingsView: View {
-    var body: some View {
-        TabView {
-            GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
-            MenuBarSettingsView().tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
-            EventFilterSettingsView().tabItem { Label("Events", systemImage: "line.3.horizontal.decrease.circle") }
-            AccountsSettings().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
-            MeetingGuardianSettingsView().tabItem { Label("Alerts", systemImage: "bell.badge") }
-            JoinSettingsView().tabItem { Label("Joining", systemImage: "video") }
-            SubscriptionSettings().tabItem { Label("Pro", systemImage: "star") }
-        }.frame(width: 620, height: 560)
+/// The Settings window's tabs, in order. Settings search jumps between them.
+enum SettingsTab: String, CaseIterable, Identifiable {
+    case general, appearance, menuBar, events, accounts, alerts, joining, pro
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .appearance: return "Appearance"
+        case .menuBar: return "Menu Bar"
+        case .events: return "Events"
+        case .accounts: return "Accounts"
+        case .alerts: return "Alerts"
+        case .joining: return "Joining"
+        case .pro: return "Pro"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .general: return "gearshape"
+        case .appearance: return "paintpalette"
+        case .menuBar: return "menubar.rectangle"
+        case .events: return "line.3.horizontal.decrease.circle"
+        case .accounts: return "person.crop.circle"
+        case .alerts: return "bell.badge"
+        case .joining: return "video"
+        case .pro: return "star"
+        }
     }
 }
 
+struct SettingsView: View {
+    @State private var tab: SettingsTab = .general
+
+    var body: some View {
+        TabView(selection: $tab) {
+            GeneralSettings(tab: $tab).tabItem { label(.general) }.tag(SettingsTab.general)
+            AppearanceSettings().tabItem { label(.appearance) }.tag(SettingsTab.appearance)
+            MenuBarSettingsView().tabItem { label(.menuBar) }.tag(SettingsTab.menuBar)
+            EventFilterSettingsView().tabItem { label(.events) }.tag(SettingsTab.events)
+            AccountsSettings().tabItem { label(.accounts) }.tag(SettingsTab.accounts)
+            MeetingGuardianSettingsView().tabItem { label(.alerts) }.tag(SettingsTab.alerts)
+            JoinSettingsView().tabItem { label(.joining) }.tag(SettingsTab.joining)
+            SubscriptionSettings().tabItem { label(.pro) }.tag(SettingsTab.pro)
+        }.frame(width: 640, height: 580)
+    }
+
+    private func label(_ t: SettingsTab) -> some View { Label(t.title, systemImage: t.symbol) }
+}
+
 struct GeneralSettings: View {
+    @Binding var tab: SettingsTab
+    @EnvironmentObject var join: JoinController
+    @EnvironmentObject var shortcuts: AppShortcuts
+    @Environment(\.openWindow) private var openWindow
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var query = ""
     @AppStorage("refreshIntervalSeconds") private var refresh: Double = 120
+    @AppStorage(AppPreferences.Key.hideDockIcon) private var hideDockIcon = false
+    @AppStorage(OnboardingState.Key.completed) private var onboardingCompleted = false
+
     var body: some View {
         SK1SettingsPane {
+            SKGroup(caption: "Find a setting") {
+                SKRow(title: "Search") {
+                    SKTextField("Search settings", text: $query, prompt: "Week numbers, shortcut, sound…", height: 30)
+                        .frame(width: 260)
+                }
+                ForEach(SettingsSearch.matches(query)) { hit in
+                    SKRow(title: hit.title, subtitle: "\(hit.tab.title) › \(hit.group)") {
+                        Button("Show") { tab = hit.tab; query = "" }.buttonStyle(.sk1Key(size: .small))
+                    }
+                }
+                if !query.trimmingCharacters(in: .whitespaces).isEmpty && SettingsSearch.matches(query).isEmpty {
+                    SKRow(title: "No matching settings", subtitle: "Try a shorter word, like \u{201C}week\u{201D} or \u{201C}alert\u{201D}.") {
+                        SKLamp(color: .warning, lit: true, label: "No matches")
+                    }
+                }
+            }
             SKGroup(caption: "App") {
                 SKRow(title: "Launch at login", subtitle: "Open Meetball automatically when you sign in to your Mac.") {
                     Toggle("Launch at login", isOn: $launchAtLogin).toggleStyle(.sk1Switch)
                         .onChange(of: launchAtLogin) { _, on in
                             do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { launchAtLogin.toggle() }
                         }
+                }
+                SKRow(title: "Menu bar only", subtitle: "Hide Meetball's Dock icon. The calendar window still opens from the menu bar.") {
+                    Toggle("Menu bar only", isOn: $hideDockIcon).toggleStyle(.sk1Switch)
+                        .onChange(of: hideDockIcon) { _, hide in DockIcon.apply(hidden: hide) }
+                }
+                SKRow(title: "Setup assistant", subtitle: "Walk through connecting calendars, choosing them and picking an alert style again.") {
+                    Button("Run Setup Again") {
+                        onboardingCompleted = false
+                        openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
+                    }
+                    .buttonStyle(.sk1Key(size: .small))
+                }
+            }
+            SKGroup(caption: "Shortcuts", note: "These work from any app. Click a key, then type the new shortcut; it must use ⌘, ⌥ or ⌃.") {
+                SKRow(title: GlobalShortcut.join.title,
+                      subtitle: join.registrationFailed ? "That shortcut is already used by another app. Pick a different one." : "Joins the meeting in progress, or the next one within the look-ahead (Joining).") {
+                    HStack(spacing: 8) {
+                        if join.registrationFailed { SKLamp(color: .danger, lit: true, label: "Shortcut unavailable") }
+                        HotKeyRecorder(combo: $join.hotKey, suspend: join.suspend, resume: join.resume)
+                    }
+                }
+                ForEach(AppShortcuts.managed) { s in
+                    SKRow(title: s.title,
+                          subtitle: shortcuts.failed.contains(s) ? "That shortcut is already used by another app. Pick a different one." : nil) {
+                        HStack(spacing: 8) {
+                            if shortcuts.failed.contains(s) { SKLamp(color: .danger, lit: true, label: "Shortcut unavailable") }
+                            HotKeyRecorder(combo: Binding(get: { shortcuts.combos[s] }, set: { shortcuts.set($0, for: s) }),
+                                           suspend: { shortcuts.suspend(s) }, resume: { shortcuts.resume(s) })
+                        }
+                    }
                 }
             }
             SKGroup(caption: "Sync") {
@@ -36,6 +125,15 @@ struct GeneralSettings: View {
                 }
             }
         }
+    }
+}
+
+/// Menu-bar-only mode: no Dock icon and no app menu while Meetball isn't frontmost.
+@MainActor
+enum DockIcon {
+    static func apply(hidden: Bool) {
+        NSApp.setActivationPolicy(hidden ? .accessory : .regular)
+        if !hidden { NSApp.activate(ignoringOtherApps: true) }
     }
 }
 
@@ -107,14 +205,10 @@ struct JoinSettingsView: View {
 
     var body: some View {
         SK1SettingsPane {
-            SKGroup(caption: "Shortcut",
-                    note: "Works from anywhere. Joins the meeting in progress, or the next one starting within the look-ahead window.") {
-                SKRow(title: "Join nearest meeting",
-                      subtitle: join.registrationFailed ? "That shortcut is already used by another app. Pick a different one." : nil) {
-                    HStack(spacing: 8) {
-                        if join.registrationFailed { SKLamp(color: .danger, lit: true, label: "Shortcut unavailable") }
-                        HotKeyRecorder()
-                    }
+            SKGroup(caption: "Join nearest meeting",
+                    note: "The shortcut (Settings › General › Shortcuts) and the menu bar's Join key join the meeting in progress, or the next one starting within the look-ahead.") {
+                SKRow(title: "Shortcut") {
+                    SKChip(join.hotKey?.display ?? "OFF", minWidth: 64)
                 }
                 SKRow(title: "Look ahead", subtitle: "For meetings that haven't started yet.") {
                     SKKnob("Look ahead", value: $join.windowMinutes, in: 1...60, defaultValue: 10) { "\($0) min" }
@@ -154,7 +248,6 @@ struct MenuBarSettingsView: View {
     @AppStorage(MenuBarTitleSettings.Key.showServiceIcon) private var showServiceIcon = true
     @AppStorage(MenuBarTitleSettings.Key.hideBeyondHours) private var hideBeyondHours = 0
     @AppStorage(MenuBarTitleSettings.Key.pulseWhenSoon) private var pulseWhenSoon = true
-    @AppStorage("menuBar.showWeekNumbers") private var showWeekNumbers = false
 
     private var format: MenuBarTitleFormat { MenuBarTitleFormat(rawValue: formatRaw) ?? .countdown }
     private var showsTitle: Bool { format == .titleCountdown || format == .titleStartTime }
@@ -186,11 +279,7 @@ struct MenuBarSettingsView: View {
                     Toggle("Pulse when a meeting is near", isOn: $pulseWhenSoon).toggleStyle(.sk1Switch)
                 }
             }
-            SKGroup(caption: "Popover") {
-                SKRow(title: "Show week numbers in the mini calendar") {
-                    Toggle("Show week numbers in the mini calendar", isOn: $showWeekNumbers).toggleStyle(.sk1Switch)
-                }
-            }
+            WorldClockSettingsGroup()
         }
     }
 }

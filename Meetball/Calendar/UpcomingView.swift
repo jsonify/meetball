@@ -21,7 +21,31 @@ struct UpcomingView: View {
                 SKGroove()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
-                        if let hero {
+                        if case .failed(let message) = store.loadState {
+                            SKWell {
+                                HStack(spacing: 8) {
+                                    SKLamp(color: .danger, lit: true, label: "Sync failed")
+                                    Text(SyncErrorText.friendly(message)).font(.callout).fixedSize(horizontal: false, vertical: true)
+                                    Spacer(minLength: 8)
+                                    Button("Try Again") { store.refresh() }.buttonStyle(.sk1Key(size: .small))
+                                }
+                                .padding(10)
+                            }
+                        }
+                        if store.loadState == .loading && store.events.isEmpty {
+                            SKWell(radius: SK1.Metrics.plateRadius) {
+                                VStack(alignment: .leading, spacing: 10) {
+                                    Text("Next meeting title goes here").font(.title2.bold())
+                                    Text("9:00 – 10:00 AM · 4 people")
+                                    Text("Join with Google Meet")
+                                }
+                                .padding(16).frame(maxWidth: .infinity, alignment: .leading)
+                                .redacted(reason: .placeholder)
+                                .modifier(Shimmer())
+                            }
+                            .accessibilityElement(children: .ignore)
+                            .accessibilityLabel("Loading your meetings")
+                        } else if let hero {
                             NextMeetingCard(event: hero, now: now)
                             restOfToday(events, now: now, excluding: hero)
                         } else {
@@ -47,12 +71,9 @@ struct UpcomingView: View {
                     Text(now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
-                SKKeyTray(caption: "Sync") {
-                    Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                        .buttonStyle(.sk1Key()).help("Refresh").accessibilityLabel("Refresh")
-                }
+                SyncKeyTray()
                 SKKeyTray(caption: "New") {
-                    Button(action: onNewEvent) { Label("Event", systemImage: "plus") }.buttonStyle(.sk1Key()).help("New event")
+                    Button(action: onNewEvent) { Label("Event", systemImage: "plus") }.buttonStyle(.sk1Key()).help("Quick add an event (⌘N)")
                 }
             }
             MainStatusDisplay(title: "Upcoming", detail: now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
@@ -78,25 +99,25 @@ struct UpcomingView: View {
     // MARK: Selection logic
 
     /// In-progress meeting, else the next one that starts before the end of today.
-    static func nextToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> CalendarEvent? {
+    static func nextToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .app) -> CalendarEvent? {
         let endOfDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
         return MenuAgendaBuilder.hero(events, now: now, horizon: max(0, endOfDay.timeIntervalSince(now) - 1))
     }
 
     /// Timed, not-declined meetings today that haven't ended.
-    static func laterToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> [CalendarEvent] {
+    static func laterToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .app) -> [CalendarEvent] {
         events.filter { !$0.isBarEvent(calendar: calendar) && !$0.isDeclined && $0.end > now && calendar.isDate($0.start, inSameDayAs: now) }
             .sorted { $0.start < $1.start }
     }
 
     /// Hidden timed events in the next week that haven't ended (declined ones never show here anyway).
-    static func hiddenUpcoming(_ hidden: [CalendarEvent], now: Date, calendar: Calendar = .current) -> Int {
+    static func hiddenUpcoming(_ hidden: [CalendarEvent], now: Date, calendar: Calendar = .app) -> Int {
         let horizon = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)) ?? now
         return hidden.filter { !$0.isBarEvent(calendar: calendar) && !$0.isDeclined && $0.end > now && $0.start < horizon }.count
     }
 
     /// The first later day (within what's loaded) that has meetings.
-    static func nextDayPreview(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> (day: Date, events: [CalendarEvent])? {
+    static func nextDayPreview(_ events: [CalendarEvent], now: Date, calendar: Calendar = .app) -> (day: Date, events: [CalendarEvent])? {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: now)) ?? now
         let later = events.filter { !$0.isBarEvent(calendar: calendar) && !$0.isDeclined && $0.start >= tomorrow }.sorted { $0.start < $1.start }
         guard let first = later.first else { return nil }
@@ -152,7 +173,7 @@ private struct NextMeetingCard: View {
     }
 
     private var timeRange: String {
-        "\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))"
+        "\(event.start.shortTime) – \(event.end.shortTime)"
     }
 
     private var people: [EventAttendee] {
@@ -176,7 +197,7 @@ private struct NextMeetingCard: View {
                 Text(inProgress || guardian.plannedAlerts(for: event).isEmpty ? "No more alerts for this meeting" : "Alert already shown")
             } else {
                 Text(upcoming.map { a in
-                    "\(Self.styleName(a.style)) at \(a.fireDate.formatted(date: .omitted, time: .shortened))"
+                    "\(Self.styleName(a.style)) at \(a.fireDate.shortTime)"
                         + (a.lead == 0 ? " (start)" : " (\(a.lead) min before)")
                 }.joined(separator: ", "))
             }
@@ -301,7 +322,7 @@ private struct NoMoreMeetingsView: View {
     }
 
     private func dayTitle(_ d: Date) -> String {
-        Calendar.current.isDateInTomorrow(d) ? "Tomorrow" : d.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        Calendar.app.isDateInTomorrow(d) ? "Tomorrow" : d.formatted(.dateTime.weekday(.wide).month(.wide).day())
     }
 }
 
@@ -333,7 +354,7 @@ private struct WeekLoadStrip: View {
     }
 
     private func column(_ load: DayMeetingLoad, scale: Double) -> some View {
-        let isToday = Calendar.current.isDate(load.day, inSameDayAs: now)
+        let isToday = Calendar.app.isDate(load.day, inSameDayAs: now)
         return VStack(spacing: 4) {
             Text(load.hours == 0 ? "–" : String(format: load.hours < 10 ? "%.1fh" : "%.0fh", load.hours))
                 .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
@@ -344,7 +365,7 @@ private struct WeekLoadStrip: View {
             }
             .frame(height: barHeight)
             Text(load.day, format: .dateTime.weekday(.abbreviated)).font(.caption.weight(isToday ? .bold : .regular))
-            Text("\(Calendar.current.component(.day, from: load.day))")
+            Text("\(Calendar.app.component(.day, from: load.day))")
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(isToday ? Color.white : Color.secondary)
                 .frame(width: 20, height: 20)

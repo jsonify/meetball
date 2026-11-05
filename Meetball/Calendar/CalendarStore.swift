@@ -38,8 +38,15 @@ public final class CalendarStore: ObservableObject {
     @Published public private(set) var loadState: CalendarSidebarLoadState = .idle
     @Published public var hiddenCalendarKeys: Set<String>
     @Published public var anchor = Date()
-    @Published public var selectedDay = Calendar.current.startOfDay(for: Date())
+    @Published public var selectedDay = Calendar.app.startOfDay(for: Date())
     @Published public var actionError: String?
+    /// The event sheet open in the main window (quick add or the full form).
+    @Published var composer: EventComposer?
+    /// When the last load finished without an error.
+    @Published public private(set) var lastSynced: Date?
+    @Published public private(set) var isRefreshing = false
+    /// Google accounts whose sign-in has expired (Settings › Accounts or the sidebar can reconnect them).
+    @Published public private(set) var expiredAccounts: [String] = []
     @Published public var viewMode: CalendarViewMode = .month {
         didSet {
             guard oldValue != viewMode else { return }
@@ -96,7 +103,7 @@ public final class CalendarStore: ObservableObject {
     var visibleRange: DateInterval {
         switch viewMode {
         case .month: return CalendarVisibleRangeBuilder.build(anchor: anchor)
-        case .week, .day: return Calendar.current.dateInterval(of: .weekOfYear, for: selectedDay)!
+        case .week, .day: return Calendar.app.dateInterval(of: .weekOfYear, for: selectedDay)!
         }
     }
 
@@ -105,8 +112,8 @@ public final class CalendarStore: ObservableObject {
         switch viewMode {
         case .day: return [selectedDay]
         case .week, .month:
-            let start = Calendar.current.dateInterval(of: .weekOfYear, for: selectedDay)!.start
-            return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: start) }
+            let start = Calendar.app.dateInterval(of: .weekOfYear, for: selectedDay)!.start
+            return (0..<7).compactMap { Calendar.app.date(byAdding: .day, value: $0, to: start) }
         }
     }
 
@@ -141,6 +148,9 @@ public final class CalendarStore: ObservableObject {
     func load() async {
         guard hasAnySource else { calendars = []; events = []; loadState = .idle; return }
         if calendars.isEmpty { loadState = .loading }
+        isRefreshing = true
+        defer { isRefreshing = false }
+        var expired: [String] = []
         var cals: [GCalendar] = []; var evs: [CalendarEvent] = []; var firstError: String?
         // fetch a wider window so the menu bar / guardian always has upcoming events
         let r = visibleRange, m = CalendarVisibleRangeBuilder.build(anchor: menuAnchor)
@@ -155,7 +165,10 @@ public final class CalendarStore: ObservableObject {
                     evs += try await client.events(for: cal, range: range)
                 }
             } catch {
-                if case MeetySessionError.noAccount = error { session.invalidate(email: acct.email) }
+                if case MeetySessionError.noAccount = error {
+                    session.invalidate(email: acct.email)
+                    expired.append(acct.email)
+                }
                 firstError = error.localizedDescription
             }
         }
@@ -172,6 +185,8 @@ public final class CalendarStore: ObservableObject {
         calendars = cals
         events = RecurrenceClassifier.annotate(evs).sorted { $0.start < $1.start }
         loadState = firstError.map { .failed($0) } ?? .loaded
+        expiredAccounts = expired
+        if firstError == nil { lastSynced = Date() }
     }
 
     func toggle(_ cal: GCalendar) {
@@ -181,18 +196,26 @@ public final class CalendarStore: ObservableObject {
     }
 
     func create(_ draft: NewEventDraft) async -> Bool {
-        do { try await client.create(draft); refresh(); return true }
+        do {
+            try await client.create(draft); refresh()
+            Toast.show(draft.isFocusBlock ? "Focus block added" : "Added \u{201C}\(draft.title.isEmpty ? "event" : draft.title)\u{201D}",
+                       systemImage: "calendar.badge.plus")
+            return true
+        }
         catch { actionError = draft.isFocusBlock ? "Could not add focus block: \(error.localizedDescription)" : "Could not create event: \(error.localizedDescription)"; return false }
     }
 
     func delete(_ e: CalendarEvent) async {
         if AppleCalendarClient.isApple(e.accountEmail) { actionError = "Apple Calendar events are read-only in Meetball."; return }
-        do { try await client.delete(e); events.removeAll { $0.uid == e.uid } }
+        do {
+            try await client.delete(e); events.removeAll { $0.uid == e.uid }
+            Toast.show("Deleted \u{201C}\(e.title)\u{201D}", systemImage: "trash")
+        }
         catch { actionError = "Could not delete event: \(error.localizedDescription)" }
     }
 
     func shiftMonth(_ n: Int) {
-        anchor = Calendar.current.date(byAdding: .month, value: n, to: anchor) ?? anchor
+        anchor = Calendar.app.date(byAdding: .month, value: n, to: anchor) ?? anchor
         refresh()
     }
 
@@ -200,14 +223,14 @@ public final class CalendarStore: ObservableObject {
     func step(_ n: Int) {
         switch viewMode {
         case .month: shiftMonth(n)
-        case .week: select(Calendar.current.date(byAdding: .day, value: 7 * n, to: selectedDay) ?? selectedDay)
+        case .week: select(Calendar.app.date(byAdding: .day, value: 7 * n, to: selectedDay) ?? selectedDay)
         case .day: moveSelectedDay(n)
         }
     }
 
     /// Moves the selected day (J / K); the visible month/week follows.
     func moveSelectedDay(_ n: Int) {
-        select(Calendar.current.date(byAdding: .day, value: n, to: selectedDay) ?? selectedDay)
+        select(Calendar.app.date(byAdding: .day, value: n, to: selectedDay) ?? selectedDay)
     }
 
     func goToday() {
@@ -218,13 +241,13 @@ public final class CalendarStore: ObservableObject {
     /// Selects a day and refetches only when the visible range changed.
     func select(_ day: Date) {
         let before = visibleRange
-        selectedDay = Calendar.current.startOfDay(for: day)
+        selectedDay = Calendar.app.startOfDay(for: day)
         anchor = selectedDay
         if visibleRange != before { refresh() }
     }
 
     func setMenuAnchor(_ month: Date) {
-        let cal = Calendar.current
+        let cal = Calendar.app
         guard !cal.isDate(month, equalTo: menuAnchor, toGranularity: .month) else { return }
         menuAnchor = month
         refresh()

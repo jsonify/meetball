@@ -59,52 +59,121 @@ public struct HotKeyCombo: Codable, Equatable {
         return map[code]
     }
 
-    /// Missing or unreadable value → default shortcut; empty string → user cleared it.
-    static func load(_ d: UserDefaults = .standard) -> HotKeyCombo? {
-        guard let s = d.string(forKey: defaultsKey) else { return defaultCombo }
+    /// Missing or unreadable value → `fallback`; empty string → user cleared it.
+    static func load(_ d: UserDefaults = .standard, key: String = defaultsKey,
+                     fallback: HotKeyCombo? = defaultCombo) -> HotKeyCombo? {
+        guard let s = d.string(forKey: key) else { return fallback }
         guard !s.isEmpty else { return nil }
-        return (try? JSONDecoder().decode(HotKeyCombo.self, from: Data(s.utf8))) ?? defaultCombo
+        return (try? JSONDecoder().decode(HotKeyCombo.self, from: Data(s.utf8))) ?? fallback
     }
 
-    static func save(_ c: HotKeyCombo?, _ d: UserDefaults = .standard) {
+    static func save(_ c: HotKeyCombo?, _ d: UserDefaults = .standard, key: String = defaultsKey) {
         let s = c.flatMap { try? JSONEncoder().encode($0) }.flatMap { String(data: $0, encoding: .utf8) } ?? ""
-        d.set(s, forKey: defaultsKey)
+        d.set(s, forKey: key)
     }
 }
 
-/// Registers one system-wide hotkey via Carbon (works inside the App Sandbox, no Accessibility permission).
+/// The system-wide shortcuts Meetball offers (Settings › General › Shortcuts).
+enum GlobalShortcut: UInt32, CaseIterable, Identifiable {
+    case join = 1, openPopover = 2, quickAdd = 3
+    var id: UInt32 { rawValue }
+
+    var title: String {
+        switch self {
+        case .join: return "Join nearest meeting"
+        case .openPopover: return "Open the menu bar popover"
+        case .quickAdd: return "Quick add an event"
+        }
+    }
+
+    var defaultsKey: String {
+        switch self {
+        case .join: return HotKeyCombo.defaultsKey
+        case .openPopover: return "shortcut.openPopover"
+        case .quickAdd: return "shortcut.quickAdd"
+        }
+    }
+
+    /// Join has a default (⌃⌥⌘J); the others are off until recorded.
+    var defaultCombo: HotKeyCombo? { self == .join ? .defaultCombo : nil }
+}
+
+/// Registers Meetball's system-wide hotkeys via Carbon (works inside the App Sandbox, no Accessibility permission).
 @MainActor
 final class GlobalHotKeyCenter {
     static let shared = GlobalHotKeyCenter()
-    var action: (@MainActor () -> Void)?
-    private var hotKeyRef: EventHotKeyRef?
+    private var actions: [UInt32: @MainActor () -> Void] = [:]
+    private var hotKeyRefs: [UInt32: EventHotKeyRef] = [:]
     private var handlerRef: EventHandlerRef?
 
+    func setAction(for shortcut: GlobalShortcut, _ action: @escaping @MainActor () -> Void) {
+        actions[shortcut.rawValue] = action
+    }
+
     @discardableResult
-    func register(_ combo: HotKeyCombo?) -> Bool {
-        unregister()
+    func register(_ combo: HotKeyCombo?, for shortcut: GlobalShortcut) -> Bool {
+        unregister(shortcut)
         guard let combo else { return true }
         installHandlerIfNeeded()
-        let id = EventHotKeyID(signature: OSType(0x4D42_484B) /* 'MBHK' */, id: 1)
+        let id = EventHotKeyID(signature: OSType(0x4D42_484B) /* 'MBHK' */, id: shortcut.rawValue)
         var ref: EventHotKeyRef?
         let status = RegisterEventHotKey(combo.keyCode, combo.carbonModifiers, id, GetApplicationEventTarget(), 0, &ref)
-        guard status == noErr else { return false }
-        hotKeyRef = ref
+        guard status == noErr, let ref else { return false }
+        hotKeyRefs[shortcut.rawValue] = ref
         return true
     }
 
-    func unregister() {
-        if let hotKeyRef { UnregisterEventHotKey(hotKeyRef) }
-        hotKeyRef = nil
+    func unregister(_ shortcut: GlobalShortcut) {
+        if let ref = hotKeyRefs.removeValue(forKey: shortcut.rawValue) { UnregisterEventHotKey(ref) }
     }
+
+    fileprivate func fire(_ id: UInt32) { actions[id]?() }
 
     private func installHandlerIfNeeded() {
         guard handlerRef == nil else { return }
         var spec = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
-        InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in
-            Task { @MainActor in GlobalHotKeyCenter.shared.action?() }
+        InstallEventHandler(GetApplicationEventTarget(), { _, event, _ in
+            guard let event else { return OSStatus(eventNotHandledErr) }
+            var hotKey = EventHotKeyID()
+            let status = GetEventParameter(event, EventParamName(kEventParamDirectObject), EventParamType(typeEventHotKeyID),
+                                           nil, MemoryLayout<EventHotKeyID>.size, nil, &hotKey)
+            guard status == noErr else { return status }
+            let id = hotKey.id
+            Task { @MainActor in GlobalHotKeyCenter.shared.fire(id) }
             return noErr
         }, 1, &spec, nil, &handlerRef)
+    }
+}
+
+/// The recorded shortcuts other than Join (which `JoinController` owns): opening the popover and quick add.
+@MainActor
+final class AppShortcuts: ObservableObject {
+    @Published private(set) var combos: [GlobalShortcut: HotKeyCombo] = [:]
+    @Published private(set) var failed: Set<GlobalShortcut> = []
+    static let managed: [GlobalShortcut] = [.openPopover, .quickAdd]
+
+    init() {
+        for s in Self.managed {
+            combos[s] = HotKeyCombo.load(key: s.defaultsKey, fallback: s.defaultCombo)
+            register(s)
+        }
+    }
+
+    func setAction(for shortcut: GlobalShortcut, _ action: @escaping @MainActor () -> Void) {
+        GlobalHotKeyCenter.shared.setAction(for: shortcut, action)
+    }
+
+    func set(_ combo: HotKeyCombo?, for shortcut: GlobalShortcut) {
+        combos[shortcut] = combo
+        HotKeyCombo.save(combo, key: shortcut.defaultsKey)
+        register(shortcut)
+    }
+
+    func suspend(_ shortcut: GlobalShortcut) { GlobalHotKeyCenter.shared.unregister(shortcut) }
+    func resume(_ shortcut: GlobalShortcut) { register(shortcut) }
+
+    private func register(_ s: GlobalShortcut) {
+        if GlobalHotKeyCenter.shared.register(combos[s], for: s) { failed.remove(s) } else { failed.insert(s) }
     }
 }
 
@@ -112,7 +181,7 @@ final class GlobalHotKeyCenter {
 @MainActor
 final class JoinController: ObservableObject {
     @Published var hotKey: HotKeyCombo? {
-        didSet { HotKeyCombo.save(hotKey); registrationFailed = !GlobalHotKeyCenter.shared.register(hotKey) }
+        didSet { HotKeyCombo.save(hotKey); registrationFailed = !GlobalHotKeyCenter.shared.register(hotKey, for: .join) }
     }
     @Published var windowMinutes: Int = 10 {
         didSet { JoinPreferences().joinWindowMinutes = windowMinutes }
@@ -124,13 +193,13 @@ final class JoinController: ObservableObject {
         self.calendar = calendar
         hotKey = HotKeyCombo.load()
         windowMinutes = JoinPreferences().joinWindowMinutes
-        GlobalHotKeyCenter.shared.action = { [weak self] in self?.joinNearest() }
-        registrationFailed = !GlobalHotKeyCenter.shared.register(hotKey)
+        GlobalHotKeyCenter.shared.setAction(for: .join) { [weak self] in self?.joinNearest() }
+        registrationFailed = !GlobalHotKeyCenter.shared.register(hotKey, for: .join)
     }
 
     /// Temporarily releases the shortcut (e.g. while recording a new one).
-    func suspend() { GlobalHotKeyCenter.shared.unregister() }
-    func resume() { registrationFailed = !GlobalHotKeyCenter.shared.register(hotKey) }
+    func suspend() { GlobalHotKeyCenter.shared.unregister(.join) }
+    func resume() { registrationFailed = !GlobalHotKeyCenter.shared.register(hotKey, for: .join) }
 
     func joinNearest(now: Date = Date()) {
         guard let calendar else { return }
@@ -183,21 +252,27 @@ private struct ToastView: View {
     }
 }
 
-/// Click, then press a key combination (must include ⌘, ⌥ or ⌃). Esc cancels.
+/// Click, then press a key combination (must include ⌘, ⌥ or ⌃). Esc cancels. The shortcut being recorded is released
+/// meanwhile, so pressing it again doesn't fire it.
 struct HotKeyRecorder: View {
-    @EnvironmentObject var join: JoinController
+    @Binding var combo: HotKeyCombo?
+    var suspend: () -> Void = {}
+    var resume: () -> Void = {}
     @State private var recording = false
     @State private var monitor: Any?
 
     var body: some View {
         HStack(spacing: 6) {
             Button { recording ? stop() : start() } label: {
-                Text(recording ? "Type shortcut…" : (join.hotKey?.display ?? "Record shortcut"))
+                Text(recording ? "Type shortcut…" : (combo?.display ?? "Record shortcut"))
                     .frame(minWidth: 110)
             }
-            if join.hotKey != nil && !recording {
-                Button { join.hotKey = nil } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.borderless).help("Clear shortcut")
+            .buttonStyle(.sk1Key(isOn: recording, size: .small))
+            .help(recording ? "Press the new shortcut, or Esc to cancel" : "Click to record a new shortcut")
+            if combo != nil && !recording {
+                Button { combo = nil } label: { Image(systemName: "xmark") }
+                    .buttonStyle(.sk1Key(.round, size: .small))
+                    .help("Clear shortcut").accessibilityLabel("Clear shortcut")
             }
         }
         .onDisappear(perform: stop)
@@ -205,11 +280,11 @@ struct HotKeyRecorder: View {
 
     private func start() {
         recording = true
-        join.suspend()
+        suspend()
         monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { ev in
             if Int(ev.keyCode) == kVK_Escape { stop(); return nil }
             guard !ev.modifierFlags.intersection([.command, .option, .control]).isEmpty else { NSSound.beep(); return nil }
-            join.hotKey = HotKeyCombo(event: ev)
+            combo = HotKeyCombo(event: ev)
             stop()
             return nil
         }
@@ -218,6 +293,6 @@ struct HotKeyRecorder: View {
     private func stop() {
         if let monitor { NSEvent.removeMonitor(monitor) }
         monitor = nil
-        if recording { recording = false; join.resume() }
+        if recording { recording = false; resume() }
     }
 }

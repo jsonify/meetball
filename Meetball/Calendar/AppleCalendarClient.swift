@@ -51,7 +51,8 @@ final class AppleCalendarClient {
                                  calendarAppURL: e.eventIdentifier.flatMap(Self.calendarAppURL),
                                  organizerIsSelf: e.organizer?.isCurrentUser ?? people.isEmpty,
                                  seriesID: e.hasRecurrenceRules ? e.calendarItemIdentifier : nil,
-                                 recurrence: Self.recurrence(e))
+                                 recurrence: Self.recurrence(e),
+                                 timeZoneID: e.timeZone?.identifier)
         }
     }
 

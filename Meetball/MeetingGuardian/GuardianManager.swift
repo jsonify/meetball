@@ -47,9 +47,8 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     init(store: MeetingGuardianStore, subs: SubscriptionManager) {
         self.store = store; self.subs = subs
         super.init()
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] ok, _ in
-            Task { @MainActor in self?.authorizationDenied = !ok }
-        }
+        // First launch asks in context, on the setup assistant's alerts step; after that, ask (or re-read) at launch.
+        if UserDefaults.standard.bool(forKey: OnboardingState.Key.completed) { requestAuthorization() } else { refreshAuthorization() }
         let center = UNUserNotificationCenter.current()
         center.delegate = self
         let join = UNNotificationAction(identifier: Self.joinActionID, title: "Join", options: [.foreground])
@@ -58,6 +57,30 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         let ws = NSWorkspace.shared.notificationCenter
         ws.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
         ws.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willPowerOffNotification, object: nil)
+    }
+
+    /// Notification permission: allowed, denied, or not asked yet.
+    @Published private(set) var notificationStatus: UNAuthorizationStatus = .notDetermined
+
+    /// Asks for notification permission (macOS only shows the prompt the first time).
+    func requestAuthorization() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] ok, _ in
+            Task { @MainActor in
+                self?.authorizationDenied = !ok
+                self?.refreshAuthorization()
+            }
+        }
+    }
+
+    /// Re-reads the notification permission without asking.
+    func refreshAuthorization() {
+        UNUserNotificationCenter.current().getNotificationSettings { [weak self] settings in
+            let status = settings.authorizationStatus
+            Task { @MainActor in
+                self?.notificationStatus = status
+                self?.authorizationDenied = status == .denied
+            }
+        }
     }
 
     var policy: AlertPolicy {
@@ -129,7 +152,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
 
     private func outsideActiveHours(_ now: Date = Date()) -> Bool {
         let s = store.settings; guard s.limitToActiveHours else { return false }
-        let h = Calendar.current.component(.hour, from: now)
+        let h = Calendar.app.component(.hour, from: now)
         return h < s.activeStartHour || h >= s.activeEndHour
     }
 

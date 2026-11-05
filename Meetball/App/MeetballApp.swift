@@ -10,6 +10,7 @@ final class AppModel: ObservableObject {
     let calendar: CalendarStore
     let guardian: MeetingGuardianManager
     let join: JoinController
+    let shortcuts = AppShortcuts()
     @Published var now = Date()
     @Published private(set) var menuBarTitle = MenuBarTitle.idle
     /// Tinted phase of the menu bar icon; alternates every second while a meeting is about to start.
@@ -20,8 +21,15 @@ final class AppModel: ObservableObject {
 
     init() {
         calendar = CalendarStore(session: session)
+        // Before Meeting Guardian starts: it asks for notification permission at launch only once setup is done.
+        OnboardingState.migrate(hasSource: calendar.hasAnySource)
         guardian = MeetingGuardianManager(store: guardianStore, subs: subs)
         join = JoinController(calendar: calendar)
+        shortcuts.setAction(for: .openPopover) { StatusItemOpener.toggle() }
+        shortcuts.setAction(for: .quickAdd) { [calendar] in QuickAddPanel.show(store: calendar) }
+        if UserDefaults.standard.bool(forKey: AppPreferences.Key.hideDockIcon) {
+            DispatchQueue.main.async { DockIcon.apply(hidden: true) }
+        }
         // @Published emits before the new value is stored, so hop to the next main-loop turn before reading state back.
         // Guardian only alerts for events that pass the meeting-first rules (Settings › Events).
         bag.append(subs.$entitlementState.receive(on: DispatchQueue.main)
@@ -78,7 +86,7 @@ struct MeetballApp: App {
         Window("Meetball", id: "main") {
             CalendarContainerView().frame(minWidth: 900, minHeight: 560)
                 .environmentObject(model.session).environmentObject(model.calendar).environmentObject(model.subs)
-                .environmentObject(model.guardianStore).environmentObject(model.guardian)
+                .environmentObject(model.guardianStore).environmentObject(model.guardian).environmentObject(model.shortcuts)
         }
         .commands {
             CommandGroup(before: .toolbar) {
@@ -88,20 +96,28 @@ struct MeetballApp: App {
                         .keyboardShortcut(KeyEquivalent(mode.shortcut), modifiers: .command)
                 }
                 Divider()  // sk1-audit: ignore (a menu item separator)
+                Button("Refresh Calendars") { model.calendar.refresh() }.keyboardShortcut("r", modifiers: .command)
+                Divider()  // sk1-audit: ignore (a menu item separator)
             }
-            CommandGroup(after: .newItem) {
+            CommandGroup(replacing: .newItem) {
+                Button("New Event\u{2026}") {
+                    WindowOpener.openMain()
+                    model.calendar.composer = .quickAdd(nil)
+                }
+                .keyboardShortcut("n", modifiers: .command)
                 Button("Join Nearest Meeting") { model.join.joinNearest() }
             }
         }
         MenuBarExtra {
             MenuBarContent().environmentObject(model).environmentObject(model.session).environmentObject(model.calendar)
-                .environmentObject(model.join).environmentObject(model.guardianStore)
+                .environmentObject(model.join).environmentObject(model.guardianStore).environmentObject(model.shortcuts)
         } label: {
             MenuBarLabelView(title: model.menuBarTitle, highlighted: model.menuBarHighlighted)
         }.menuBarExtraStyle(.window)
         Settings {
             SettingsView().environmentObject(model.session).environmentObject(model.calendar).environmentObject(model.subs)
                 .environmentObject(model.guardianStore).environmentObject(model.guardian).environmentObject(model.join)
+                .environmentObject(model.shortcuts)
         }
     }
 }
