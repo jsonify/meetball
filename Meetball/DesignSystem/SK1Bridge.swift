@@ -69,3 +69,21 @@ struct SK1CountdownLCD: View {
         .accessibilityLabel(Text(accessibilityText))
     }
 }
+
+/// The main window's LCD under the toolbar (as Skreener's editor display): what is shown at the left, the meeting in
+/// progress or the next one in the middle, and how many meetings are left today in seven-segment digits, with the
+/// LIVE lamp blinking while a meeting is on.
+struct MainStatusDisplay: View {
+    let title: String
+    let detail: String
+    @EnvironmentObject var store: CalendarStore
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 15)) { ctx in
+            let line = MeetingStatusText.line(store.meetingEvents, now: ctx.date)
+            SKDisplay(title: title, detail: detail, message: line.message,
+                      number: MeetingStatusText.remainingToday(store.meetingEvents, now: ctx.date), digits: 2,
+                      unit: "LEFT", live: line.live)
+        }
+    }
+}

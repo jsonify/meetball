@@ -2,7 +2,8 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-/// Menu bar popover (SK-1 look): mini month, hero card for the next meeting, agenda grouped by day with a "now" line.
+/// Menu bar popover, laid out as Skreener's launcher: an LCD strip (the next meeting, or the key under the pointer),
+/// big keys for the main actions, the mini month and agenda, and a tray of captioned keys.
 struct MenuBarContent: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var session: SessionManager
@@ -15,15 +16,22 @@ struct MenuBarContent: View {
     @State private var contentHeight: CGFloat = 0
     /// "Show anyway": include events hidden by the meeting-first rules.
     @State private var showHidden = false
-    private let maxScrollHeight: CGFloat = 440
+    /// The key under the pointer, for the LCD strip: its name and its shortcut or what it would do.
+    @State private var hovered: (name: String, detail: String)?
+    private let maxScrollHeight: CGFloat = 400
 
     var body: some View {
         VStack(spacing: 0) {
             if !calendar.hasAnySource {
                 signInPrompt
             } else {
+                VStack(spacing: 8) {
+                    statusStrip
+                    tiles
+                }
+                .padding([.horizontal, .top], 12)
                 MiniMonthView(month: $month, selection: $scopedDay, dots: dots)
-                    .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
+                    .padding(.horizontal, 12).padding(.top, 10).padding(.bottom, 8)
                 SKGroove()
                 ScrollView {
                     agenda
@@ -74,7 +82,6 @@ struct MenuBarContent: View {
                     .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 12)
             }
             ForEach(groups) { AgendaDaySection(group: $0, now: now, showHeader: scopedDay == nil) }
-            HiddenEventsToggle(count: hiddenCount(now: now), showing: $showHidden)
         }
         .padding(12)
     }
@@ -85,43 +92,66 @@ struct MenuBarContent: View {
             .reduce(0) { $0 + $1.allDay.count + $1.timed.count }
     }
 
-    private var footer: some View {
-        HStack(spacing: 8) {
-            SKKeyTray {
-                FooterKey(symbol: "macwindow", help: "Open Meetball (⌘O)") {
-                    openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
-                }.keyboardShortcut("o")
-                FooterKey(symbol: "arrow.clockwise", help: "Refresh (⌘R)") { calendar.refresh() }.keyboardShortcut("r")
-                FooterKey(symbol: "gearshape", help: "Settings (⌘,)") {
-                    openSettings(); NSApp.activate(ignoringOtherApps: true)
-                }.keyboardShortcut(",")
-            }
-            Spacer()
-            if let k = join.hotKey {
-                HStack(spacing: 5) {
-                    SKCaption("Join", tone: .soft)
-                    SKChip(k.display)
-                }
-                .help("Press \(k.display) anywhere to join the nearest meeting")
-            }
-            // The charcoal key: an action apart from the rest.
-            FooterKey(symbol: "power", help: "Quit Meetball (⌘Q)", variant: .charcoal) { NSApp.terminate(nil) }
-                .keyboardShortcut("q")
-        }
-        .padding(.horizontal, 10).padding(.vertical, 8)
+    /// The LCD strip: the meeting in progress or the next one, or the name of the key under the pointer.
+    private var statusStrip: some View {
+        let resting = MeetingStatusText.strip(calendar.meetingEvents, now: model.now)
+        return SKStatusStrip(title: hovered?.name ?? "Meetball", detail: hovered?.detail ?? resting.detail,
+                             lamp: hovered == nil && resting.live ? .danger : nil)
     }
-}
 
-/// A symbol-only SK-1 key for the popover's footer.
-private struct FooterKey: View {
-    let symbol: String; let help: String
-    var variant: SK1KeyVariant = .cream
-    let action: () -> Void
-    var body: some View {
-        Button(action: action) { Image(systemName: symbol) }
-            .buttonStyle(.sk1Key(variant))
-            .help(help)
-            .accessibilityLabel(Text(help))
+    /// The main actions as big keys in a tray; Join is the orange one, lit up when there is something to join.
+    private var tiles: some View {
+        let next = NearestMeetingPicker.pick(calendar.meetingEvents, now: model.now, window: TimeInterval(join.windowMinutes * 60))
+        let symbol = next?.meetURL.map { MeetingService.detect($0).symbol } ?? "video"
+        let shortcut = join.hotKey?.display
+        return SKWell {
+            HStack(alignment: .top, spacing: 4) {
+                SKTile("Join", systemImage: symbol, legend: shortcut, variant: .orange,
+                       onHover: hover(next.map { "Join \($0.title)" } ?? "Join", next == nil ? "NOTHING TO JOIN" : (shortcut ?? ""))) {
+                    join.joinNearest()
+                }
+                .disabled(next == nil)
+                SKTile("Calendar", systemImage: "macwindow", legend: "⌘O", onHover: hover("Open Meetball", "⌘O")) {
+                    openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
+                }
+                .keyboardShortcut("o")
+                SKTile("Refresh", systemImage: "arrow.clockwise", legend: "⌘R", onHover: hover("Refresh calendars", "⌘R")) {
+                    calendar.refresh()
+                }
+                .keyboardShortcut("r")
+            }
+            .padding(6)
+        }
+    }
+
+    /// The footer tray: back to today, show filtered events (lit while shown), and the charcoal Settings and Quit.
+    private var footer: some View {
+        let hidden = hiddenCount(now: model.now)
+        return SKKeyGroup {
+            SKCaptionedKey("Today", systemImage: "calendar.circle", onHover: hover("Back to today", "")) {
+                month = Date(); scopedDay = nil
+            }
+            SKCaptionedKey("Filtered", systemImage: "line.3.horizontal.decrease.circle", lamp: showHidden,
+                           onHover: hover(showHidden ? "Hide filtered events" : "Show filtered events", "\(hidden) HIDDEN")) {
+                showHidden.toggle()
+            }
+            SKCaptionedKey("Settings", systemImage: "gearshape", variant: .charcoal, onHover: hover("Settings", "⌘,")) {
+                openSettings(); NSApp.activate(ignoringOtherApps: true)
+            }
+            .keyboardShortcut(",")
+            SKCaptionedKey("Quit", systemImage: "power", variant: .charcoal, onHover: hover("Quit Meetball", "⌘Q")) {
+                NSApp.terminate(nil)
+            }
+            .keyboardShortcut("q")
+        }
+        .padding(12)
+    }
+
+    /// Shows a key's name and detail on the strip while the pointer is over it.
+    private func hover(_ name: String, _ detail: String) -> (Bool) -> Void {
+        { inside in
+            if inside { hovered = (name, detail) } else if hovered?.name == name { hovered = nil }
+        }
     }
 }
 
@@ -239,7 +269,7 @@ struct HeroMeetingCard: View {
                     Label(loc, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
                 if event.meetURL != nil {
-                    JoinButton(event: event, size: .large, fillsWidth: true, key: .orange)
+                    JoinButton(event: event, size: .large, fillsWidth: true, key: .cream)
                 } else {
                     Text("No video link").sk1Hint()
                 }

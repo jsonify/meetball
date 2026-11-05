@@ -40,15 +40,22 @@ struct UpcomingView: View {
     }
 
     private func header(now: Date) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Upcoming").font(.title2.bold())
-                Text(now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.callout).foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Upcoming").font(.title2.bold())
+                    Text(now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+                SKKeyTray(caption: "Sync") {
+                    Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.sk1Key()).help("Refresh").accessibilityLabel("Refresh")
+                }
+                SKKeyTray(caption: "New") {
+                    Button(action: onNewEvent) { Label("Event", systemImage: "plus") }.buttonStyle(.sk1Key()).help("New event")
+                }
             }
-            Spacer()
-            Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
-                .buttonStyle(.sk1Key()).help("Refresh").accessibilityLabel("Refresh")
-            Button(action: onNewEvent) { Label("New event", systemImage: "plus") }.buttonStyle(.sk1Key(.orange))
+            MainStatusDisplay(title: "Upcoming", detail: now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
         }
         .padding(12)
     }

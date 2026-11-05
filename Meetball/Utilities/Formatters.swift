@@ -34,6 +34,33 @@ public enum SK1CountdownDigits {
     }
 }
 
+/// What the SK-1 LCDs say about the meeting in progress or the next one (popover strip, main window display).
+public enum MeetingStatusText {
+    /// The meeting the LCDs talk about: the one in progress, else the next within a week.
+    static func current(_ events: [CalendarEvent], now: Date) -> CalendarEvent? {
+        MenuAgendaBuilder.hero(events, now: now, horizon: 7 * 86400)
+    }
+
+    /// The popover strip's detail: "NOW · 20M LEFT", "NEXT IN 1H 5M", or "NO MEETINGS AHEAD"; `live` while one is on.
+    public static func strip(_ events: [CalendarEvent], now: Date) -> (detail: String, live: Bool) {
+        guard let e = current(events, now: now) else { return ("NO MEETINGS AHEAD", false) }
+        if e.start <= now { return ("NOW · \(TimeUntilFormatter.string(until: e.end, now: now).uppercased()) LEFT", true) }
+        return ("NEXT IN \(TimeUntilFormatter.string(until: e.start, now: now).uppercased())", false)
+    }
+
+    /// The main window display's line: "Standup · 20m left", "Standup · in 1h 5m", or "No meetings ahead".
+    public static func line(_ events: [CalendarEvent], now: Date) -> (message: String, live: Bool) {
+        guard let e = current(events, now: now) else { return ("No meetings ahead", false) }
+        if e.start <= now { return ("\(e.title) · \(TimeUntilFormatter.string(until: e.end, now: now)) left", true) }
+        return ("\(e.title) · in \(TimeUntilFormatter.string(until: e.start, now: now))", false)
+    }
+
+    /// Timed, not-declined meetings today that haven't ended.
+    public static func remainingToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> Int {
+        events.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now && calendar.isDate($0.start, inSameDayAs: now) }.count
+    }
+}
+
 public struct NewEventDateRange: Equatable {
     public var start: Date
     public var end: Date

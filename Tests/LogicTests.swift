@@ -14,6 +14,21 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(TimeUntilFormatter.string(until: now.addingTimeInterval(4800), now: now), "1h 20m")
     }
 
+    func testMeetingStatusText() {
+        let now = cal.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 10))!
+        XCTAssertTrue(MeetingStatusText.strip([], now: now) == ("NO MEETINGS AHEAD", false))
+        XCTAssertTrue(MeetingStatusText.line([], now: now) == ("No meetings ahead", false))
+        let on = ev("Standup", now.addingTimeInterval(-600), now.addingTimeInterval(1200))
+        XCTAssertTrue(MeetingStatusText.strip([on], now: now) == ("NOW · 20M LEFT", true))
+        XCTAssertTrue(MeetingStatusText.line([on], now: now) == ("Standup · 20m left", true))
+        let next = ev("Review", now.addingTimeInterval(3900), now.addingTimeInterval(7200))
+        XCTAssertTrue(MeetingStatusText.strip([next], now: now) == ("NEXT IN 1H 5M", false))
+        XCTAssertTrue(MeetingStatusText.line([next], now: now) == ("Review · in 1h 5m", false))
+        let ended = ev("Earlier", now.addingTimeInterval(-7200), now.addingTimeInterval(-3600))
+        let tomorrow = ev("Tomorrow", now.addingTimeInterval(86400), now.addingTimeInterval(90000))
+        XCTAssertEqual(MeetingStatusText.remainingToday([on, next, ended, tomorrow], now: now), 2)
+    }
+
     func testSK1CountdownDigits() {
         XCTAssertTrue(SK1CountdownDigits.compact(-30) == ("1", "MIN"))
         XCTAssertTrue(SK1CountdownDigits.compact(61) == ("2", "MIN"))

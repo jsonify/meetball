@@ -52,24 +52,35 @@ struct CalendarContainerView: View {
         }
     }
 
+    /// Captioned key trays, as Skreener's editor toolbar, over the LCD display.
     var header: some View {
-        HStack {
-            Text(title).font(.title2.bold()).lineLimit(1)
-            Spacer()
-            SKSegmented(selection: $store.viewMode,
-                        options: CalendarViewMode.allCases.map { SKSegmented<CalendarViewMode>.Option($0, $0.title) })
-                .fixedSize()
-                .help("Day ⌘1 · Week ⌘2 · Month ⌘3")
-            SKKeyTray {
-                Button { store.step(-1) } label: { Image(systemName: "chevron.left") }
-                    .buttonStyle(.sk1Key()).help("Previous (←)").accessibilityLabel("Previous")
-                Button("Today") { store.goToday() }.buttonStyle(.sk1Key()).help("Today (T)")
-                Button { store.step(1) } label: { Image(systemName: "chevron.right") }
-                    .buttonStyle(.sk1Key()).help("Next (→)").accessibilityLabel("Next")
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Text(title).font(.title2.bold()).lineLimit(1).padding(.top, 3)
+                Spacer(minLength: 8)
+                SKKeyTray(caption: "View") {
+                    ForEach(CalendarViewMode.allCases) { mode in
+                        Button(mode.title) { store.viewMode = mode }
+                            .buttonStyle(.sk1Key(isOn: store.viewMode == mode))
+                            .help("\(mode.title) (⌘\(mode.shortcut))")
+                    }
+                }
+                SKKeyTray(caption: "Go") {
+                    Button { store.step(-1) } label: { Image(systemName: "chevron.left") }
+                        .buttonStyle(.sk1Key()).help("Previous (←)").accessibilityLabel("Previous")
+                    Button("Today") { store.goToday() }.buttonStyle(.sk1Key()).help("Today (T)")
+                    Button { store.step(1) } label: { Image(systemName: "chevron.right") }
+                        .buttonStyle(.sk1Key()).help("Next (→)").accessibilityLabel("Next")
+                }
+                SKKeyTray(caption: "New") {
+                    Button { formRange = nil; showForm = true } label: { Label("Event", systemImage: "plus") }
+                        .buttonStyle(.sk1Key(.orange)).help("New event")
+                }
             }
-            Button { formRange = nil; showForm = true } label: { Label("New event", systemImage: "plus") }
-                .buttonStyle(.sk1Key(.orange))
-        }.padding(12)
+            MainStatusDisplay(title: store.viewMode.title,
+                              detail: store.selectedDay.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
+        }
+        .padding(12)
     }
 
     private var title: String {

@@ -32,10 +32,8 @@ struct GeneralSettings: View {
             }
             SKGroup(caption: "Sync") {
                 SKRow(title: "Refresh Google Calendar", subtitle: "How often Meetball checks Google Calendar for changes.") {
-                    Picker("Refresh Google Calendar", selection: $refresh) {
-                        Text("Every minute").tag(60.0); Text("Every 2 minutes").tag(120.0); Text("Every 5 minutes").tag(300.0)
-                    }
-                    .labelsHidden().fixedSize()
+                    SKKnob("Refresh Google Calendar", selection: $refresh,
+                           stops: [("1 min", 60.0), ("2 min", 120.0), ("5 min", 300.0)], defaultValue: 120.0)
                 }
             }
         }
@@ -101,21 +99,14 @@ struct JoinSettingsView: View {
                     }
                 }
                 SKRow(title: "Look ahead", subtitle: "For meetings that haven't started yet.") {
-                    Stepper("\(join.windowMinutes) min", value: $join.windowMinutes, in: 1...60).fixedSize()
+                    SKKnob("Look ahead", value: $join.windowMinutes, in: 1...60, defaultValue: 10) { "\($0) min" }
                 }
             }
             SKGroup(caption: "Open meeting links in") {
                 ForEach(MeetingService.allCases) { service in
-                    SKRow(title: service.displayName) {
-                        Picker(service.displayName, selection: binding(for: service)) {
-                            if service.hasNativeApp { Text("\(service.shortName) app (falls back to browser)").tag(JoinOpenMode.nativeApp.raw) }
-                            Text("Default browser").tag(JoinOpenMode.defaultBrowser.raw)
-                            if !browsers.isEmpty {
-                                Divider()
-                                ForEach(browsers) { b in Text(b.name).tag(JoinOpenMode.browser(bundleID: b.bundleID).raw) }
-                            }
-                        }
-                        .labelsHidden().fixedSize()
+                    SKRow(title: service.displayName,
+                          subtitle: service.hasNativeApp ? "The \(service.shortName) app falls back to the browser if it isn't installed." : nil) {
+                        SKPicker(selection: binding(for: service), options: openOptions(for: service), stepper: false)
                     }
                 }
             }
@@ -124,6 +115,13 @@ struct JoinSettingsView: View {
             browsers = MeetingJoiner.installedBrowsers()
             for s in MeetingService.allCases { modes[s] = prefs.mode(for: s).raw }
         }
+    }
+
+    /// Where a service's links can open: its app, the default browser, or an installed browser.
+    private func openOptions(for service: MeetingService) -> [SKPicker<String>.Option] {
+        (service.hasNativeApp ? [SKPicker<String>.Option(JoinOpenMode.nativeApp.raw, "\(service.shortName) app")] : [])
+            + [SKPicker<String>.Option(JoinOpenMode.defaultBrowser.raw, "Default browser")]
+            + browsers.map { SKPicker<String>.Option(JoinOpenMode.browser(bundleID: $0.bundleID).raw, $0.name) }
     }
 
     private func binding(for s: MeetingService) -> Binding<String> {
@@ -147,31 +145,19 @@ struct MenuBarSettingsView: View {
         SK1SettingsPane {
             SKGroup(caption: "Title",
                     note: "While a meeting is in progress the item shows \"now\" and the time left.") {
-                SKRow(title: "Show") {
-                    Picker("Show", selection: $formatRaw) {
-                        ForEach(MenuBarTitleFormat.allCases) { f in
-                            Text(f.example.isEmpty ? f.title : "\(f.title)  (\(f.example))").tag(f.rawValue)
-                        }
-                    }
-                    .labelsHidden().fixedSize()
+                SKRow(title: "Show", subtitle: format.example.isEmpty ? "Only the icon." : "For example \u{201C}\(format.example)\u{201D}.") {
+                    SKPicker(selection: $formatRaw,
+                             options: MenuBarTitleFormat.allCases.map { SKPicker<String>.Option($0.rawValue, $0.title) })
                 }
                 SKRow(title: "Longest title",
                       subtitle: "Longer titles are cut with \u{2026} so the item never crowds out other menu bar icons.") {
-                    HStack {
-                        Slider(value: Binding(get: { Double(maxTitleLength) }, set: { maxTitleLength = Int($0.rounded()) }),
-                               in: Double(MenuBarTitleSettings.titleLengthRange.lowerBound)...Double(MenuBarTitleSettings.titleLengthRange.upperBound),
-                               step: 1)
-                            .frame(width: 140)
-                        SKChip("\(maxTitleLength) chars", minWidth: 70)
-                    }
+                    SKKnob("Longest title", value: $maxTitleLength, in: MenuBarTitleSettings.titleLengthRange,
+                           defaultValue: MenuBarTitleSettings().maxTitleLength) { "\($0) chars" }
                 }
                 .disabled(!showsTitle)
-                SKRow(title: "Show text") {
-                    Picker("Show text", selection: $hideBeyondHours) {
-                        Text("Always").tag(0)
-                        ForEach([1, 2, 4, 8, 12], id: \.self) { h in Text("When a meeting starts within \(h) hour\(h == 1 ? "" : "s")").tag(h) }
-                    }
-                    .labelsHidden().fixedSize()
+                SKRow(title: "Show text", subtitle: "Hide the title until a meeting is this close.") {
+                    SKPicker(selection: $hideBeyondHours,
+                             options: [0, 1, 2, 4, 8, 12].map { SKPicker<Int>.Option($0, $0 == 0 ? "Always" : "Within \($0) h") })
                 }
             }
             SKGroup(caption: "Icon", note: "The icon turns orange when a meeting is less than 5 minutes away.") {
