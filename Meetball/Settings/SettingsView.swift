@@ -199,6 +199,7 @@ struct SubscriptionSettings: View {
 
 struct JoinSettingsView: View {
     @EnvironmentObject var join: JoinController
+    @EnvironmentObject var guardianStore: MeetingGuardianStore
     @State private var browsers: [InstalledBrowser] = []
     @State private var modes: [MeetingService: String] = [:]
     private let prefs = JoinPreferences()
@@ -212,6 +213,13 @@ struct JoinSettingsView: View {
                 }
                 SKRow(title: "Look ahead", subtitle: "For meetings that haven't started yet.") {
                     SKKnob("Look ahead", value: $join.windowMinutes, in: 1...60, defaultValue: 10) { "\($0) min" }
+                }
+            }
+            SKGroup(caption: "Auto-join",
+                    note: "Turn auto-join on for a meeting from its details (click it in the menu bar or the calendar). If you haven't joined through Meetball by then, it opens the meeting for you, the way the links below say.") {
+                SKRow(title: "Join", subtitle: "Meetings more than 5 minutes past this point are left alone, for example after your Mac wakes up.") {
+                    SKPicker(selection: $guardianStore.settings.autoJoinDelayMinutes,
+                             options: AutoJoin.delayOptions.map { SKPicker<Int>.Option($0, $0 == 0 ? "At the start" : "\($0) min after the start") })
                 }
             }
             SKGroup(caption: "Open meeting links in") {
@@ -248,12 +256,27 @@ struct MenuBarSettingsView: View {
     @AppStorage(MenuBarTitleSettings.Key.showServiceIcon) private var showServiceIcon = true
     @AppStorage(MenuBarTitleSettings.Key.hideBeyondHours) private var hideBeyondHours = 0
     @AppStorage(MenuBarTitleSettings.Key.pulseWhenSoon) private var pulseWhenSoon = true
+    @AppStorage(MenuBarTitleSettings.Key.style) private var styleRaw = MenuBarStyle.plain.rawValue
+    @AppStorage(MenuBarTitleSettings.Key.showDate) private var showDate = false
 
     private var format: MenuBarTitleFormat { MenuBarTitleFormat(rawValue: formatRaw) ?? .countdown }
     private var showsTitle: Bool { format == .titleCountdown || format == .titleStartTime }
 
     var body: some View {
         SK1SettingsPane {
+            SKGroup(caption: "Look") {
+                SKRow(title: "Style", subtitle: styleRaw == MenuBarStyle.lcd.rawValue
+                      ? "A small olive LCD, like the one at the top of the menu." : "The system's own menu bar text.") {
+                    SKSegmented(selection: $styleRaw, options: MenuBarStyle.allCases.map { SKSegmented<String>.Option($0.rawValue, $0.title) })
+                        .frame(width: 160)
+                }
+                SKRow(title: "Show the day and date", subtitle: "For example \u{201C}\(MenuBarTitleBuilder.dateText(Date()))\u{201D}, before the countdown.") {
+                    Toggle("Show the day and date", isOn: $showDate).toggleStyle(.sk1Switch)
+                }
+                SKRow(title: "Preview") {
+                    MenuBarPreview(style: MenuBarStyle(rawValue: styleRaw) ?? .plain, showDate: showDate)
+                }
+            }
             SKGroup(caption: "Title",
                     note: "While a meeting is in progress the item shows \"now\" and the time left.") {
                 SKRow(title: "Show", subtitle: format.example.isEmpty ? "Only the icon." : "For example \u{201C}\(format.example)\u{201D}.") {
@@ -281,5 +304,31 @@ struct MenuBarSettingsView: View {
             }
             WorldClockSettingsGroup()
         }
+    }
+}
+
+/// What the menu bar item looks like with the chosen style, for a meeting 12 minutes away.
+private struct MenuBarPreview: View {
+    let style: MenuBarStyle
+    let showDate: Bool
+
+    var body: some View {
+        let title = MenuBarTitle(text: "12m", symbol: "video.fill", isSoon: false, inProgress: false,
+                                 date: showDate ? MenuBarTitleBuilder.dateText(Date()) : nil)
+        Group {
+            if style == .lcd {
+                MenuBarLCDView(title: title, highlighted: false)
+            } else {
+                HStack(spacing: 5) {
+                    Image(systemName: title.symbol)
+                    Text(title.plainText)
+                }
+                .font(.system(size: 13))
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 4).fill(Color.primary.opacity(0.08)))
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Preview: \(title.plainText)")
     }
 }

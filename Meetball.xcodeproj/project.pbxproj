@@ -7,6 +7,12 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B4A2C08D382ED0CB67D3F18 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 854BAF93AB8B5A2F9366B194 /* Assets.xcassets */; };
+		9A4C03ECBE7A62046D61601D /* MeetingUpdatesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F610ADCE0BD383A6ABC5648 /* MeetingUpdatesTests.swift */; };
+		E2AB8E817C50CE50210D4452 /* MeetingChangeNotifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7954BD6EEA4AB601A1FFAA90 /* MeetingChangeNotifier.swift */; };
+		985FBE0716DE24B9630CB271 /* AutoJoin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EF64629CE2C33F79CC5A10A /* AutoJoin.swift */; };
+		613547DE2E5E2541F61D33F9 /* MiniMonthRibbons.swift in Sources */ = {isa = PBXBuildFile; fileRef = B8084A566FE698DD1807D3FB /* MiniMonthRibbons.swift */; };
+		F8A810F31CD16893190D4C2B /* MeetingChanges.swift in Sources */ = {isa = PBXBuildFile; fileRef = E302C33F7791D5AA145022AE /* MeetingChanges.swift */; };
 		10C9F5CD162515E79F49BA2B /* SK1Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D2BBFF26F257BDDE2302A0 /* SK1Bridge.swift */; };
 		12BAAE4354AAC1CA560C987B /* EventChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFC640401CE18CCFE020D0D9 /* EventChip.swift */; };
 		663D02E0D9728374123C316E /* SK1Tokens in Frameworks */ = {isa = PBXBuildFile; productRef = 1945594868575EE999DCCC62 /* SK1Tokens */; };
@@ -67,6 +73,12 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		854BAF93AB8B5A2F9366B194 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		6F610ADCE0BD383A6ABC5648 /* MeetingUpdatesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingUpdatesTests.swift; sourceTree = "<group>"; };
+		7954BD6EEA4AB601A1FFAA90 /* MeetingChangeNotifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingChangeNotifier.swift; sourceTree = "<group>"; };
+		1EF64629CE2C33F79CC5A10A /* AutoJoin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoJoin.swift; sourceTree = "<group>"; };
+		B8084A566FE698DD1807D3FB /* MiniMonthRibbons.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniMonthRibbons.swift; sourceTree = "<group>"; };
+		E302C33F7791D5AA145022AE /* MeetingChanges.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingChanges.swift; sourceTree = "<group>"; };
 		72464D3D6CFFA8A104CA6BFF /* TimeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeGridView.swift; sourceTree = "<group>"; };
 		1E75BF501DE17E5E005D50D0 /* TimeGridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeGridLayout.swift; sourceTree = "<group>"; };
 		CD098851D5D05244273C8B4E /* MenuBarViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarViews.swift; sourceTree = "<group>"; };
@@ -135,6 +147,8 @@
 		414803E5FF7504E226E72BA6 /* MeetingGuardian */ = {
 			isa = PBXGroup;
 			children = (
+				7954BD6EEA4AB601A1FFAA90 /* MeetingChangeNotifier.swift */,
+				1EF64629CE2C33F79CC5A10A /* AutoJoin.swift */,
 				171A447A0837120E4D502060 /* AlertPolicy.swift */,
 				F70EFA4732AC9FC257AF68E9 /* GuardianSettingsView.swift */,
 				459F00052D74703344E4150B /* GuardianManager.swift */,
@@ -157,6 +171,7 @@
 		673B443AAE675B7CD27E18AD /* Meetball */ = {
 			isa = PBXGroup;
 			children = (
+				854BAF93AB8B5A2F9366B194 /* Assets.xcassets */,
 				E62613057E6DD164566C4B5E /* Info.plist */,
 				4E193061FCD918216FE7DB79 /* Meetball.entitlements */,
 				E0228AD2BB8C125DA331F474 /* App */,
@@ -175,6 +190,8 @@
 		7460F7FED0A4782D52B4599C /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
+				B8084A566FE698DD1807D3FB /* MiniMonthRibbons.swift */,
+				E302C33F7791D5AA145022AE /* MeetingChanges.swift */,
 				0903A2AFC13747F21522FC78 /* Recurrence.swift */,
 				36AD2C0304CADAA2A4A9EB01 /* EventFilter.swift */,
 				21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */,
@@ -204,6 +221,7 @@
 		891429ABE2105F6DC4F6C044 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				6F610ADCE0BD383A6ABC5648 /* MeetingUpdatesTests.swift */,
 				F1A3C0341D3D29C34932CD71 /* AlertPolicyTests.swift */,
 				ABC37929D941CE0261272472 /* GuardianAlertTests.swift */,
 				A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */,
@@ -300,6 +318,7 @@
 			buildConfigurationList = E167677CF3F6FD6AC90946DB /* Build configuration list for PBXNativeTarget "Meetball" */;
 			buildPhases = (
 				CB70B20B538D79EE8149E776 /* Sources */,
+				781C774F390DF12CD292A30B /* Resources */,
 				8BCB694459113062FEE5B99B /* Frameworks */,
 			);
 			buildRules = (
@@ -375,11 +394,23 @@
 		};
 /* End PBXProject section */
 
+/* Begin PBXResourcesBuildPhase section */
+		781C774F390DF12CD292A30B /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2B4A2C08D382ED0CB67D3F18 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		07190016AFAE7FDD0522A2E5 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				9A4C03ECBE7A62046D61601D /* MeetingUpdatesTests.swift in Sources */,
 				F5AC8F94533DC3749D96DE8D /* AlertPolicyTests.swift in Sources */,
 				AED34368EA1906BA8714238F /* GuardianAlertTests.swift in Sources */,
 				D91BCAA673BC62B6F4E5C0B6 /* EventFilterTests.swift in Sources */,
@@ -392,6 +423,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E2AB8E817C50CE50210D4452 /* MeetingChangeNotifier.swift in Sources */,
+				985FBE0716DE24B9630CB271 /* AutoJoin.swift in Sources */,
+				613547DE2E5E2541F61D33F9 /* MiniMonthRibbons.swift in Sources */,
+				F8A810F31CD16893190D4C2B /* MeetingChanges.swift in Sources */,
 				57CA01BC831A9139D549D6E8 /* AlertPolicy.swift in Sources */,
 				C38332E9EF59E1E40534A312 /* Recurrence.swift in Sources */,
 				B2638DFF04247D1B279E39DF /* GuardianSettingsView.swift in Sources */,

@@ -154,7 +154,17 @@ public struct InstalledBrowser: Identifiable, Hashable {
 /// Single entry point for opening meeting links, so every Join button behaves the same way.
 @MainActor
 public enum MeetingJoiner {
+    /// When each meeting link was last opened through Meetball, so auto-join (#24) leaves joined meetings alone.
+    private static var lastJoined: [String: Date] = [:]
+
+    /// Whether `e`'s link was opened through Meetball at or after `since`.
+    public static func joined(_ e: CalendarEvent, since: Date) -> Bool {
+        guard let u = e.meetURL, let at = lastJoined[u.absoluteString] else { return false }
+        return at >= since
+    }
+
     public static func join(_ url: URL, preferences: JoinPreferences = JoinPreferences()) {
+        lastJoined[url.absoluteString] = Date()
         let ws = NSWorkspace.shared
         let service = MeetingService.detect(url)
         switch preferences.mode(for: service) {

@@ -77,6 +77,20 @@ struct MeetingGuardianSettingsView: View {
                     }
                 }
             }
+            SKGroup(caption: "Meeting changes",
+                    note: "For meetings in the next 48 hours. Meetball compares each sync with the last one, so changes show up within a refresh.") {
+                SKRow(title: "Notify when a meeting changes", subtitle: "Moved to another time, given a new join link, or cancelled.") {
+                    Toggle("Notify when a meeting changes", isOn: $store.settings.notifyChanges).toggleStyle(.sk1Switch)
+                }
+                SKRow(title: "Celebrate cancellations", subtitle: "Confetti and a chime when a meeting is called off.") {
+                    HStack(spacing: 8) {
+                        Button("Preview") { CelebrationOverlay.show(title: "Design review") }
+                            .buttonStyle(.sk1Key(size: .small))
+                        Toggle("Celebrate cancellations", isOn: $store.settings.celebrateCancellations).toggleStyle(.sk1Switch)
+                    }
+                }
+                .disabled(!store.settings.notifyChanges)
+            }
             VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
                 SKCaption("Calendars", tone: .soft).accessibilityAddTraits(.isHeader)
                 SKWell {

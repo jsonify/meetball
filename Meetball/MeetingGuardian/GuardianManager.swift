@@ -119,7 +119,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         for e in events where !e.isAllDay && e.end > now && !store.isMuted(e) {
             guard let style = effectiveStyle(for: e) else { continue }
             for lead in leadMinutes {
-                schedule(e.start.addingTimeInterval(-Double(lead) * 60), key: "\(e.uid)|lead\(lead)", now: now) { [weak self] in
+                schedule(e.start.addingTimeInterval(-Double(lead) * 60), key: "\(e.uid)|\(Int(e.start.timeIntervalSince1970))|lead\(lead)", now: now) { [weak self] in
                     self?.present(e, style: style, lead: lead)
                 }
             }
@@ -130,7 +130,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
                 }
             }
             if s.stillJoiningPrompt && subs.isPremiumActive && e.meetURL != nil {
-                schedule(e.start.addingTimeInterval(120), key: "\(e.uid)|late", now: now) { [weak self] in
+                schedule(e.start.addingTimeInterval(120), key: "\(e.uid)|\(Int(e.start.timeIntervalSince1970))|late", now: now) { [weak self] in
                     guard let self, !self.joined.contains(e.uid) else { return }
                     self.presentStillJoining(e)
                 }

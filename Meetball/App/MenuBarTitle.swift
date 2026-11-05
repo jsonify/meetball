@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
 /// What the menu bar item shows next to its icon.
 public enum MenuBarTitleFormat: String, CaseIterable, Identifiable {
@@ -25,6 +27,16 @@ public enum MenuBarTitleFormat: String, CaseIterable, Identifiable {
     }
 }
 
+/// How the menu bar item is drawn (#26).
+public enum MenuBarStyle: String, CaseIterable, Identifiable {
+    /// The system's own icon and text.
+    case plain
+    /// A small olive SK-1 LCD with the countdown (and the day and date) in its ink.
+    case lcd
+    public var id: String { rawValue }
+    public var title: String { self == .plain ? "Plain" : "LCD" }
+}
+
 /// Menu bar preferences (Settings › Menu Bar). Stored in UserDefaults under `menuBar.*`.
 public struct MenuBarTitleSettings: Equatable {
     public var format: MenuBarTitleFormat = .countdown
@@ -33,6 +45,9 @@ public struct MenuBarTitleSettings: Equatable {
     /// Only show text when the next meeting starts within this many hours; 0 = always.
     public var hideBeyondHours = 0
     public var pulseWhenSoon = true
+    public var style: MenuBarStyle = .plain
+    /// Show the day and date ("Thu, Nov 5") before the countdown.
+    public var showDate = false
 
     enum Key {
         static let format = "menuBar.format"
@@ -40,6 +55,8 @@ public struct MenuBarTitleSettings: Equatable {
         static let showServiceIcon = "menuBar.showServiceIcon"
         static let hideBeyondHours = "menuBar.hideBeyondHours"
         static let pulseWhenSoon = "menuBar.pulseWhenSoon"
+        static let style = "menuBar.style"
+        static let showDate = "menuBar.showDate"
         /// Pre-format toggle; `false` maps to `.iconOnly` until a format is chosen.
         static let legacyShowCountdown = "showCountdownInMenuBar"
     }
@@ -60,6 +77,8 @@ public struct MenuBarTitleSettings: Equatable {
         showServiceIcon = defaults.object(forKey: Key.showServiceIcon) as? Bool ?? true
         hideBeyondHours = max(0, defaults.object(forKey: Key.hideBeyondHours) as? Int ?? 0)
         pulseWhenSoon = defaults.object(forKey: Key.pulseWhenSoon) as? Bool ?? true
+        style = defaults.string(forKey: Key.style).flatMap(MenuBarStyle.init(rawValue:)) ?? .plain
+        showDate = defaults.object(forKey: Key.showDate) as? Bool ?? false
     }
 }
 
@@ -70,8 +89,13 @@ public struct MenuBarTitle: Equatable {
     /// The next meeting starts within `MenuBarTitleBuilder.soonWindow`.
     public var isSoon: Bool
     public var inProgress: Bool
+    /// The day and date, when Settings › Menu Bar shows it.
+    public var date: String? = nil
 
     public static let idle = MenuBarTitle(text: "", symbol: MenuBarTitleBuilder.defaultSymbol, isSoon: false, inProgress: false)
+
+    /// Everything as one line for the plain style: "Thu, Nov 5 · 12m".
+    public var plainText: String { [date, text.isEmpty ? nil : text].compactMap { $0 }.joined(separator: "  ") }
 }
 
 public enum MenuBarTitleBuilder {
@@ -84,7 +108,22 @@ public enum MenuBarTitleBuilder {
     }
 
     public static func build(next: CalendarEvent?, now: Date, settings: MenuBarTitleSettings,
-                             calendar: Calendar = .app) -> MenuBarTitle {
+                             calendar: Calendar = .app, locale: Locale = .current) -> MenuBarTitle {
+        var title = meetingTitle(next: next, now: now, settings: settings, calendar: calendar)
+        if settings.showDate { title.date = dateText(now, calendar: calendar, locale: locale) }
+        return title
+    }
+
+    /// "Thu, Nov 5" in the user's locale and calendar.
+    public static func dateText(_ now: Date, calendar: Calendar = .app, locale: Locale = .current) -> String {
+        let f = DateFormatter()
+        f.calendar = calendar; f.timeZone = calendar.timeZone; f.locale = locale
+        f.setLocalizedDateFormatFromTemplate("EEEMMMd")
+        return f.string(from: now)
+    }
+
+    private static func meetingTitle(next: CalendarEvent?, now: Date, settings: MenuBarTitleSettings,
+                                     calendar: Calendar) -> MenuBarTitle {
         guard let e = next, e.end > now else { return .idle }
         let inProgress = e.start <= now
         let until = e.start.timeIntervalSince(now)
@@ -132,10 +171,68 @@ struct MenuBarLabelView: View {
     let title: MenuBarTitle
     /// Tinted phase of the "starting soon" pulse.
     let highlighted: Bool
+    /// The LCD style's pre-rendered item (a menu bar label only draws images and text).
+    var lcd: NSImage? = nil
 
     var body: some View {
-        Image(nsImage: MenuBarIcon.image(symbol: title.symbol, tint: highlighted ? .systemOrange : nil))
-        if !title.text.isEmpty { Text(title.text) }
+        if let lcd {
+            Image(nsImage: lcd).accessibilityLabel(Text(title.plainText.isEmpty ? "Meetball" : "Meetball, \(title.plainText)"))
+        } else {
+            Image(nsImage: MenuBarIcon.image(symbol: title.symbol, tint: highlighted ? .systemOrange : nil))
+            if !title.plainText.isEmpty { Text(title.plainText) }
+        }
+    }
+}
+
+/// The LCD menu bar item (#26): olive chip glass with the icon, the day and date, and the countdown in the LCD's ink;
+/// an orange lamp lights while a meeting is about to start.
+struct MenuBarLCDView: View {
+    let title: MenuBarTitle
+    let highlighted: Bool
+    static let height: CGFloat = 18
+
+    var body: some View {
+        HStack(spacing: 5) {
+            if highlighted {
+                SKLamp(color: .orange, lit: true, glow: 3, size: 5)
+            }
+            Image(systemName: title.symbol).font(.system(size: 10, weight: .semibold))
+            if let date = title.date {
+                Text(date.uppercased()).font(.system(size: 10.5, weight: .heavy, design: .monospaced)).tracking(0.4)
+            }
+            if title.date != nil && !title.text.isEmpty {
+                Rectangle().fill(Color(sk1Hex: SK1.lcdInk, opacity: 0.3)).frame(width: 1, height: 10)
+            }
+            if !title.text.isEmpty {
+                Text(title.text.uppercased()).font(.system(size: 10.5, weight: .bold, design: .monospaced)).tracking(0.3)
+            }
+        }
+        .lineLimit(1)
+        .foregroundStyle(Color(sk1Hex: SK1.lcdInk))
+        .padding(.horizontal, 6)
+        .frame(height: Self.height)
+        .background(SKGlass(.chip, radius: 4))
+        .fixedSize()
+    }
+}
+
+@MainActor
+enum MenuBarLCDRenderer {
+    private static var cache: (key: String, image: NSImage)?
+
+    /// Renders `MenuBarLCDView` at the screen's scale; the same title and phase reuse the last image.
+    static func image(title: MenuBarTitle, highlighted: Bool, dark: Bool) -> NSImage? {
+        let key = "\(title.symbol)|\(title.date ?? "")|\(title.text)|\(highlighted)|\(dark)"
+        if let cache, cache.key == key { return cache.image }
+        let scale = NSScreen.main?.backingScaleFactor ?? 2
+        let renderer = ImageRenderer(content: MenuBarLCDView(title: title, highlighted: highlighted)
+            .environment(\.colorScheme, dark ? .dark : .light))
+        renderer.scale = scale
+        guard let cg = renderer.cgImage else { return nil }
+        let image = NSImage(cgImage: cg, size: NSSize(width: CGFloat(cg.width) / scale, height: CGFloat(cg.height) / scale))
+        image.isTemplate = false
+        cache = (key, image)
+        return image
     }
 }
 
