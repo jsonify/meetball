@@ -1,5 +1,7 @@
 import AppKit
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
 /// Video-conferencing service a meeting link belongs to.
 public enum MeetingService: String, CaseIterable, Identifiable {
@@ -40,7 +42,7 @@ public enum MeetingService: String, CaseIterable, Identifiable {
         case .zoom: return Color(hex: "#2D8CFF")
         case .teams: return Color(hex: "#5B5FC7")
         case .webex: return Color(hex: "#0A7E9E")
-        case .other: return .accentColor
+        case .other: return Color(sk1Hex: SK1.teal)
         }
     }
 

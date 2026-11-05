@@ -87,7 +87,7 @@ struct MeetballApp: App {
                     Button(mode.title) { model.calendar.section = .calendar; model.calendar.viewMode = mode }
                         .keyboardShortcut(KeyEquivalent(mode.shortcut), modifiers: .command)
                 }
-                Divider()
+                Divider()  // sk1-audit: ignore (a menu item separator)
             }
             CommandGroup(after: .newItem) {
                 Button("Join Nearest Meeting") { model.join.joinNearest() }

@@ -7,12 +7,11 @@ struct SettingsView: View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             MenuBarSettingsView().tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
-            // Tabs not yet built from SK-1 groups keep their grouped Form, shown on the chassis.
-            EventFilterSettingsView().sk1FormChassis().tabItem { Label("Events", systemImage: "line.3.horizontal.decrease.circle") }
-            AccountsSettings().sk1Chassis().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
-            MeetingGuardianSettingsView().sk1FormChassis().tabItem { Label("Alerts", systemImage: "bell.badge") }
+            EventFilterSettingsView().tabItem { Label("Events", systemImage: "line.3.horizontal.decrease.circle") }
+            AccountsSettings().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
+            MeetingGuardianSettingsView().tabItem { Label("Alerts", systemImage: "bell.badge") }
             JoinSettingsView().tabItem { Label("Joining", systemImage: "video") }
-            SubscriptionSettings().sk1FormChassis().tabItem { Label("Pro", systemImage: "star") }
+            SubscriptionSettings().tabItem { Label("Pro", systemImage: "star") }
         }.frame(width: 620, height: 560)
     }
 }
@@ -42,43 +41,62 @@ struct GeneralSettings: View {
 
 struct AccountsSettings: View {
     @EnvironmentObject var session: SessionManager
-    @EnvironmentObject var subs: SubscriptionManager
     @EnvironmentObject var calendar: CalendarStore
-    @State private var selection: AuthenticatedUser?
     private let palette = ["#4285F4", "#0B8043", "#D50000", "#F4511E", "#8E24AA", "#039BE5", "#616161"]
+
     var body: some View {
-        HSplitView {
-            VStack {
-                List(session.accounts, selection: $selection) { Text($0.email).tag($0) }
-                if session.accounts.isEmpty { Text("Add a Google account to manage alerts and account accents.").font(.caption).padding() }
-                Button("Add Google account") { Task { await session.addAccount() } }.padding(8)
-                Divider()
-                VStack(alignment: .leading, spacing: 4) {
-                    Toggle("Apple Calendar", isOn: Binding(get: { calendar.appleEnabled },
-                        set: { on in if on { Task { await calendar.enableApple() } } else { calendar.disableApple() } }))
-                    Text("Read-only. Uses accounts already in the Calendar app.").font(.caption2).foregroundStyle(.secondary)
-                    if calendar.appleAccessDenied { Text("Access denied in System Settings › Privacy & Security › Calendars.").font(.caption2).foregroundStyle(.red) }
-                }.padding(8)
-            }.frame(minWidth: 200, maxWidth: 240)
-            VStack(alignment: .leading, spacing: 12) {
-                if let a = selection {
-                    Text(a.name).font(.headline); Text(a.email).foregroundStyle(.secondary)
-                    Text("Account accent color").font(.subheadline)
-                    HStack { ForEach(palette, id: \.self) { hex in
-                        Circle().fill(Color(hex: hex)).frame(width: 22, height: 22)
-                            .overlay(Circle().stroke(.primary, lineWidth: session.accentHex[a.email] == hex ? 2 : 0))
-                            .onTapGesture { session.setAccent(hex, for: a.email) } } }
-                    Button("Remove account", role: .destructive) { session.remove(a); selection = nil }
-                } else { Text("Choose an account on the left to see and edit its settings.").foregroundStyle(.secondary) }
-                if let e = session.lastError { Text(e).font(.caption).foregroundStyle(.red) }
-                Spacer()
-            }.padding().frame(maxWidth: .infinity, alignment: .topLeading)
+        SK1SettingsPane {
+            SKGroup(caption: "Google accounts", note: session.lastError) {
+                if session.accounts.isEmpty {
+                    SKRow(title: "No Google accounts", subtitle: "Add one to see its calendars, alerts and accent colour.") {
+                        SKLamp(color: .warning, lit: true, label: "No accounts")
+                    }
+                }
+                ForEach(session.accounts, id: \.email) { a in
+                    SKRow(title: a.email, subtitle: a.name) {
+                        HStack(spacing: 6) {
+                            ForEach(palette, id: \.self) { hex in swatch(hex, for: a.email) }
+                            Button("Remove", role: .destructive) { session.remove(a) }
+                                .buttonStyle(.sk1Key(.charcoal, size: .small))
+                                .padding(.leading, 6)
+                        }
+                    }
+                }
+                SKRow(title: "Add a Google account", subtitle: "Signs in with Google in your browser.") {
+                    Button { Task { await session.addAccount() } } label: { Label("Add", systemImage: "plus") }
+                        .buttonStyle(.sk1Key())
+                        .disabled(session.state == .signingIn)
+                }
+            }
+            SKGroup(caption: "Apple Calendar",
+                    note: calendar.appleAccessDenied ? "Access is denied. Turn on Meetball in System Settings › Privacy & Security › Calendars." : nil) {
+                SKRow(title: "Use Apple Calendar", subtitle: "Read-only. Uses the accounts already in the Calendar app (Exchange, iCloud, …).") {
+                    HStack(spacing: 8) {
+                        if calendar.appleAccessDenied { SKLamp(color: .danger, lit: true, label: "Access denied") }
+                        Toggle("Use Apple Calendar", isOn: Binding(get: { calendar.appleEnabled },
+                            set: { on in if on { Task { await calendar.enableApple() } } else { calendar.disableApple() } }))
+                            .toggleStyle(.sk1Switch)
+                    }
+                }
+            }
         }
+    }
+
+    /// One accent colour for the account: a dot, ringed while chosen.
+    private func swatch(_ hex: String, for email: String) -> some View {
+        let chosen = session.accentHex[email] == hex
+        return Button { session.setAccent(hex, for: email) } label: {
+            Circle().fill(Color(hex: hex)).frame(width: 16, height: 16)
+                .overlay(Circle().stroke(Color.primary, lineWidth: chosen ? 2 : 0).padding(-2))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Accent \(hex)")
+        .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 }
 
 struct SubscriptionSettings: View {
-    var body: some View { Form { SubscriptionStatusView() }.formStyle(.grouped) }
+    var body: some View { SK1SettingsPane { SubscriptionStatusView() } }
 }
 
 struct JoinSettingsView: View {

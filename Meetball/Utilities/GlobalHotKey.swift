@@ -1,6 +1,7 @@
 import AppKit
 import Carbon
 import SwiftUI
+import SK1UI
 
 /// A recorded keyboard shortcut, stored with Carbon key code + modifiers so it can be registered system-wide.
 public struct HotKeyCombo: Codable, Equatable {
@@ -177,7 +178,7 @@ private struct ToastView: View {
         Label(text, systemImage: systemImage)
             .font(.callout.weight(.medium)).lineLimit(1)
             .padding(.horizontal, 16).padding(.vertical, 10)
-            .background(.regularMaterial, in: Capsule())
+            .background(SKPlate(radius: 18) { Color.clear })
             .padding(8)
     }
 }

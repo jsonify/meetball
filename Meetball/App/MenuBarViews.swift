@@ -73,7 +73,7 @@ struct MenuBarContent: View {
                 HStack {
                     Text(day, format: .dateTime.weekday(.wide).month().day()).font(.subheadline.bold())
                     Spacer()
-                    Button("Show upcoming") { scopedDay = nil }.buttonStyle(.link).font(.caption)
+                    Button("Show upcoming") { scopedDay = nil }.buttonStyle(.sk1Key(size: .small))
                 }
             }
             if let hero { HeroMeetingCard(event: hero, now: now) }

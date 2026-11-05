@@ -37,6 +37,11 @@ xcodegen generate
 xcodebuild -project Meetball.xcodeproj -scheme Meetball build
 xcodebuild -project Meetball.xcodeproj -scheme MeetballTests test   # or ⌘U in Xcode
 ```
+### SK-1 look
+`Scripts/sk1-audit.sh Meetball` lists anything still drawn natively (it should report nothing; a native control kept on
+purpose ends its line with `// sk1-audit: ignore (reason)`). `.claude/skills/adopt-sk1kit` is SK1Kit's adoption skill
+for Claude Code sessions. Both come from SK1Kit: refresh them with its `Scripts/install-adoption-kit.sh <this repo>`.
+
 ## Configuration (use your own credentials)
 Copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (gitignored; never commit it) and set `GOOGLE_CLIENT_ID` (a Google Cloud "Desktop app" OAuth client, Calendar API enabled),
 optional `GOOGLE_CLIENT_SECRET`, and `PRO_PRODUCT_IDS` (comma-separated App Store product IDs).

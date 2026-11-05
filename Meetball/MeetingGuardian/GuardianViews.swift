@@ -139,7 +139,7 @@ struct HardAlertView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background {
                 ZStack {
-                    Rectangle().fill(.ultraThinMaterial)
+                    Rectangle().fill(.ultraThinMaterial)  // sk1-audit: ignore (the full-screen hard alert keeps its own dark overlay)
                     LinearGradient(colors: [accent.opacity(0.55), .black.opacity(0.88)], startPoint: .top, endPoint: .bottom)
                 }
                 .ignoresSafeArea()
@@ -167,18 +167,18 @@ struct HardAlertView: View {
                 if event.meetURL != nil {
                     JoinButton(event: event, size: .large, action: actions.join).keyboardShortcut(.defaultAction)
                 } else {
-                    Button("Got it", action: actions.dismiss).buttonStyle(.borderedProminent).controlSize(.large)
+                    Button("Got it", action: actions.dismiss).buttonStyle(.borderedProminent).controlSize(.large)  // sk1-audit: ignore (the full-screen hard alert keeps its own dark overlay)
                         .keyboardShortcut(.defaultAction)
                 }
             }
             HStack(spacing: 10) {
                 Text("Snooze").foregroundStyle(.white.opacity(0.7))
                 ForEach(MeetingGuardianManager.snoozePresets, id: \.self) { m in
-                    Button("\(m) min") { actions.snooze(m) }.buttonStyle(.bordered)
+                    Button("\(m) min") { actions.snooze(m) }.buttonStyle(.bordered)  // sk1-audit: ignore (the full-screen hard alert keeps its own dark overlay)
                 }
-                Divider().frame(height: 20).padding(.horizontal, 6)
-                Button("I'm not joining", action: actions.notJoining).buttonStyle(.bordered)
-                Button("Dismiss", action: actions.dismiss).buttonStyle(.bordered).keyboardShortcut(.cancelAction)
+                Divider().frame(height: 20).padding(.horizontal, 6)  // sk1-audit: ignore (the full-screen hard alert keeps its own dark overlay)
+                Button("I'm not joining", action: actions.notJoining).buttonStyle(.bordered)  // sk1-audit: ignore (the full-screen hard alert keeps its own dark overlay)
+                Button("Dismiss", action: actions.dismiss).buttonStyle(.bordered).keyboardShortcut(.cancelAction)  // sk1-audit: ignore (the full-screen hard alert keeps its own dark overlay)
             }
             .controlSize(.large)
             if takesFocus {
@@ -204,16 +204,5 @@ struct HardAlertView: View {
             }
         }
         .font(.title3).foregroundStyle(.white.opacity(0.8))
-    }
-}
-
-struct MeetingGuardianStatusRow: View {
-    @ObservedObject var store: MeetingGuardianStore
-    @EnvironmentObject var subs: SubscriptionManager
-    var body: some View {
-        HStack {
-            Image(systemName: subs.isPremiumActive ? "shield.checkered" : "bell")
-            Text(subs.isPremiumActive ? "Active for your important meetings." : "Basic reminders only. Upgrade to Meetball Pro for advanced alerts.")
-        }.font(.callout).foregroundStyle(.secondary)
     }
 }

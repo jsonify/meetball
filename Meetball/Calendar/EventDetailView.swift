@@ -96,7 +96,7 @@ struct EventDetailPopover: View {
                 Button { openLocation(loc) } label: {
                     Label(loc, systemImage: "mappin.and.ellipse").lineLimit(2).multilineTextAlignment(.leading)
                 }
-                .buttonStyle(.link)
+                .buttonStyle(.sk1Key(size: .small))
                 .help(isWebLink(loc) ? "Open link" : "Open in Maps")
                 .accessibilityLabel("Location: \(loc)")
                 .accessibilityHint(isWebLink(loc) ? "Opens the link" : "Opens in Maps")
@@ -146,7 +146,7 @@ struct EventDetailPopover: View {
             ForEach(Array(shown.enumerated()), id: \.offset) { _, p in attendeeRow(p) }
             if all.count > 8 {
                 Button(showAllAttendees ? "Show fewer" : "Show all \(all.count)") { showAllAttendees.toggle() }
-                    .buttonStyle(.link).font(.caption)
+                    .buttonStyle(.sk1Key(size: .small))
             }
         }
     }
