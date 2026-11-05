@@ -120,7 +120,7 @@ struct MeetballApp: App {
                         .keyboardShortcut(KeyEquivalent(mode.shortcut), modifiers: .command)
                 }
                 Divider()  // sk1-audit: ignore (a menu item separator)
-                Button("Refresh Calendars") { model.calendar.refresh() }.keyboardShortcut("r", modifiers: .command)
+                Button("Refresh Calendars") { model.calendar.refresh(.user) }.keyboardShortcut("r", modifiers: .command)
                 Divider()  // sk1-audit: ignore (a menu item separator)
             }
             CommandGroup(replacing: .newItem) {

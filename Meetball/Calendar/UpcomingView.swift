@@ -27,7 +27,7 @@ struct UpcomingView: View {
                                     SKLamp(color: .danger, lit: true, label: "Sync failed")
                                     Text(SyncErrorText.friendly(message)).font(.callout).fixedSize(horizontal: false, vertical: true)
                                     Spacer(minLength: 8)
-                                    Button("Try Again") { store.refresh() }.buttonStyle(.sk1Key(size: .small))
+                                    Button("Try Again") { store.refresh(.user) }.buttonStyle(.sk1Key(size: .small))
                                 }
                                 .padding(10)
                             }

@@ -81,17 +81,30 @@ public enum MeetingChangeDetector {
     }
 
     /// The same meeting in `new`: by uid, else (Apple Calendar ids carry the start time) the closest-starting event
-    /// with the same underlying id that wasn't in the old sync.
+    /// with the same underlying id that wasn't in the old sync, else the closest-starting new event on the same calendar
+    /// with the same title. The last step covers Exchange and CalDAV calendars, where editing an event in Calendar.app
+    /// can give it a new identifier, so a moved meeting isn't mistaken for a cancellation.
     static func match(_ e: CalendarEvent, in new: EventSnapshot, oldUIDs: Set<String>, claimed: inout Set<String>) -> CalendarEvent? {
         if let same = new.events[e.uid] { return same }
+        let fresh = new.events.values.filter { $0.calendarKey == e.calendarKey && !oldUIDs.contains($0.uid) && !claimed.contains($0.uid) }
         let base = baseID(e.id)
-        let candidates = new.events.values.filter {
-            $0.calendarKey == e.calendarKey && baseID($0.id) == base && !oldUIDs.contains($0.uid) && !claimed.contains($0.uid)
-        }
-        guard let best = candidates.min(by: { abs($0.start.timeIntervalSince(e.start)) < abs($1.start.timeIntervalSince(e.start)) })
+        let title = normalizedTitle(e.title)
+        let candidates = fresh.filter { baseID($0.id) == base }
+        let pool = candidates.isEmpty ? fresh.filter { !$0.isAllDay && normalizedTitle($0.title) == title } : candidates
+        guard let best = pool.min(by: { abs($0.start.timeIntervalSince(e.start)) < abs($1.start.timeIntervalSince(e.start)) })
         else { return nil }
         claimed.insert(best.uid)
         return best
+    }
+
+    /// Title compared for the identifier-changed fallback; a "Canceled: " prefix is ignored so a retitled cancellation
+    /// still matches.
+    static func normalizedTitle(_ title: String) -> String {
+        var t = title.trimmingCharacters(in: .whitespaces).lowercased()
+        for p in ["canceled:", "cancelled:", "canceled -", "cancelled -"] where t.hasPrefix(p) {
+            t = String(t.dropFirst(p.count)).trimmingCharacters(in: .whitespaces)
+        }
+        return t
     }
 
     /// "ABC@1730000000" → "ABC" (Apple Calendar occurrence ids); Google ids are returned unchanged.

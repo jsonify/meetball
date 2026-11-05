@@ -95,7 +95,7 @@ struct MenuBarContent: View {
                     EmptyStateView(symbol: "arrow.triangle.2.circlepath", title: "Loading your calendars\u{2026}")
                 } else if case .failed(let message) = calendar.loadState, calendar.events.isEmpty {
                     EmptyStateView(symbol: "wifi.exclamationmark", title: "Couldn't sync", detail: SyncErrorText.friendly(message)) {
-                        Button("Try Again") { calendar.refresh() }.buttonStyle(.sk1Key(size: .small))
+                        Button("Try Again") { calendar.refresh(.user) }.buttonStyle(.sk1Key(size: .small))
                     }
                 } else {
                     EmptyStateView(symbol: "cup.and.saucer",
@@ -138,7 +138,7 @@ struct MenuBarContent: View {
                 }
                 .keyboardShortcut("o")
                 SKTile("Refresh", systemImage: "arrow.clockwise", legend: "⌘R", onHover: hover("Refresh calendars", "⌘R")) {
-                    calendar.refresh()
+                    calendar.refresh(.user)
                 }
                 .keyboardShortcut("r")
             }

@@ -6,7 +6,7 @@ import AppKit
 @MainActor
 final class AppleCalendarClient {
     static let sourcePrefix = "Apple · "
-    private let store = EKEventStore()
+    private var store = EKEventStore()
 
     static func isApple(_ accountEmail: String) -> Bool { accountEmail.hasPrefix(sourcePrefix) }
 
@@ -14,6 +14,17 @@ final class AppleCalendarClient {
     var isDenied: Bool {
         let s = EKEventStore.authorizationStatus(for: .event)
         return s == .denied || s == .restricted
+    }
+
+    /// Asks the servers behind Calendar.app's accounts (iCloud, Exchange, CalDAV) to sync. EventKit posts
+    /// `EKEventStoreChanged` when new data arrives, which reloads Meetball again.
+    ///
+    /// `fresh` (a Refresh the user asked for) also swaps in a new event store. A store that has been open for hours can
+    /// keep serving its cached view of the calendar database, so the menu bar's Refresh showed the old meeting time.
+    func sync(fresh: Bool) {
+        guard isAuthorized else { return }
+        if fresh { store = EKEventStore() }
+        store.refreshSourcesIfNecessary()
     }
 
     /// Prompts the first time; returns whether full access is granted.

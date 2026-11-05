@@ -19,6 +19,8 @@ struct GoogleCalendarClient {
         if !query.isEmpty { c.queryItems = query }
         var req = URLRequest(url: c.url!)
         req.httpMethod = method
+        // Always ask Google; a cached response would hide a meeting that just moved.
+        req.cachePolicy = .reloadIgnoringLocalCacheData
         req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         if let body { req.httpBody = body; req.setValue("application/json", forHTTPHeaderField: "Content-Type") }
         let (data, resp) = try await URLSession.shared.data(for: req)
