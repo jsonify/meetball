@@ -29,8 +29,12 @@ Independent implementation; written from observed behavior and public APIs, not 
   countdown. The full-screen hard alert keeps its own dark overlay.
 
 ## Build
-Requires Xcode 16+ and XcodeGen.
-SK1Kit (0.4.0 or later) is a Swift package dependency (`packages:` in `project.yml`); Xcode resolves it on first build. To work on
+Requires Xcode 16+ and XcodeGen (`brew install xcodegen`). `Meetball.xcodeproj` is generated from `project.yml` and isn't
+tracked in git, so run `xcodegen generate` after cloning and whenever you pull or change `project.yml` (`make dist` does it for
+you). Add new files on disk and in `project.yml` only; edits made to the project in Xcode are lost on the next generate.
+SK1Kit (0.4.0 or later) is a Swift package dependency (`packages:` in `project.yml`); Xcode resolves it on first build. The
+resolved version is pinned in `Meetball.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`, the one file in
+the project folder that is committed: commit it when it changes. To work on
 SK1Kit alongside Meetball, point `project.yml` at a local checkout (`path: ../SK1Kit`) and regenerate.
 ```
 xcodegen generate
