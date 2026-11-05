@@ -5,6 +5,9 @@ Independent implementation; written from observed behavior and public APIs, not 
 
 ## Features
 - Google sign-in (OAuth 2.0 PKCE, loopback redirect), multiple accounts, tokens in Keychain
+- Apple Calendar (EventKit) source, read-only: shows calendars already configured in the macOS Calendar app (Exchange, iCloud, …)
+  with no OAuth, so it works when an org admin blocks Google sign-in. Enable via the connect screen or Settings › Accounts.
+  Meet/Zoom/Teams/Webex join links are detected from the event URL, location and notes. Feeds the menu bar and Meeting Guardian.
 - Day / Week / Month views (⌘1/⌘2/⌘3, remembered): time grid with hour gutter, now-line, overlap column packing,
   all-day row, drag to create, auto-scroll to now/working hours; keyboard ←/→ prev/next, T today, J/K next/previous day
 - Month grid with multi-day event bars (lane-packed), per-day list, per-calendar visibility

@@ -17,6 +17,7 @@
 		015F3CA121B05AA83E3A90F6 /* SessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5B657146BFB9E92CE449D35 /* SessionManager.swift */; };
 		1409142A6A094F9C85FD16EF /* LogicTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07B7508A51C0355251E4C503 /* LogicTests.swift */; };
 		1E1065EB9AA51EEEB3328DA6 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 056FD024BCBF7F3CD4FF0870 /* Models.swift */; };
+		3EDB5F91D8582A917DCE6907 /* AppleCalendarClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEAC6760014CBEE5A0B25E62 /* AppleCalendarClient.swift */; };
 		450287F7474F7EE5343F51E8 /* MeetballApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5A499B3E5245CF808108529 /* MeetballApp.swift */; };
 		55E1B0789432B0766251648A /* GoogleAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4863979B7141CDC587449D27 /* GoogleAuth.swift */; };
 		5901915B566A43F690C9C2F1 /* CalendarStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8FD841BC534057508842B4B /* CalendarStore.swift */; };
@@ -72,6 +73,7 @@
 		D8FD841BC534057508842B4B /* CalendarStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CalendarStore.swift; sourceTree = "<group>"; };
 		E5B657146BFB9E92CE449D35 /* SessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionManager.swift; sourceTree = "<group>"; };
 		E62613057E6DD164566C4B5E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		EEAC6760014CBEE5A0B25E62 /* AppleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleCalendarClient.swift; sourceTree = "<group>"; };
 		FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -117,6 +119,7 @@
 		7460F7FED0A4782D52B4599C /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
+				EEAC6760014CBEE5A0B25E62 /* AppleCalendarClient.swift */,
 				D8FD841BC534057508842B4B /* CalendarStore.swift */,
 				506F6F645DBCFF4332F13767 /* CalendarViews.swift */,
 				B7FBE9D8EEDC8A141C2B6236 /* GoogleCalendarClient.swift */,
@@ -304,6 +307,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3EDB5F91D8582A917DCE6907 /* AppleCalendarClient.swift in Sources */,
 				5901915B566A43F690C9C2F1 /* CalendarStore.swift in Sources */,
 				AACB4A5E4D093FD84B57C354 /* CalendarViews.swift in Sources */,
 				CDA279E21A11B65157D4A238 /* Components.swift in Sources */,

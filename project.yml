@@ -20,12 +20,14 @@ targets:
         com.apple.security.app-sandbox: true
         com.apple.security.network.client: true
         com.apple.security.network.server: true
+        com.apple.security.personal-information.calendars: true
         com.apple.security.files.user-selected.read-only: true
     info:
       path: Meetball/Info.plist
       properties:
         CFBundleName: Meetball
         CFBundleDisplayName: Meetball
+        NSCalendarsFullAccessUsageDescription: Meetball reads your calendars to show upcoming meetings, the menu bar countdown, and Meeting Guardian alerts.
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "15.0"
         GOOGLE_CLIENT_ID: "$(GOOGLE_CLIENT_ID)"

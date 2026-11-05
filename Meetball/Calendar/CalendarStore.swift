@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import EventKit
 
 public enum CalendarSidebarLoadState: Equatable { case idle, loading, loaded, failed(String) }
 
@@ -42,9 +43,13 @@ public final class CalendarStore: ObservableObject {
     }
     /// Month shown by the menu bar's mini calendar; included in the fetch range so its event dots are populated.
     @Published public var menuAnchor = Date()
+    @Published public private(set) var appleEnabled: Bool = UserDefaults.standard.bool(forKey: "appleCalendarEnabled")
+    @Published public private(set) var appleAccessDenied = false
 
     let session: SessionManager
     private var client: GoogleCalendarClient
+    private let apple = AppleCalendarClient()
+    private var storeObserver: NSObjectProtocol?
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
     @AppStorage("refreshIntervalSeconds") var refreshInterval: Double = 120
@@ -54,6 +59,26 @@ public final class CalendarStore: ObservableObject {
         self.client = GoogleCalendarClient(session: session)
         hiddenCalendarKeys = Set(UserDefaults.standard.stringArray(forKey: "hiddenCalendars") ?? [])
         viewMode = CalendarViewMode(rawValue: UserDefaults.standard.string(forKey: "calendarViewMode") ?? "") ?? .month
+        storeObserver = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
+            Task { @MainActor in if self?.appleEnabled == true { self?.refresh() } }
+        }
+    }
+
+    var hasAnySource: Bool { !session.accounts.isEmpty || appleEnabled }
+
+    /// Ask macOS for Calendar access and, if granted, start reading calendars configured in Calendar.app.
+    func enableApple() async {
+        let ok = await apple.requestAccess()
+        appleAccessDenied = !ok
+        appleEnabled = ok
+        UserDefaults.standard.set(ok, forKey: "appleCalendarEnabled")
+        refresh()
+    }
+
+    func disableApple() {
+        appleEnabled = false
+        UserDefaults.standard.set(false, forKey: "appleCalendarEnabled")
+        refresh()
     }
 
     /// Range the main window shows: full weeks of the month, or the week containing the selected day.
@@ -93,7 +118,7 @@ public final class CalendarStore: ObservableObject {
     }
 
     func load() async {
-        guard !session.accounts.isEmpty else { calendars = []; events = []; loadState = .idle; return }
+        guard hasAnySource else { calendars = []; events = []; loadState = .idle; return }
         if calendars.isEmpty { loadState = .loading }
         var cals: [GCalendar] = []; var evs: [CalendarEvent] = []; var firstError: String?
         // fetch a wider window so the menu bar / guardian always has upcoming events
@@ -113,6 +138,16 @@ public final class CalendarStore: ObservableObject {
                 firstError = error.localizedDescription
             }
         }
+        if appleEnabled {
+            if apple.isAuthorized {
+                let c = apple.calendars()
+                cals += c
+                for cal in c where !hiddenCalendarKeys.contains(cal.key) { evs += apple.events(for: cal, range: range) }
+            } else {
+                appleAccessDenied = true
+                firstError = firstError ?? "Calendar access is off. Enable Meetball in System Settings › Privacy & Security › Calendars."
+            }
+        }
         calendars = cals
         events = evs.sorted { $0.start < $1.start }
         loadState = firstError.map { .failed($0) } ?? .loaded
@@ -130,6 +165,7 @@ public final class CalendarStore: ObservableObject {
     }
 
     func delete(_ e: CalendarEvent) async {
+        if AppleCalendarClient.isApple(e.accountEmail) { actionError = "Apple Calendar events are read-only in Meetball."; return }
         do { try await client.delete(e); events.removeAll { $0.uid == e.uid } }
         catch { actionError = "Could not delete event: \(error.localizedDescription)" }
     }

@@ -15,7 +15,7 @@ struct MenuBarContent: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if session.accounts.isEmpty {
+            if !calendar.hasAnySource {
                 signInPrompt
             } else {
                 MiniMonthView(month: $month, selection: $scopedDay, dots: dots)
@@ -43,8 +43,9 @@ struct MenuBarContent: View {
     private var signInPrompt: some View {
         VStack(spacing: 10) {
             Image(systemName: "calendar.badge.plus").font(.system(size: 28)).foregroundStyle(.secondary)
-            Text("Connect your Google Calendar").font(.headline)
+            Text("Connect a calendar").font(.headline)
             Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.borderedProminent)
+            Button("Use Apple Calendar") { Task { await calendar.enableApple() } }
         }
         .frame(maxWidth: .infinity).padding(20)
     }

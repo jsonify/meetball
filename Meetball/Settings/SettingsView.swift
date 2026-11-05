@@ -39,6 +39,7 @@ struct GeneralSettings: View {
 struct AccountsSettings: View {
     @EnvironmentObject var session: SessionManager
     @EnvironmentObject var subs: SubscriptionManager
+    @EnvironmentObject var calendar: CalendarStore
     @State private var selection: AuthenticatedUser?
     private let palette = ["#4285F4", "#0B8043", "#D50000", "#F4511E", "#8E24AA", "#039BE5", "#616161"]
     var body: some View {
@@ -47,6 +48,13 @@ struct AccountsSettings: View {
                 List(session.accounts, selection: $selection) { Text($0.email).tag($0) }
                 if session.accounts.isEmpty { Text("Add a Google account to manage alerts and account accents.").font(.caption).padding() }
                 Button("Add Google account") { Task { await session.addAccount() } }.padding(8)
+                Divider()
+                VStack(alignment: .leading, spacing: 4) {
+                    Toggle("Apple Calendar", isOn: Binding(get: { calendar.appleEnabled },
+                        set: { on in if on { Task { await calendar.enableApple() } } else { calendar.disableApple() } }))
+                    Text("Read-only. Uses accounts already in the Calendar app.").font(.caption2).foregroundStyle(.secondary)
+                    if calendar.appleAccessDenied { Text("Access denied in System Settings › Privacy & Security › Calendars.").font(.caption2).foregroundStyle(.red) }
+                }.padding(8)
             }.frame(minWidth: 200, maxWidth: 240)
             VStack(alignment: .leading, spacing: 12) {
                 if let a = selection {

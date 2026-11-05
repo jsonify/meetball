@@ -10,7 +10,7 @@ struct CalendarContainerView: View {
         NavigationSplitView {
             CalendarSidebarView()
         } detail: {
-            if session.accounts.isEmpty {
+            if !store.hasAnySource {
                 ConnectPrompt()
             } else {
                 VStack(spacing: 0) {
@@ -125,12 +125,16 @@ struct KeyEventMonitor: NSViewRepresentable {
 
 struct ConnectPrompt: View {
     @EnvironmentObject var session: SessionManager
+    @EnvironmentObject var store: CalendarStore
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "calendar.badge.plus").font(.system(size: 44)).foregroundStyle(.secondary)
             Text("Connect your Google Calendar").font(.title2.bold())
             Text("A fast, privacy-first Google Calendar app for your Mac.").foregroundStyle(.secondary)
             Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.borderedProminent).disabled(session.state == .signingIn)
+            Button("Use Apple Calendar instead") { Task { await store.enableApple() } }
+            Text("Reads calendars already set up in the Calendar app (Exchange, iCloud, …). No sign-in needed.").font(.caption).foregroundStyle(.secondary)
+            if store.appleAccessDenied { Text("Calendar access was denied. Enable Meetball in System Settings › Privacy & Security › Calendars.").font(.caption).foregroundStyle(.red).frame(maxWidth: 360) }
             if let e = session.lastError { Text(e).font(.caption).foregroundStyle(.red).frame(maxWidth: 360) }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -139,6 +143,9 @@ struct ConnectPrompt: View {
 struct CalendarSidebarView: View {
     @EnvironmentObject var store: CalendarStore
     @EnvironmentObject var session: SessionManager
+    private var sectionTitles: [String] {
+        session.accounts.map(\.email) + Array(Set(store.calendars.map(\.accountEmail).filter(AppleCalendarClient.isApple))).sorted()
+    }
     var body: some View {
         List {
             switch store.loadState {
@@ -150,9 +157,9 @@ struct CalendarSidebarView: View {
             default:
                 if store.calendars.isEmpty { Text("No calendars found").foregroundStyle(.secondary) }
             }
-            ForEach(session.accounts) { acct in
-                Section(acct.email) {
-                    ForEach(store.calendars.filter { $0.accountEmail == acct.email }) { cal in
+            ForEach(sectionTitles, id: \.self) { title in
+                Section(title) {
+                    ForEach(store.calendars.filter { $0.accountEmail == title }) { cal in
                         Toggle(isOn: Binding(get: { !store.hiddenCalendarKeys.contains(cal.key) }, set: { _ in store.toggle(cal) })) {
                             HStack { Circle().fill(Color(hex: cal.colorHex)).frame(width: 9, height: 9); Text(cal.summary).lineLimit(1) }
                         }
