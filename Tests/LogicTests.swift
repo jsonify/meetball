@@ -207,3 +207,17 @@ final class KeychainTests: XCTestCase {
         k.remove("x"); XCTAssertNil(k.get("x"))
     }
 }
+
+final class HotKeyComboTests: XCTestCase {
+    func testLoadDefaultsClearedAndCorrupt() {
+        let d = UserDefaults(suiteName: "test.\(UUID())")!
+        XCTAssertEqual(HotKeyCombo.load(d), .defaultCombo, "no saved value → default")
+        HotKeyCombo.save(nil, d)
+        XCTAssertNil(HotKeyCombo.load(d), "cleared → no shortcut")
+        d.set("not json", forKey: HotKeyCombo.defaultsKey)
+        XCTAssertEqual(HotKeyCombo.load(d), .defaultCombo, "unreadable → default")
+        let custom = HotKeyCombo(keyCode: 0, carbonModifiers: 256, keyLabel: "A")
+        HotKeyCombo.save(custom, d)
+        XCTAssertEqual(HotKeyCombo.load(d), custom)
+    }
+}
