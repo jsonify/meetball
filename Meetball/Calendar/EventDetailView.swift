@@ -1,0 +1,272 @@
+import SwiftUI
+import AppKit
+
+extension View {
+    /// Click to show the event's details in a popover (Esc or clicking outside dismisses it).
+    func eventDetailOnClick(_ event: CalendarEvent, arrowEdge: Edge = .trailing) -> some View {
+        modifier(EventDetailOnClick(event: event, arrowEdge: arrowEdge))
+    }
+}
+
+private struct EventDetailOnClick: ViewModifier {
+    let event: CalendarEvent
+    let arrowEdge: Edge
+    @EnvironmentObject private var store: CalendarStore
+    @EnvironmentObject private var guardianStore: MeetingGuardianStore
+    @State private var showing = false
+
+    func body(content: Content) -> some View {
+        content
+            .contentShape(Rectangle())
+            .onTapGesture { showing = true }
+            .popover(isPresented: $showing, arrowEdge: arrowEdge) {
+                // Re-inject explicitly: popovers live in their own window and shouldn't rely on inheritance.
+                EventDetailPopover(event: event).environmentObject(store).environmentObject(guardianStore)
+            }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(named: "Show details") { showing = true }
+    }
+}
+
+/// Everything about one event: time, place, join link, notes, attendees with RSVP state, and actions.
+struct EventDetailPopover: View {
+    let event: CalendarEvent
+    @EnvironmentObject var store: CalendarStore
+    @EnvironmentObject var guardianStore: MeetingGuardianStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var showAllAttendees = false
+    @State private var confirmingDelete = false
+
+    private var isApple: Bool { AppleCalendarClient.isApple(event.accountEmail) }
+    private var calendarName: String? { store.calendars.first { $0.key == event.calendarKey }?.summary }
+    private var notes: String { event.notes.map(EventNotesFormatter.plainText) ?? "" }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Grow with the content; scroll only once it would be taller than the cap.
+            ViewThatFits(in: .vertical) {
+                content
+                ScrollView { content }.frame(height: maxContentHeight)
+            }
+            .frame(maxHeight: maxContentHeight)
+            Divider()
+            actions.padding(.horizontal, 10).padding(.vertical, 8)
+        }
+        .frame(width: 340)
+        .onExitCommand { dismiss() }
+    }
+
+    private let maxContentHeight: CGFloat = 460
+
+    private var content: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            header
+            details
+            if let url = event.meetURL { joinRow(url) }
+            if !people.isEmpty || event.organizer != nil { attendeesSection }
+            if !notes.isEmpty { notesSection }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // MARK: Sections
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: 8) {
+            RoundedRectangle(cornerRadius: 3).fill(Color(hex: event.colorHex)).frame(width: 12, height: 12).padding(.top, 4)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.title).font(.headline).textSelection(.enabled).fixedSize(horizontal: false, vertical: true)
+                if let calendarName {
+                    Text(calendarName).font(.caption).foregroundStyle(.secondary)
+                        .accessibilityLabel("Calendar: \(calendarName)")
+                }
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private var details: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(timeText, systemImage: "clock").accessibilityLabel("When: \(timeText)")
+            if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
+                Button { openLocation(loc) } label: {
+                    Label(loc, systemImage: "mappin.and.ellipse").lineLimit(2).multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.link)
+                .help(isWebLink(loc) ? "Open link" : "Open in Maps")
+                .accessibilityLabel("Location: \(loc)")
+                .accessibilityHint(isWebLink(loc) ? "Opens the link" : "Opens in Maps")
+            }
+            if event.isDeclined {
+                Label("You declined", systemImage: "xmark.circle").foregroundStyle(.secondary)
+            }
+            if guardianStore.isMuted(event) {
+                Label("Alerts muted for this event", systemImage: "bell.slash").foregroundStyle(.secondary)
+            }
+        }
+        .font(.callout)
+    }
+
+    private func joinRow(_ url: URL) -> some View {
+        HStack(spacing: 8) {
+            JoinButton(event: event)
+            Button { MeetingJoiner.copyLink(url) } label: { Label("Copy link", systemImage: "doc.on.doc") }
+                .help("Copy meeting link").accessibilityLabel("Copy meeting link")
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var people: [EventAttendee] {
+        if !event.participants.isEmpty {
+            return event.participants.sorted { a, b in
+                if a.isOrganizer != b.isOrganizer { return a.isOrganizer }
+                return a.displayName.localizedCaseInsensitiveCompare(b.displayName) == .orderedAscending
+            }
+        }
+        return event.attendees.map { EventAttendee(email: $0) }
+    }
+
+    private var attendeesSection: some View {
+        let all = people
+        let shown = showAllAttendees ? all : Array(all.prefix(8))
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack {
+                Text(all.isEmpty ? "Organizer" : "\(all.count) guest\(all.count == 1 ? "" : "s")").font(.subheadline.weight(.semibold))
+                Spacer()
+                if !all.isEmpty { Text(responseSummary(all)).font(.caption).foregroundStyle(.secondary) }
+            }
+            if let org = event.organizer, !all.contains(where: \.isOrganizer) {
+                Label("Organized by \(org)", systemImage: "person.crop.circle").font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(Array(shown.enumerated()), id: \.offset) { _, p in attendeeRow(p) }
+            if all.count > 8 {
+                Button(showAllAttendees ? "Show fewer" : "Show all \(all.count)") { showAllAttendees.toggle() }
+                    .buttonStyle(.link).font(.caption)
+            }
+        }
+    }
+
+    private func attendeeRow(_ p: EventAttendee) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: p.response.symbol).foregroundStyle(color(for: p.response)).font(.caption)
+                .help(p.response.label)
+            Text(p.displayName).font(.callout).lineLimit(1).textSelection(.enabled)
+            if p.isOrganizer { Text("Organizer").font(.caption2).foregroundStyle(.secondary) }
+            if p.isSelf { Text("You").font(.caption2).foregroundStyle(.secondary) }
+            Spacer(minLength: 0)
+        }
+        .help(p.email ?? p.displayName)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(p.displayName)\(p.isOrganizer ? ", organizer" : ""), \(p.response.label)")
+    }
+
+    private var notesSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Notes").font(.subheadline.weight(.semibold))
+            Text(EventNotesFormatter.linked(notes)).font(.callout).textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: 6) {
+            if confirmingDelete {
+                Text("Delete this event?").font(.callout)
+                Spacer()
+                Button("Cancel") { confirmingDelete = false }.keyboardShortcut(.cancelAction)
+                Button("Delete", role: .destructive) {
+                    Task { await store.delete(event) }
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+            } else {
+                if let link = event.htmlLink {
+                    Button { NSWorkspace.shared.open(link) } label: { Label("Google Calendar", systemImage: "arrow.up.right.square") }
+                        .help("Open in Google Calendar")
+                } else if isApple {
+                    Button { openInAppleCalendar() } label: { Label("Calendar", systemImage: "arrow.up.right.square") }
+                        .help("Open in Calendar")
+                        .accessibilityLabel("Open in Calendar")
+                }
+                Spacer()
+                if !event.isAllDay {
+                    let muted = guardianStore.isMuted(event)
+                    Button { guardianStore.setMuted(!muted, for: event) } label: {
+                        Image(systemName: muted ? "bell.slash.fill" : "bell")
+                    }
+                    .help(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
+                    .accessibilityLabel(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
+                }
+                if !isApple {
+                    Button { confirmingDelete = true } label: { Image(systemName: "trash") }
+                        .help("Delete event").accessibilityLabel("Delete event")
+                }
+            }
+        }
+        .controlSize(.small)
+    }
+
+    // MARK: Helpers
+
+    private var timeText: String {
+        let cal = Calendar.current
+        if event.isAllDay {
+            let lastDay = event.end.addingTimeInterval(-1)
+            if cal.isDate(event.start, inSameDayAs: lastDay) {
+                return event.start.formatted(.dateTime.weekday(.wide).month().day()) + " · All day"
+            }
+            return "\(event.start.formatted(.dateTime.month().day())) – \(lastDay.formatted(.dateTime.month().day())) · All day"
+        }
+        let duration = DurationFormatter.string(from: event.start, to: event.end)
+        let startDay = event.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        if cal.isDate(event.start, inSameDayAs: event.end.addingTimeInterval(-1)) {
+            return "\(startDay), \(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened)) (\(duration))"
+        }
+        let endDay = event.end.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+        return "\(startDay), \(event.start.formatted(date: .omitted, time: .shortened)) – \(endDay), \(event.end.formatted(date: .omitted, time: .shortened)) (\(duration))"
+    }
+
+    private func responseSummary(_ all: [EventAttendee]) -> String {
+        let yes = all.filter { $0.response == .accepted }.count
+        let no = all.filter { $0.response == .declined }.count
+        let maybe = all.filter { $0.response == .tentative }.count
+        let waiting = all.count - yes - no - maybe
+        return [yes > 0 ? "\(yes) yes" : nil, no > 0 ? "\(no) no" : nil, maybe > 0 ? "\(maybe) maybe" : nil,
+                waiting > 0 ? "\(waiting) awaiting" : nil].compactMap { $0 }.joined(separator: ", ")
+    }
+
+    private func color(for r: AttendeeResponse) -> Color {
+        switch r {
+        case .accepted: return .green
+        case .declined: return .red
+        case .tentative: return .orange
+        case .needsAction: return .secondary
+        }
+    }
+
+    /// Web/meeting links open as-is; anything else is looked up in Maps.
+    private func isWebLink(_ loc: String) -> Bool {
+        guard let scheme = URL(string: loc)?.scheme?.lowercased() else { return false }
+        return scheme == "http" || scheme == "https"
+    }
+
+    private func locationURL(_ loc: String) -> URL? {
+        if isWebLink(loc) { return URL(string: loc) }
+        var c = URLComponents(string: "https://maps.apple.com/")
+        c?.queryItems = [URLQueryItem(name: "q", value: loc)]
+        return c?.url
+    }
+
+    private func openLocation(_ loc: String) {
+        if let u = locationURL(loc) { NSWorkspace.shared.open(u) }
+    }
+
+    private func openInAppleCalendar() {
+        if let u = event.calendarAppURL, NSWorkspace.shared.open(u) { return }
+        if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") {
+            NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
+        }
+    }
+}

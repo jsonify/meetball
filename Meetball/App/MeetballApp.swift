@@ -74,6 +74,7 @@ struct MeetballApp: App {
         Window("Meetball", id: "main") {
             CalendarContainerView().frame(minWidth: 900, minHeight: 560)
                 .environmentObject(model.session).environmentObject(model.calendar).environmentObject(model.subs)
+                .environmentObject(model.guardianStore).environmentObject(model.guardian)
         }
         .commands {
             CommandGroup(before: .toolbar) {
@@ -89,7 +90,7 @@ struct MeetballApp: App {
         }
         MenuBarExtra {
             MenuBarContent().environmentObject(model).environmentObject(model.session).environmentObject(model.calendar)
-                .environmentObject(model.join)
+                .environmentObject(model.join).environmentObject(model.guardianStore)
         } label: {
             MenuBarLabelView(title: model.menuBarTitle, highlighted: model.menuBarHighlighted)
         }.menuBarExtraStyle(.window)

@@ -197,6 +197,7 @@ struct MonthGridView: View {
                                 .frame(width: colW * CGFloat(span.endColumn - span.startColumn + 1) - 4, height: laneH - 2, alignment: .leading)
                                 .background(Color(hex: span.event.colorHex).opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
                                 .foregroundStyle(.white)
+                                .eventDetailOnClick(span.event, arrowEdge: .bottom)
                                 .offset(x: colW * CGFloat(span.startColumn) + 2, y: headerH + CGFloat(span.lane) * laneH)
                         }
                     }
@@ -255,6 +256,7 @@ struct DayEventsListView: View {
                         JoinButton(event: seg.event, size: .small)
                     }
                     .opacity(seg.event.isDeclined ? 0.5 : 1)
+                    .eventDetailOnClick(seg.event, arrowEdge: .leading)
                     .contextMenu {
                         MeetingSecondaryActions(event: seg.event)
                         Divider()

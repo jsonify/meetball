@@ -276,3 +276,47 @@ final class MenuBarTitleTests: XCTestCase {
         XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .titleCountdown)
     }
 }
+
+final class EventDetailTests: XCTestCase {
+    func testHTMLNotesBecomePlainText() {
+        let html = #"<p>Agenda:</p><ul><li>Intro &amp; goals</li><li>Q&amp;A</li></ul>Docs: <a href="https://example.com/doc">the doc</a><br>Call <a href="https://meet.google.com/abc">https://meet.google.com/abc</a>"#
+        XCTAssertEqual(EventNotesFormatter.plainText(html),
+                       "Agenda:\n\n• Intro & goals\n• Q&A\nDocs: the doc (https://example.com/doc)\nCall https://meet.google.com/abc")
+    }
+
+    func testPlainNotesAreKeptAndTrimmed() {
+        XCTAssertEqual(EventNotesFormatter.plainText("  Line 1\n\n\n\nLine 2 < 3  \n"), "Line 1\n\nLine 2 < 3")
+        let long = String(repeating: "a", count: EventNotesFormatter.maxLength + 50)
+        XCTAssertTrue(EventNotesFormatter.plainText(long).hasSuffix("…"))
+    }
+
+    func testLinksAreDetected() {
+        let s = EventNotesFormatter.linked("See https://example.com/x for details")
+        XCTAssertTrue(s.runs.contains { $0.link == URL(string: "https://example.com/x") })
+    }
+
+    func testAttendeeInitials() {
+        XCTAssertEqual(EventAttendee(email: "ada@x.com", name: "Ada Lovelace").initials, "AL")
+        XCTAssertEqual(EventAttendee(email: "grace.hopper@x.com").initials, "GH")
+        XCTAssertEqual(EventAttendee(email: "bob@x.com").initials, "B")
+        XCTAssertEqual(EventAttendee(email: "bob@x.com", name: "  ").displayName, "bob@x.com")
+    }
+
+    func testDuration() {
+        let s = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(DurationFormatter.string(from: s, to: s.addingTimeInterval(30 * 60)), "30 min")
+        XCTAssertEqual(DurationFormatter.string(from: s, to: s.addingTimeInterval(75 * 60)), "1 hr 15 min")
+        XCTAssertEqual(DurationFormatter.string(from: s, to: s.addingTimeInterval(2 * 86400)), "2 days")
+    }
+
+    @MainActor func testMuteEvent() {
+        let store = MeetingGuardianStore(defaults: UserDefaults(suiteName: "test.\(UUID())")!)
+        let e = CalendarEvent(id: "1", calendarID: "c", accountEmail: "a@b.c", title: "x", start: Date(), end: Date().addingTimeInterval(600),
+                              isAllDay: false, meetURL: nil, location: nil, attendees: [], htmlLink: nil)
+        XCTAssertFalse(store.isMuted(e))
+        store.setMuted(true, for: e)
+        XCTAssertTrue(store.isMuted(e))
+        store.setMuted(false, for: e)
+        XCTAssertFalse(store.isMuted(e))
+    }
+}

@@ -139,6 +139,7 @@ private struct AllDayBarView: View {
             .background(Color(hex: e.colorHex).opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
             .foregroundStyle(.white)
             .opacity(e.isDeclined ? 0.5 : 1)
+            .eventDetailOnClick(e, arrowEdge: .bottom)
             .contextMenu { MeetingSecondaryActions(event: e) }
             .help(e.title)
     }
@@ -233,7 +234,6 @@ struct TimeGridEventBlock: View {
     @EnvironmentObject var store: CalendarStore
     let segment: CalendarEventDaySegment
     let now: Date
-    @State private var showDetail = false
 
     var body: some View {
         let e = segment.event
@@ -252,48 +252,12 @@ struct TimeGridEventBlock: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 5))
         .opacity(ended || e.isDeclined ? 0.55 : 1)
-        .contentShape(Rectangle())
-        .onTapGesture { showDetail = true }
-        .popover(isPresented: $showDetail, arrowEdge: .trailing) { EventDetailPopover(event: e) }
+        .eventDetailOnClick(e)
         .contextMenu {
             MeetingSecondaryActions(event: e)
             Divider()
             Button("Delete", role: .destructive) { Task { await store.delete(e) } }
         }
         .help(e.title)
-    }
-}
-
-struct EventDetailPopover: View {
-    let event: CalendarEvent
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .top, spacing: 8) {
-                Circle().fill(Color(hex: event.colorHex)).frame(width: 10, height: 10).padding(.top, 5)
-                Text(event.title).font(.headline).fixedSize(horizontal: false, vertical: true)
-            }
-            Label(timeText, systemImage: "clock").font(.callout)
-            if let l = event.location, !l.isEmpty { Label(l, systemImage: "mappin.and.ellipse").font(.callout).lineLimit(2) }
-            if !event.attendees.isEmpty { Label("\(event.attendees.count) attendees", systemImage: "person.2").font(.callout) }
-            if event.isDeclined { Label("You declined", systemImage: "xmark.circle").font(.callout).foregroundStyle(.secondary) }
-            HStack {
-                JoinButton(event: event)
-                Spacer()
-                if let link = event.htmlLink {
-                    Button { NSWorkspace.shared.open(link) } label: { Image(systemName: "arrow.up.right.square") }
-                        .help("Open in Google Calendar")
-                }
-                if let u = event.meetURL {
-                    Button { MeetingJoiner.copyLink(u) } label: { Image(systemName: "doc.on.doc") }.help("Copy meeting link")
-                }
-            }
-        }
-        .padding(14).frame(width: 300)
-    }
-
-    private var timeText: String {
-        if event.isAllDay { return event.start.formatted(.dateTime.weekday(.wide).month().day()) + " · All day" }
-        let day = event.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-        return "\(day), \(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))"
     }
 }
