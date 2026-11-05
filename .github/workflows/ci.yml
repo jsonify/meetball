@@ -27,6 +27,12 @@ jobs:
           NEWEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
           sudo xcode-select -s "$NEWEST"
           xcodebuild -version
+      # Meetball.xcodeproj isn't tracked: it's generated from project.yml (Package.resolved inside it is tracked).
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen --version
+          xcodegen generate
       - name: Resolve packages (SK1Kit)
         run: xcodebuild -project Meetball.xcodeproj -resolvePackageDependencies
       - name: Schemes

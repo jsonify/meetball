@@ -1,0 +1,15 @@
+{
+  "originHash" : "eb7a138194ce1c7d3db195437d685aab0e288170149f29094031edd0f2d7bafd",
+  "pins" : [
+    {
+      "identity" : "sk1kit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/jsonify/SK1Kit.git",
+      "state" : {
+        "revision" : "9e96b0b52aa653f3a8ba69adef21dda82fdb186c",
+        "version" : "0.4.1"
+      }
+    }
+  ],
+  "version" : 3
+}
