@@ -18,7 +18,7 @@ struct HeadsUpOverlayView: View {
             Text(event.title).font(.title2.bold()).multilineTextAlignment(.center).lineLimit(2)
             Text(event.start, style: .time).font(.title3.monospacedDigit())
             HStack {
-                if event.meetURL != nil { Button("Join", action: onJoin).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction) }
+                JoinButton(event: event, action: onJoin).keyboardShortcut(.defaultAction)
                 Button("Dismiss", action: onDismiss)
             }
         }
@@ -38,7 +38,7 @@ struct HardAlertOverlayView: View {
                 Text(event.title).font(.system(size: 56, weight: .bold)).foregroundStyle(.white).multilineTextAlignment(.center).lineLimit(3)
                 Text(event.start, style: .time).font(.system(size: 28).monospacedDigit()).foregroundStyle(.white.opacity(0.8))
                 HStack(spacing: 16) {
-                    if event.meetURL != nil { Button(action: onJoin) { Text("Join now").font(.title2.bold()).padding(.horizontal, 30).padding(.vertical, 10) }.buttonStyle(.borderedProminent).tint(.green) }
+                    JoinButton(event: event, size: .large, action: onJoin)
                     Button("Dismiss", action: onDismiss).buttonStyle(.bordered).controlSize(.large)
                 }
             }.padding(60)
@@ -53,7 +53,7 @@ struct StillJoiningPromptView: View {
         VStack(spacing: 12) {
             Text("Are you still joining?").font(.title3.bold())
             Text("\(event.title) started 2 minutes ago.").foregroundStyle(.secondary)
-            HStack { Button("Join now", action: onJoin).buttonStyle(.borderedProminent); Button("I'm not joining", action: onDismiss) }
+            HStack { JoinButton(event: event, action: onJoin); Button("I'm not joining", action: onDismiss) }
         }
         .padding(24).frame(width: 440, height: 240)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))

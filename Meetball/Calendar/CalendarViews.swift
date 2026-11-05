@@ -4,6 +4,7 @@ struct CalendarContainerView: View {
     @EnvironmentObject var store: CalendarStore
     @EnvironmentObject var session: SessionManager
     @State private var showForm = false
+    @State private var formRange: NewEventDateRange?
 
     var body: some View {
         NavigationSplitView {
@@ -15,14 +16,25 @@ struct CalendarContainerView: View {
                 VStack(spacing: 0) {
                     header
                     Divider()
-                    HSplitView {
-                        MonthGridView().frame(minWidth: 520)
-                        DayEventsListView(showForm: $showForm).frame(minWidth: 260, idealWidth: 300)
+                    switch store.viewMode {
+                    case .month:
+                        HSplitView {
+                            MonthGridView().frame(minWidth: 520)
+                            DayEventsListView(showForm: $showForm).frame(minWidth: 260, idealWidth: 300)
+                        }
+                    case .week, .day:
+                        TimeGridView(days: store.displayedDays) { start, end in
+                            formRange = NewEventDateRange(start: start, end: end)
+                            showForm = true
+                        }
                     }
                 }
+                .background(KeyEventMonitor(handler: handleKey))
             }
         }
-        .sheet(isPresented: $showForm) { EventFormView(day: store.selectedDay) }
+        .sheet(isPresented: $showForm, onDismiss: { formRange = nil }) {
+            if let r = formRange { EventFormView(start: r.start, end: r.end) } else { EventFormView(day: store.selectedDay) }
+        }
         .alert("Something went wrong", isPresented: Binding(get: { store.actionError != nil }, set: { if !$0 { store.actionError = nil } })) {
             Button("OK") { store.actionError = nil }
         } message: { Text(store.actionError ?? "") }
@@ -31,13 +43,83 @@ struct CalendarContainerView: View {
 
     var header: some View {
         HStack {
-            Text(store.anchor, format: .dateTime.month(.wide).year()).font(.title2.bold())
+            Text(title).font(.title2.bold()).lineLimit(1)
             Spacer()
-            Button { store.shiftMonth(-1) } label: { Image(systemName: "chevron.left") }
-            Button("Today") { store.anchor = Date(); store.selectedDay = Calendar.current.startOfDay(for: Date()); store.refresh() }
-            Button { store.shiftMonth(1) } label: { Image(systemName: "chevron.right") }
-            Button { showForm = true } label: { Label("New event", systemImage: "plus") }.buttonStyle(.borderedProminent)
+            Picker("View", selection: $store.viewMode) {
+                ForEach(CalendarViewMode.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+            .help("Day ⌘1 · Week ⌘2 · Month ⌘3")
+            Button { store.step(-1) } label: { Image(systemName: "chevron.left") }.help("Previous (←)")
+            Button("Today") { store.goToday() }.help("Today (T)")
+            Button { store.step(1) } label: { Image(systemName: "chevron.right") }.help("Next (→)")
+            Button { formRange = nil; showForm = true } label: { Label("New event", systemImage: "plus") }.buttonStyle(.borderedProminent)
         }.padding(12)
+    }
+
+    private var title: String {
+        switch store.viewMode {
+        case .month:
+            return store.anchor.formatted(.dateTime.month(.wide).year())
+        case .day:
+            return store.selectedDay.formatted(.dateTime.weekday(.wide).month(.wide).day().year())
+        case .week:
+            let days = store.displayedDays
+            guard let first = days.first, let last = days.last else { return "" }
+            let cal = Calendar.current
+            if cal.isDate(first, equalTo: last, toGranularity: .month) {
+                return "\(first.formatted(.dateTime.month(.wide).day())) – \(last.formatted(.dateTime.day())), \(last.formatted(.dateTime.year()))"
+            }
+            if cal.isDate(first, equalTo: last, toGranularity: .year) {
+                return "\(first.formatted(.dateTime.month(.abbreviated).day())) – \(last.formatted(.dateTime.month(.abbreviated).day())), \(last.formatted(.dateTime.year()))"
+            }
+            return "\(first.formatted(.dateTime.month(.abbreviated).day().year())) – \(last.formatted(.dateTime.month(.abbreviated).day().year()))"
+        }
+    }
+
+    /// ←/→ previous/next period, T today, J/K next/previous day. Ignored while typing or with ⌘/⌥/⌃ held.
+    private func handleKey(_ e: NSEvent) -> Bool {
+        guard e.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return false }
+        switch Int(e.keyCode) {
+        case 123: store.step(-1); return true   // ←
+        case 124: store.step(1); return true    // →
+        default: break
+        }
+        switch e.charactersIgnoringModifiers?.lowercased() {
+        case "t": store.goToday(); return true
+        case "j": store.moveSelectedDay(1); return true
+        case "k": store.moveSelectedDay(-1); return true
+        default: return false
+        }
+    }
+}
+
+/// Installs a local key-down monitor scoped to the hosting window (skips text editing and sheets).
+struct KeyEventMonitor: NSViewRepresentable {
+    let handler: (NSEvent) -> Bool
+
+    func makeNSView(context: Context) -> MonitorView {
+        let v = MonitorView(); v.handler = handler; return v
+    }
+    func updateNSView(_ v: MonitorView, context: Context) { v.handler = handler }
+
+    final class MonitorView: NSView {
+        var handler: ((NSEvent) -> Bool)?
+        private var monitor: Any?
+
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if let monitor { NSEvent.removeMonitor(monitor) }
+            monitor = nil
+            guard window != nil else { return }
+            monitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] ev in
+                guard let self, let w = self.window, ev.window === w, w.attachedSheet == nil,
+                      !(w.firstResponder is NSText) else { return ev }
+                return self.handler?(ev) == true ? nil : ev
+            }
+        }
     }
 }
 
@@ -145,7 +227,7 @@ struct MonthGridView: View {
         .contentShape(Rectangle())
         .onTapGesture { store.selectedDay = day }
     }
-    private func isBar(_ e: CalendarEvent) -> Bool { e.isAllDay || !Calendar.current.isDate(e.start, inSameDayAs: e.end.addingTimeInterval(-1)) }
+    private func isBar(_ e: CalendarEvent) -> Bool { e.isBarEvent() }
 }
 
 extension Array {
@@ -170,29 +252,16 @@ struct DayEventsListView: View {
                             if let l = seg.event.location, !l.isEmpty { Text(l).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                         }
                         Spacer()
-                        if let u = seg.event.meetURL { Button("Join") { NSWorkspace.shared.open(u) }.controlSize(.small) }
+                        JoinButton(event: seg.event, size: .small)
                     }
+                    .opacity(seg.event.isDeclined ? 0.5 : 1)
                     .contextMenu {
-                        if let l = seg.event.htmlLink { Button("Open in Google Calendar") { NSWorkspace.shared.open(l) } }
+                        MeetingSecondaryActions(event: seg.event)
+                        Divider()
                         Button("Delete", role: .destructive) { Task { await store.delete(seg.event) } }
                     }
                 }
             }
-        }
-    }
-}
-
-struct MenubarEventRow: View {
-    let event: CalendarEvent
-    var body: some View {
-        HStack {
-            Circle().fill(Color(hex: event.colorHex)).frame(width: 8, height: 8)
-            VStack(alignment: .leading) {
-                Text(event.title).lineLimit(1)
-                Text("\(event.start.formatted(date: .omitted, time: .shortened)) · in \(TimeUntilFormatter.string(until: event.start))").font(.caption).foregroundStyle(.secondary)
-            }
-            Spacer()
-            if let u = event.meetURL { Button("Join") { NSWorkspace.shared.open(u) } }
         }
     }
 }
@@ -207,7 +276,11 @@ struct EventFormView: View {
 
     init(day: Date) {
         let r = NewEventDateRangeBuilder.build(day: day)
-        _draft = State(initialValue: NewEventDraft(start: r.start, end: r.end))
+        self.init(start: r.start, end: r.end)
+    }
+
+    init(start: Date, end: Date) {
+        _draft = State(initialValue: NewEventDraft(start: start, end: end))
     }
     private var writable: [GCalendar] { store.calendars.filter(\.canWrite) }
 

@@ -8,9 +8,15 @@ Independent implementation; written from observed behavior and public APIs, not 
 - Apple Calendar (EventKit) source, read-only: shows calendars already configured in the macOS Calendar app (Exchange, iCloud, …)
   with no OAuth, so it works when an org admin blocks Google sign-in. Enable via the connect screen or Settings › Accounts.
   Meet/Zoom/Teams/Webex join links are detected from the event URL, location and notes. Feeds the menu bar and Meeting Guardian.
+- Day / Week / Month views (⌘1/⌘2/⌘3, remembered): time grid with hour gutter, now-line, overlap column packing,
+  all-day row, drag to create, auto-scroll to now/working hours; keyboard ←/→ prev/next, T today, J/K next/previous day
 - Month grid with multi-day event bars (lane-packed), per-day list, per-calendar visibility
 - Create events (attendees, Google Meet link, focus blocks) and delete events
-- Menu-bar extra: next-meeting countdown, upcoming list with Join buttons
+- Menu-bar extra: next-meeting countdown, mini month with event dots (click a day to scope the agenda), hero card for the
+  next/in-progress meeting, agenda grouped by day with a "now" line, all-day chips, declined events dimmed
+- One-click join: global shortcut (default ⌃⌥⌘J, recordable) joins the nearest meeting; Join buttons show the service
+  (Meet, Zoom, Teams, Webex) and open the native app (zoommtg://, msteams://) or a chosen browser per service; copy link /
+  open in Google Calendar; "Join" action on alert notifications
 - Meeting Guardian: soft notification, heads-up overlay, hard overlay (+sound), timings, "Are you still joining?" prompt,
   Focus break-through (time-sensitive), screen-share suppression (heuristic), quiet hours, sleep/shutdown warning, per-calendar rules
 - Pro tier via StoreKit 2 (soft alerts are free; heads-up/hard/per-calendar rules are Pro)

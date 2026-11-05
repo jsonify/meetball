@@ -26,7 +26,15 @@ public struct CalendarEvent: Identifiable, Hashable {
     public var attendees: [String]
     public var htmlLink: URL?
     public var colorHex: String = "#4285F4"
+    /// The signed-in user declined this event.
+    public var isDeclined: Bool = false
     public var uid: String { "\(accountEmail)|\(calendarID)|\(id)" }
+    public var calendarKey: String { "\(accountEmail)|\(calendarID)" }
+
+    /// All-day or multi-day events render as bars (month grid, all-day row) rather than timed blocks.
+    public func isBarEvent(calendar: Calendar = .current) -> Bool {
+        isAllDay || end.timeIntervalSince(start) >= 86400 || !calendar.isDate(start, inSameDayAs: end.addingTimeInterval(-1))
+    }
 }
 
 public struct NewEventDraft {

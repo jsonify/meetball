@@ -7,6 +7,7 @@ struct SettingsView: View {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             AccountsSettings().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
             MeetingGuardianSettingsView().tabItem { Label("Alerts", systemImage: "bell.badge") }
+            JoinSettingsView().tabItem { Label("Joining", systemImage: "video") }
             SubscriptionSettings().tabItem { Label("Pro", systemImage: "star") }
         }.frame(width: 620, height: 560)
     }
@@ -74,4 +75,53 @@ struct AccountsSettings: View {
 
 struct SubscriptionSettings: View {
     var body: some View { Form { SubscriptionStatusView() }.formStyle(.grouped) }
+}
+
+struct JoinSettingsView: View {
+    @EnvironmentObject var join: JoinController
+    @State private var browsers: [InstalledBrowser] = []
+    @State private var modes: [MeetingService: String] = [:]
+    @AppStorage("menuBar.showWeekNumbers") private var showWeekNumbers = false
+    private let prefs = JoinPreferences()
+
+    var body: some View {
+        Form {
+            Section("Shortcut") {
+                LabeledContent("Join nearest meeting") { HotKeyRecorder() }
+                if join.registrationFailed {
+                    Text("That shortcut is already used by another app. Pick a different one.").font(.caption).foregroundStyle(.red)
+                }
+                Stepper("Look ahead \(join.windowMinutes) min for meetings that haven't started", value: $join.windowMinutes, in: 1...60)
+                Text("Works from anywhere. Joins the meeting in progress, or the next one starting within the look-ahead window.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Open meeting links in") {
+                ForEach(MeetingService.allCases) { service in
+                    Picker(selection: binding(for: service)) {
+                        if service.hasNativeApp { Text("\(service.shortName) app (falls back to browser)").tag(JoinOpenMode.nativeApp.raw) }
+                        Text("Default browser").tag(JoinOpenMode.defaultBrowser.raw)
+                        if !browsers.isEmpty {
+                            Divider()
+                            ForEach(browsers) { b in Text(b.name).tag(JoinOpenMode.browser(bundleID: b.bundleID).raw) }
+                        }
+                    } label: {
+                        Label { Text(service.displayName) } icon: { Image(systemName: service.symbol).foregroundStyle(service.tint) }
+                    }
+                }
+            }
+            Section("Menu bar") {
+                Toggle("Show week numbers in the mini calendar", isOn: $showWeekNumbers)
+            }
+        }
+        .formStyle(.grouped)
+        .onAppear {
+            browsers = MeetingJoiner.installedBrowsers()
+            for s in MeetingService.allCases { modes[s] = prefs.mode(for: s).raw }
+        }
+    }
+
+    private func binding(for s: MeetingService) -> Binding<String> {
+        Binding(get: { modes[s] ?? prefs.mode(for: s).raw },
+                set: { modes[s] = $0; prefs.setMode(JoinOpenMode(raw: $0), for: s) })
+    }
 }
