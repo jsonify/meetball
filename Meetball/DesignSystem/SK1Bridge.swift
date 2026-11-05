@@ -5,7 +5,8 @@ import SK1UI
 // Meetball's use of the SK-1 look (SK1Kit): the main window, the menu bar popover, the Settings window and the
 // heads-up alert card. The full-screen hard alert keeps its own dark overlay.
 
-/// A settings tab on the SK-1 chassis: groups (`SKGroup`) 22 pt apart inside the pane margin, scrolling when tall.
+/// A settings pane: groups (`SKGroup`) 22 pt apart inside the pane margin, scrolling when tall. It sits on the Settings
+/// window's chassis (`SettingsView`), so it draws none of its own.
 struct SK1SettingsPane<Content: View>: View {
     private let content: Content
     init(@ViewBuilder content: () -> Content) { self.content = content() }
@@ -16,7 +17,6 @@ struct SK1SettingsPane<Content: View>: View {
                 .padding(SK1.Metrics.paneMargin)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .sk1Chassis()
     }
 }
 
