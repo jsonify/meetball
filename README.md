@@ -37,6 +37,20 @@ xcodegen generate
 xcodebuild -project Meetball.xcodeproj -scheme Meetball build
 xcodebuild -project Meetball.xcodeproj -scheme MeetballTests test   # or ⌘U in Xcode
 ```
+### Run it without Xcode
+`make dist` (or `Scripts/dist.sh`) regenerates the project, does a Release build into `build/`, and copies the app to
+`dist/Meetball.app` (both folders are gitignored). Then `open dist/Meetball.app`, or use one of these:
+
+| Command | What it does |
+|---|---|
+| `make dist` | Build `dist/Meetball.app` |
+| `make run` | Build, quit any running Meetball, and open the new build |
+| `make install` | Build, copy to `/Applications/Meetball.app`, and open it |
+| `make universal` | Build for arm64 + x86_64 (`Scripts/dist.sh --universal`) |
+| `make clean` | Delete `build/` and `dist/` |
+
+The app is signed with your Apple Development identity (`-allowProvisioningUpdates`), the same as an Xcode build. If the
+build fails, the errors are printed and the full log is at `build/dist.log`.
 ### CI
 `.github/workflows/ci.yml` builds the app and runs `MeetballTests` on a macOS runner (newest Xcode, signed ad hoc, no
 secrets) on every push and pull request, and runs `Scripts/sk1-audit.sh` on Linux. The build and test logs and the
