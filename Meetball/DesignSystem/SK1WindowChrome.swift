@@ -35,7 +35,6 @@ private struct SK1WindowChromeModifier<Title: View>: ViewModifier {
                     .frame(height: max(geo.safeAreaInsets.top, 28))
                 if groove { SKGroove() }
                 content.frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .toolbar(.hidden, for: .windowToolbar)
             }
         }
         .ignoresSafeArea(.container, edges: .top)
@@ -125,6 +124,10 @@ private struct SK1WindowConfigurator: NSViewRepresentable {
             w.styleMask.insert(.fullSizeContentView)
             w.titlebarAppearsTransparent = true
             w.titleVisibility = .hidden
+            // The close, minimize and zoom buttons stay, over the chassis at the strip's left (as in Skreener).
+            for kind in [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton] {
+                w.standardWindowButton(kind)?.isHidden = false
+            }
         }
     }
 }
