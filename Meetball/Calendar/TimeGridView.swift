@@ -1,4 +1,6 @@
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
 /// Day / week time grid: hour gutter, all-day row, overlap-packed event blocks, current-time line, drag to create.
 struct TimeGridView: View {
@@ -52,11 +54,11 @@ struct TimeGridView: View {
                     Text("\(cal.component(.day, from: day))").bold()
                         .foregroundStyle(isToday ? Color.white : Color.primary)
                         .frame(minWidth: 24, minHeight: 24)
-                        .background(isToday ? Color.accentColor : .clear, in: Circle())
+                        .background(isToday ? Color(sk1Hex: SK1.orange) : .clear, in: Circle())
                 }
                 .font(.callout)
                 .frame(maxWidth: .infinity).padding(.vertical, 6)
-                .background(isSelected && days.count > 1 ? Color.accentColor.opacity(0.08) : .clear)
+                .background(isSelected && days.count > 1 ? Color(sk1Hex: SK1.orange, opacity: 0.08) : .clear)
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) { store.select(day); store.viewMode = .day }
                 .onTapGesture { store.select(day) }
@@ -71,8 +73,8 @@ struct TimeGridView: View {
         let bars = allDayBars(derived)
         let lanes = (bars.map(\.lane).max() ?? -1) + 1
         return HStack(alignment: .top, spacing: 0) {
-            Text("all-day").font(.caption2).foregroundStyle(.secondary)
-                .frame(width: gutterWidth - 8, alignment: .trailing).padding(.trailing, 8).padding(.top, 3)
+            SKCaption("All-day", tone: .soft)
+                .frame(width: gutterWidth - 8, alignment: .trailing).padding(.trailing, 8).padding(.top, 5)
             GeometryReader { geo in
                 let colW = geo.size.width / CGFloat(max(1, days.count))
                 ZStack(alignment: .topLeading) {
@@ -174,7 +176,7 @@ struct TimeGridDayColumn: View {
                 }
 
                 if let r = dragRange {
-                    RoundedRectangle(cornerRadius: 5).fill(Color.accentColor.opacity(0.25))
+                    RoundedRectangle(cornerRadius: 5).fill(Color(sk1Hex: SK1.orange, opacity: 0.25))
                         .overlay(alignment: .topLeading) {
                             Text("\(r.start.formatted(date: .omitted, time: .shortened)) – \(r.end.formatted(date: .omitted, time: .shortened))")
                                 .font(.caption2.bold()).padding(4)
@@ -186,8 +188,8 @@ struct TimeGridDayColumn: View {
 
                 if isToday {
                     HStack(spacing: 0) {
-                        Circle().fill(Color.red).frame(width: 8, height: 8).offset(x: -4)
-                        Rectangle().fill(Color.red).frame(height: 1.5)
+                        Circle().fill(Color(sk1Hex: SK1.recRed)).frame(width: 8, height: 8).offset(x: -4)
+                        Rectangle().fill(Color(sk1Hex: SK1.recRed)).frame(height: 1.5)
                     }
                     .frame(width: w)
                     .offset(y: y(now) - 4)
@@ -195,7 +197,7 @@ struct TimeGridDayColumn: View {
                 }
             }
         }
-        .background(isToday ? Color.accentColor.opacity(0.03) : .clear)
+        .background(isToday ? Color(sk1Hex: SK1.orange, opacity: 0.04) : .clear)
         .overlay(alignment: .leading) { Rectangle().fill(Color.secondary.opacity(0.2)).frame(width: 0.5) }
     }
 

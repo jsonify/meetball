@@ -2,8 +2,8 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-// Meetball's use of the SK-1 look (SK1Kit): the menu bar popover, the Settings window and the heads-up alert card.
-// The main calendar window and the full-screen hard alert keep the native look for now.
+// Meetball's use of the SK-1 look (SK1Kit): the main window, the menu bar popover, the Settings window and the
+// heads-up alert card. The full-screen hard alert keeps its own dark overlay.
 
 /// A settings tab on the SK-1 chassis: groups (`SKGroup`) 22 pt apart inside the pane margin, scrolling when tall.
 struct SK1SettingsPane<Content: View>: View {

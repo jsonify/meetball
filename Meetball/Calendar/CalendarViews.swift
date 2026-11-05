@@ -1,4 +1,6 @@
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
 struct CalendarContainerView: View {
     @EnvironmentObject var store: CalendarStore
@@ -8,31 +10,10 @@ struct CalendarContainerView: View {
 
     var body: some View {
         NavigationSplitView {
-            CalendarSidebarView()
+            // The sidebar column draws its own material, so the chassis goes on each column, not behind the split view.
+            CalendarSidebarView().scrollContentBackground(.hidden).sk1Chassis()
         } detail: {
-            if !store.hasAnySource {
-                ConnectPrompt()
-            } else if store.section == .upcoming {
-                UpcomingView { formRange = nil; showForm = true }
-            } else {
-                VStack(spacing: 0) {
-                    header
-                    Divider()
-                    switch store.viewMode {
-                    case .month:
-                        HSplitView {
-                            MonthGridView().frame(minWidth: 520)
-                            DayEventsListView(showForm: $showForm).frame(minWidth: 260, idealWidth: 300)
-                        }
-                    case .week, .day:
-                        TimeGridView(days: store.displayedDays) { start, end in
-                            formRange = NewEventDateRange(start: start, end: end)
-                            showForm = true
-                        }
-                    }
-                }
-                .background(KeyEventMonitor(handler: handleKey))
-            }
+            detail.scrollContentBackground(.hidden).sk1Chassis()
         }
         .sheet(isPresented: $showForm, onDismiss: { formRange = nil }) {
             if let r = formRange { EventFormView(start: r.start, end: r.end) } else { EventFormView(day: store.selectedDay) }
@@ -43,19 +24,51 @@ struct CalendarContainerView: View {
         .task { store.startAutoRefresh() }
     }
 
+    @ViewBuilder private var detail: some View {
+        if !store.hasAnySource {
+            ConnectPrompt()
+        } else if store.section == .upcoming {
+            UpcomingView { formRange = nil; showForm = true }
+        } else {
+            VStack(spacing: 0) {
+                header
+                SKGroove()
+                switch store.viewMode {
+                case .month:
+                    HSplitView {
+                        SKWell { MonthGridView().padding(6) }
+                            .padding(12)
+                            .frame(minWidth: 520)
+                        DayEventsListView(showForm: $showForm).frame(minWidth: 260, idealWidth: 300)
+                    }
+                case .week, .day:
+                    TimeGridView(days: store.displayedDays) { start, end in
+                        formRange = NewEventDateRange(start: start, end: end)
+                        showForm = true
+                    }
+                }
+            }
+            .background(KeyEventMonitor(handler: handleKey))
+        }
+    }
+
     var header: some View {
         HStack {
             Text(title).font(.title2.bold()).lineLimit(1)
             Spacer()
-            Picker("View", selection: $store.viewMode) {
-                ForEach(CalendarViewMode.allCases) { Text($0.title).tag($0) }
+            SKSegmented(selection: $store.viewMode,
+                        options: CalendarViewMode.allCases.map { SKSegmented<CalendarViewMode>.Option($0, $0.title) })
+                .fixedSize()
+                .help("Day ⌘1 · Week ⌘2 · Month ⌘3")
+            SKKeyTray {
+                Button { store.step(-1) } label: { Image(systemName: "chevron.left") }
+                    .buttonStyle(.sk1Key()).help("Previous (←)").accessibilityLabel("Previous")
+                Button("Today") { store.goToday() }.buttonStyle(.sk1Key()).help("Today (T)")
+                Button { store.step(1) } label: { Image(systemName: "chevron.right") }
+                    .buttonStyle(.sk1Key()).help("Next (→)").accessibilityLabel("Next")
             }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-            .help("Day ⌘1 · Week ⌘2 · Month ⌘3")
-            Button { store.step(-1) } label: { Image(systemName: "chevron.left") }.help("Previous (←)")
-            Button("Today") { store.goToday() }.help("Today (T)")
-            Button { store.step(1) } label: { Image(systemName: "chevron.right") }.help("Next (→)")
-            Button { formRange = nil; showForm = true } label: { Label("New event", systemImage: "plus") }.buttonStyle(.borderedProminent)
+            Button { formRange = nil; showForm = true } label: { Label("New event", systemImage: "plus") }
+                .buttonStyle(.sk1Key(.orange))
         }.padding(12)
     }
 
@@ -133,8 +146,8 @@ struct ConnectPrompt: View {
             Image(systemName: "calendar.badge.plus").font(.system(size: 44)).foregroundStyle(.secondary)
             Text("Connect your Google Calendar").font(.title2.bold())
             Text("A fast, privacy-first Google Calendar app for your Mac.").foregroundStyle(.secondary)
-            Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.borderedProminent).disabled(session.state == .signingIn)
-            Button("Use Apple Calendar instead") { Task { await store.enableApple() } }
+            Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.sk1Key(.orange)).disabled(session.state == .signingIn)
+            Button("Use Apple Calendar instead") { Task { await store.enableApple() } }.buttonStyle(.sk1Key())
             Text("Reads calendars already set up in the Calendar app (Exchange, iCloud, …). No sign-in needed.").font(.caption).foregroundStyle(.secondary)
             if store.appleAccessDenied { Text("Calendar access was denied. Enable Meetball in System Settings › Privacy & Security › Calendars.").font(.caption).foregroundStyle(.red).frame(maxWidth: 360) }
             if let e = session.lastError { Text(e).font(.caption).foregroundStyle(.red).frame(maxWidth: 360) }
@@ -189,7 +202,11 @@ private struct SidebarNavRow: View {
                 .fontWeight(selected ? .semibold : .regular)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, 3).padding(.horizontal, 6)
-                .background(selected ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .background(selected ? Color(sk1Hex: SK1.orange, opacity: 0.16) : .clear, in: RoundedRectangle(cornerRadius: SK1.Metrics.keyRadius))
+                .overlay(alignment: .leading) {
+                    // The SK-1 "on" bar beside the chosen section.
+                    if selected { RoundedRectangle(cornerRadius: 1).fill(Color(sk1Hex: SK1.orange)).frame(width: 3, height: 14) }
+                }
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -206,7 +223,7 @@ struct MonthGridView: View {
         VStack(spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(Calendar.current.shortWeekdaySymbols.rotated(Calendar.current.firstWeekday - 1), id: \.self) {
-                    Text($0).font(.caption).foregroundStyle(.secondary).frame(maxWidth: .infinity)
+                    SKCaption($0, tone: .soft).frame(maxWidth: .infinity)
                 }
             }.padding(.vertical, 4)
             ForEach(d.weeks, id: \.weekStart) { week in
@@ -241,7 +258,7 @@ struct MonthGridView: View {
         let isToday = Calendar.current.isDateInToday(day)
         VStack(alignment: .leading, spacing: 1) {
             Text("\(Calendar.current.component(.day, from: day))").font(.caption.bold())
-                .frame(width: 20, height: 20).background(isToday ? Color.accentColor : .clear, in: Circle())
+                .frame(width: 20, height: 20).background(isToday ? Color(sk1Hex: SK1.orange) : .clear, in: Circle())
                 .foregroundStyle(isToday ? .white : (inMonth ? .primary : .secondary))
             Spacer().frame(height: CGFloat(min(laneCount, 3)) * laneH - 2)
             ForEach(segments.filter { !isBar($0.event) }.prefix(2)) { seg in
@@ -251,7 +268,7 @@ struct MonthGridView: View {
             Spacer(minLength: 0)
         }
         .padding(3).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(isSel ? Color.accentColor.opacity(0.12) : .clear)
+        .background(isSel ? Color(sk1Hex: SK1.orange, opacity: 0.10) : .clear)
         .overlay(Rectangle().stroke(Color.secondary.opacity(0.15), lineWidth: 0.5))
         .contentShape(Rectangle())
         .onTapGesture { store.selectedDay = day }
@@ -269,8 +286,8 @@ struct DayEventsListView: View {
     var body: some View {
         let segs = store.derived.segmentsByDay[store.selectedDay] ?? []
         VStack(alignment: .leading) {
-            Text(store.selectedDay, format: .dateTime.weekday(.wide).month().day()).font(.headline).padding([.top, .horizontal], 12)
-            if segs.isEmpty { Text("No events for this day").foregroundStyle(.secondary).padding(12); Spacer() }
+            SKCaption(store.selectedDay.formatted(.dateTime.weekday(.wide).month().day()), tone: .soft).padding([.top, .horizontal], 12)
+            if segs.isEmpty { Text("No events for this day").sk1Hint().padding(12); Spacer() }
             else {
                 List(segs) { seg in
                     HStack(alignment: .top) {
@@ -281,7 +298,7 @@ struct DayEventsListView: View {
                             if let l = seg.event.location, !l.isEmpty { Text(l).font(.caption).foregroundStyle(.secondary).lineLimit(1) }
                         }
                         Spacer()
-                        JoinButton(event: seg.event, size: .small)
+                        JoinButton(event: seg.event, size: .small, key: .cream)
                     }
                     .opacity(seg.event.isDeclined ? 0.5 : 1)
                     .eventDetailOnClick(seg.event, arrowEdge: .leading)
@@ -335,12 +352,12 @@ struct EventFormView: View {
                     Button { draft.attendees.removeAll { $0 == a } } label: { Label(a, systemImage: "xmark.circle.fill") }.buttonStyle(.bordered).controlSize(.small)
                 } }
             }
-            HStack { Spacer(); Button("Cancel") { dismiss() }
+            HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(.sk1Key())
                 Button("Save") { Task { saving = true; if await store.create(draft) { dismiss() }; saving = false } }
-                    .buttonStyle(.borderedProminent).disabled(saving || draft.calendar == nil)
+                    .buttonStyle(.sk1Key(.orange)).disabled(saving || draft.calendar == nil)
             }
         }
-        .formStyle(.grouped).frame(width: 480, height: 520)
+        .formStyle(.grouped).sk1FormChassis().frame(width: 480, height: 520)
         .onAppear { draft.calendar = draft.calendar ?? writable.first(where: \.isPrimary) ?? writable.first }
     }
 

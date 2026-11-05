@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import SK1UI
 
 extension View {
     /// Click to show the event's details in a popover (Esc or clicking outside dismisses it).
@@ -49,10 +50,11 @@ struct EventDetailPopover: View {
                 ScrollView { content }.frame(height: maxContentHeight)
             }
             .frame(maxHeight: maxContentHeight)
-            Divider()
+            SKGroove()
             actions.padding(.horizontal, 10).padding(.vertical, 8)
         }
         .frame(width: 340)
+        .sk1Chassis()
         .onExitCommand { dismiss() }
     }
 
@@ -111,8 +113,9 @@ struct EventDetailPopover: View {
 
     private func joinRow(_ url: URL) -> some View {
         HStack(spacing: 8) {
-            JoinButton(event: event)
+            JoinButton(event: event, key: .orange)
             Button { MeetingJoiner.copyLink(url) } label: { Label("Copy link", systemImage: "doc.on.doc") }
+                .buttonStyle(.sk1Key())
                 .help("Copy meeting link").accessibilityLabel("Copy meeting link")
             Spacer(minLength: 0)
         }
@@ -133,7 +136,7 @@ struct EventDetailPopover: View {
         let shown = showAllAttendees ? all : Array(all.prefix(8))
         return VStack(alignment: .leading, spacing: 5) {
             HStack {
-                Text(all.isEmpty ? "Organizer" : "\(all.count) guest\(all.count == 1 ? "" : "s")").font(.subheadline.weight(.semibold))
+                SKCaption(all.isEmpty ? "Organizer" : "\(all.count) guest\(all.count == 1 ? "" : "s")", tone: .soft)
                 Spacer()
                 if !all.isEmpty { Text(responseSummary(all)).font(.caption).foregroundStyle(.secondary) }
             }
@@ -164,7 +167,7 @@ struct EventDetailPopover: View {
 
     private var notesSection: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Notes").font(.subheadline.weight(.semibold))
+            SKCaption("Notes", tone: .soft)
             Text(EventNotesFormatter.linked(notes)).font(.callout).textSelection(.enabled)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -175,18 +178,21 @@ struct EventDetailPopover: View {
             if confirmingDelete {
                 Text("Delete this event?").font(.callout)
                 Spacer()
-                Button("Cancel") { confirmingDelete = false }.keyboardShortcut(.cancelAction)
+                Button("Cancel") { confirmingDelete = false }.buttonStyle(.sk1Key(size: .small)).keyboardShortcut(.cancelAction)
                 Button("Delete", role: .destructive) {
                     Task { await store.delete(event) }
                     dismiss()
                 }
+                .buttonStyle(.sk1Key(.charcoal, size: .small))
                 .keyboardShortcut(.defaultAction)
             } else {
                 if let link = event.htmlLink {
                     Button { NSWorkspace.shared.open(link) } label: { Label("Google Calendar", systemImage: "arrow.up.right.square") }
+                        .buttonStyle(.sk1Key(size: .small))
                         .help("Open in Google Calendar")
                 } else if isApple {
                     Button { openInAppleCalendar() } label: { Label("Calendar", systemImage: "arrow.up.right.square") }
+                        .buttonStyle(.sk1Key(size: .small))
                         .help("Open in Calendar")
                         .accessibilityLabel("Open in Calendar")
                 }
@@ -196,16 +202,17 @@ struct EventDetailPopover: View {
                     Button { guardianStore.setMuted(!muted, for: event) } label: {
                         Image(systemName: muted ? "bell.slash.fill" : "bell")
                     }
+                    .buttonStyle(.sk1Key(isOn: muted, size: .small))
                     .help(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
                     .accessibilityLabel(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
                 }
                 if !isApple {
                     Button { confirmingDelete = true } label: { Image(systemName: "trash") }
+                        .buttonStyle(.sk1Key(size: .small))
                         .help("Delete event").accessibilityLabel("Delete event")
                 }
             }
         }
-        .controlSize(.small)
     }
 
     // MARK: Helpers

@@ -22,9 +22,10 @@ Independent implementation; written from observed behavior and public APIs, not 
 - Pro tier via StoreKit 2 (soft alerts are free; heads-up/hard/per-calendar rules are Pro)
 - Launch at login, refresh interval, per-account accent color
 - SK-1 look via [SK1Kit](https://github.com/jsonify/SK1Kit) (cream/charcoal chassis, sunken trays, raised keys, olive LCD):
-  the menu bar popover (LCD countdown on the next meeting, keycap Join), the Settings window (General, Menu Bar and
-  Joining tabs are SK-1 rows; the rest are grouped forms on the chassis) and the heads-up alert card. The main window
-  and the full-screen hard alert keep the native look for now.
+  the main window (key-tray toolbar with Day/Week/Month segments, the month grid in a sunken tray, Upcoming with an
+  LCD countdown, event details and the new-event sheet), the menu bar popover (LCD countdown on the next meeting,
+  keycap Join), the Settings window (General, Menu Bar and Joining tabs are SK-1 rows; the rest are grouped forms on
+  the chassis) and the heads-up alert card. The full-screen hard alert keeps its own dark overlay.
 
 ## Build
 Requires Xcode 16+ and XcodeGen.
