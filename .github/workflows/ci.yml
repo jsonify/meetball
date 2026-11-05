@@ -1,0 +1,68 @@
+name: CI
+
+# Builds and tests Meetball on every push and pull request, so a change is compiled before it's merged. No signing
+# identity or secrets are needed: the app is signed ad hoc, and Google sign-in builds with an empty client ID.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+# A newer run for the same branch replaces any older one still queued or running.
+concurrency:
+  group: ci-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      # Ad-hoc signing: lets the sandboxed app (and the tests it hosts) run without a certificate.
+      SIGNING: CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=
+    steps:
+      - uses: actions/checkout@v4
+      # The newest Xcode on the runner: newer compilers report what older ones miss.
+      - name: Select newest Xcode
+        run: |
+          NEWEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$NEWEST"
+          xcodebuild -version
+      - name: Resolve packages (SK1Kit)
+        run: xcodebuild -project Meetball.xcodeproj -resolvePackageDependencies
+      - name: Schemes
+        run: xcodebuild -project Meetball.xcodeproj -list
+      - name: Build
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project Meetball.xcodeproj -scheme Meetball -configuration Debug \
+            -destination 'platform=macOS' -derivedDataPath build/DerivedData $SIGNING \
+            build 2>&1 | tee "$RUNNER_TEMP/build.log" | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log"
+      - name: Test
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project Meetball.xcodeproj -scheme MeetballTests -destination 'platform=macOS' \
+            -derivedDataPath build/DerivedData -resultBundlePath "$RUNNER_TEMP/MeetballTests.xcresult" $SIGNING \
+            test 2>&1 | tee "$RUNNER_TEMP/test.log" | grep -E "error:|Test Case .* failed|Executed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/test.log"
+      - name: Upload logs and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meetball-ci-logs
+          path: |
+            ${{ runner.temp }}/build.log
+            ${{ runner.temp }}/test.log
+            ${{ runner.temp }}/MeetballTests.xcresult
+          if-no-files-found: ignore
+
+  # Nothing native left next to the SK-1 look (Scripts/sk1-audit.sh, from SK1Kit).
+  sk1-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: sk1-audit
+        run: Scripts/sk1-audit.sh Meetball

@@ -62,7 +62,7 @@ struct CalendarContainerView: View {
                     ForEach(CalendarViewMode.allCases) { mode in
                         Button(mode.title) { store.viewMode = mode }
                             .buttonStyle(.sk1Key(isOn: store.viewMode == mode))
-                            .help("\(mode.title) (⌘\(mode.shortcut))")
+                            .help("\(mode.title) (⌘\(String(mode.shortcut)))")
                     }
                 }
                 SKKeyTray(caption: "Go") {

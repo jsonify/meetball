@@ -37,6 +37,11 @@ xcodegen generate
 xcodebuild -project Meetball.xcodeproj -scheme Meetball build
 xcodebuild -project Meetball.xcodeproj -scheme MeetballTests test   # or ⌘U in Xcode
 ```
+### CI
+`.github/workflows/ci.yml` builds the app and runs `MeetballTests` on a macOS runner (newest Xcode, signed ad hoc, no
+secrets) on every push and pull request, and runs `Scripts/sk1-audit.sh` on Linux. The build and test logs and the
+`.xcresult` are uploaded as the `meetball-ci-logs` artifact.
+
 ### SK-1 look
 `Scripts/sk1-audit.sh Meetball` lists anything still drawn natively (it should report nothing; a native control kept on
 purpose ends its line with `// sk1-audit: ignore (reason)`). `.claude/skills/adopt-sk1kit` is SK1Kit's adoption skill
