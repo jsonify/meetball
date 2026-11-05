@@ -45,6 +45,15 @@ jobs:
             -destination 'platform=macOS' -derivedDataPath build/DerivedData $SIGNING \
             build 2>&1 | tee "$RUNNER_TEMP/build.log" | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
           grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/build.log"
+      # The Dock shows a blank placeholder if the icon isn't compiled into the bundle, which a green build won't catch.
+      - name: Check app icon
+        run: |
+          app=build/DerivedData/Build/Products/Debug/Meetball.app
+          test -f "$app/Contents/Resources/AppIcon.icns" || { echo "::error::AppIcon.icns missing from $app"; exit 1; }
+          test -f "$app/Contents/Resources/Assets.car" || { echo "::error::Assets.car missing from $app"; exit 1; }
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconName' "$app/Contents/Info.plist")" = AppIcon
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$app/Contents/Info.plist")" = AppIcon
+          echo "App icon OK: $(ls -l "$app/Contents/Resources/AppIcon.icns")"
       - name: Test
         shell: bash
         run: |

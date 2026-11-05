@@ -44,6 +44,9 @@ targets:
       properties:
         CFBundleName: Meetball
         CFBundleDisplayName: Meetball
+        # actool also adds these from ASSETCATALOG_COMPILER_APPICON_NAME; spelled out so the icon never depends on that merge.
+        CFBundleIconFile: AppIcon
+        CFBundleIconName: AppIcon
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         MeetballCommit: "$(MEETBALL_COMMIT)"

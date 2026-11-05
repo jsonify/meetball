@@ -30,6 +30,9 @@ struct SK1CountdownLCD: View {
     var text: String?
     /// Red and blinking while the meeting is under way; teal while waiting.
     var live = false
+    /// Overrides the lamp `live` picks (the menu bar's next-meeting card turns it amber as the start nears).
+    var lamp: SKLampColor? = nil
+    var lampBlinking: Bool? = nil
     var height: CGFloat = 40
     /// What VoiceOver reads for the whole display.
     let accessibilityText: String
@@ -39,7 +42,7 @@ struct SK1CountdownLCD: View {
     var body: some View {
         SKLCD {
             HStack(spacing: 6) {
-                SKLamp(color: live ? .danger : .success, lit: true, glow: 0, size: 5, blinking: live)
+                SKLamp(color: lamp ?? (live ? .danger : .success), lit: true, glow: 0, size: 5, blinking: lampBlinking ?? live)
                 Text(caption.uppercased())
                     .font(.system(size: 9.5, weight: .heavy)).tracking(1.1)
                     .foregroundStyle(ink).lineLimit(1)

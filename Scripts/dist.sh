@@ -53,6 +53,10 @@ fi
 app=dist/Meetball.app
 rm -rf dist && mkdir dist
 ditto build/DerivedData/Build/Products/Release/Meetball.app "$app"
+# The Dock and Finder show a blank placeholder when the app icon didn't make it into the bundle: say so now.
+if [ ! -f "$app/Contents/Resources/AppIcon.icns" ]; then
+  echo "warning: $app has no AppIcon.icns, so it will show a blank icon (check Meetball/Assets.xcassets)" >&2
+fi
 echo "==> Built $(pwd)/$app (build $build_number, $commit, $(lipo -archs "$app/Contents/MacOS/Meetball"))"
 
 if [ "$install" = 1 ]; then
@@ -62,6 +66,11 @@ if [ "$install" = 1 ]; then
   app=/Applications/Meetball.app
   echo "==> Installed $app"
 fi
+
+# Tell Launch Services about this copy, so the Dock and Finder drop any icon they cached for an older build.
+lsregister=/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
+touch "$app"
+[ -x "$lsregister" ] && "$lsregister" -f "$app" >/dev/null 2>&1 || true
 
 if [ "$run" = 1 ]; then
   pkill -x Meetball 2>/dev/null && sleep 1 || true
