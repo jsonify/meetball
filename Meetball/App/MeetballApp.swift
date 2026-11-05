@@ -37,6 +37,8 @@ final class AppModel: ObservableObject {
         calendar.onMeetingChanges = { [changeNotifier] in changeNotifier.handle($0) }
         shortcuts.setAction(for: .openPopover) { StatusItemOpener.toggle() }
         shortcuts.setAction(for: .quickAdd) { [calendar] in QuickAddPanel.show(store: calendar) }
+        // Settings › Appearance › Theme, before the first window shows.
+        DispatchQueue.main.async { ThemeController.apply() }
         if UserDefaults.standard.bool(forKey: AppPreferences.Key.hideDockIcon) {
             DispatchQueue.main.async { DockIcon.apply(hidden: true) }
         }
@@ -54,7 +56,10 @@ final class AppModel: ObservableObject {
                 self.autoJoin.tick(events: self.calendar.meetingEvents)
             })
         bag.append(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
-            .receive(on: DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBarTitle() })
+            .receive(on: DispatchQueue.main).sink { [weak self] _ in
+                ThemeController.apply()
+                self?.updateMenuBarTitle()
+            })
         tick = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self else { return }
@@ -77,7 +82,8 @@ final class AppModel: ObservableObject {
 
     private func renderLCD() {
         guard menuBarStyle == .lcd else { if menuBarLCD != nil { menuBarLCD = nil }; return }
-        let dark = NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        // The menu bar follows macOS, not the app's theme (Settings › Appearance).
+        let dark = ThemeController.systemIsDark
         let image = MenuBarLCDRenderer.image(title: menuBarTitle, highlighted: menuBarHighlighted, dark: dark)
         if image !== menuBarLCD { menuBarLCD = image }
     }

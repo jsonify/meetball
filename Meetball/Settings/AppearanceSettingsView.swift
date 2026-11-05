@@ -2,7 +2,7 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-/// Settings › Appearance: the week, the clock and how tightly the calendar views pack.
+/// Settings › Appearance: light or dark, the week, the clock and how tightly the calendar views pack.
 struct AppearanceSettings: View {
     @EnvironmentObject var calendar: CalendarStore
     @AppStorage(AppPreferences.Key.firstWeekday) private var firstWeekday = 0
@@ -11,9 +11,17 @@ struct AppearanceSettings: View {
     @AppStorage(AppPreferences.Key.clockStyle) private var clockRaw = ClockStyle.system.rawValue
     @AppStorage(AppPreferences.Key.showEventTimeZone) private var showEventTimeZone = true
     @AppStorage(AppPreferences.Key.density) private var densityRaw = LayoutDensity.comfortable.rawValue
+    @AppStorage(AppPreferences.Key.theme) private var themeRaw = AppTheme.system.rawValue
 
     var body: some View {
         SK1SettingsPane {
+            SKGroup(caption: "Appearance") {
+                SKRow(title: "Theme", subtitle: "Light is the cream SK-1 look, Dark the charcoal one. System follows macOS.") {
+                    SKSegmented(selection: $themeRaw, options: AppTheme.allCases.map { SKSegmented<String>.Option($0.rawValue, $0.title) })
+                        .frame(width: 210)
+                        .onChange(of: themeRaw) { _, raw in ThemeController.apply(AppTheme(rawValue: raw) ?? .system) }
+                }
+            }
             SKGroup(caption: "Week") {
                 SKRow(title: "First day of the week", subtitle: "For the month grid, the week view and the mini calendar.") {
                     SKPicker(selection: $firstWeekday, options: Self.weekdayOptions, stepper: false)
@@ -78,7 +86,8 @@ enum SettingsSearch {
         .init(title: "Open the menu bar popover shortcut", tab: .general, group: "Shortcuts", keywords: ["hotkey", "keyboard", "popover", "menu bar"]),
         .init(title: "Quick add shortcut", tab: .general, group: "Shortcuts", keywords: ["hotkey", "keyboard", "new event", "create"]),
         .init(title: "Refresh calendars", tab: .general, group: "Sync", keywords: ["sync", "interval", "refresh", "update", "google", "apple"]),
-        .init(title: "Version", tab: .general, group: "About", keywords: ["version", "build", "about", "commit"]),
+        .init(title: "Version", tab: .about, group: "Meetball", keywords: ["version", "build", "about", "commit"]),
+        .init(title: "Theme", tab: .appearance, group: "Appearance", keywords: ["dark mode", "light mode", "dark", "light", "system", "theme", "charcoal", "cream"]),
         .init(title: "First day of the week", tab: .appearance, group: "Week", keywords: ["monday", "sunday", "week start", "weekday"]),
         .init(title: "Show week numbers", tab: .appearance, group: "Week", keywords: ["week number", "iso", "calendar week"]),
         .init(title: "Shade weekends", tab: .appearance, group: "Week", keywords: ["weekend", "highlight", "saturday", "sunday"]),

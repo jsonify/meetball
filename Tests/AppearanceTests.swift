@@ -1,5 +1,6 @@
 import XCTest
 import SK1Tokens
+import AppKit
 @testable import Meetball
 
 /// Quick add's natural-language parser (#12).
@@ -103,6 +104,28 @@ final class SettingsSearchTests: XCTestCase {
         XCTAssertTrue(SettingsSearch.matches("week num").contains { $0.title == "Show week numbers" })
         XCTAssertTrue(SettingsSearch.matches("").isEmpty)
         XCTAssertTrue(SettingsSearch.matches("zzzz").isEmpty)
+        XCTAssertTrue(SettingsSearch.matches("dark mode").contains { $0.title == "Theme" && $0.tab == .appearance })
+        XCTAssertTrue(SettingsSearch.matches("version").contains { $0.tab == .about })
+    }
+
+    func testSidebarPinsAboutLast() {
+        XCTAssertFalse(SettingsTab.navigation.contains(.about))
+        XCTAssertEqual(SettingsTab.navigation.first, .general)
+        XCTAssertEqual(SettingsTab.navigation.count + 1, SettingsTab.allCases.count)
+    }
+}
+
+final class AppThemeTests: XCTestCase {
+    func testThemeDefaultsToSystemAndMapsToAppearances() {
+        let d = UserDefaults(suiteName: "AppThemeTests-\(UUID().uuidString)")!
+        XCTAssertEqual(AppPreferences.theme(d), .system)
+        d.set("dark", forKey: AppPreferences.Key.theme)
+        XCTAssertEqual(AppPreferences.theme(d), .dark)
+        d.set("bogus", forKey: AppPreferences.Key.theme)
+        XCTAssertEqual(AppPreferences.theme(d), .system)
+        XCTAssertNil(AppTheme.system.appearanceName)
+        XCTAssertEqual(AppTheme.light.appearanceName, .aqua)
+        XCTAssertEqual(AppTheme.dark.appearanceName, .darkAqua)
     }
 }
 
