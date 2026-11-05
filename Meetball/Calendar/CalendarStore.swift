@@ -170,7 +170,7 @@ public final class CalendarStore: ObservableObject {
             }
         }
         calendars = cals
-        events = evs.sorted { $0.start < $1.start }
+        events = RecurrenceClassifier.annotate(evs).sorted { $0.start < $1.start }
         loadState = firstError.map { .failed($0) } ?? .loaded
     }
 

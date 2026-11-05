@@ -40,6 +40,9 @@
 		D91BCAA673BC62B6F4E5C0B6 /* EventFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */; };
 		B2638DFF04247D1B279E39DF /* GuardianSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F70EFA4732AC9FC257AF68E9 /* GuardianSettingsView.swift */; };
 		AED34368EA1906BA8714238F /* GuardianAlertTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABC37929D941CE0261272472 /* GuardianAlertTests.swift */; };
+		C38332E9EF59E1E40534A312 /* Recurrence.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0903A2AFC13747F21522FC78 /* Recurrence.swift */; };
+		57CA01BC831A9139D549D6E8 /* AlertPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 171A447A0837120E4D502060 /* AlertPolicy.swift */; };
+		F5AC8F94533DC3749D96DE8D /* AlertPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1A3C0341D3D29C34932CD71 /* AlertPolicyTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -91,12 +94,16 @@
 		A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFilterTests.swift; sourceTree = "<group>"; };
 		F70EFA4732AC9FC257AF68E9 /* GuardianSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianSettingsView.swift; sourceTree = "<group>"; };
 		ABC37929D941CE0261272472 /* GuardianAlertTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuardianAlertTests.swift; sourceTree = "<group>"; };
+		0903A2AFC13747F21522FC78 /* Recurrence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Recurrence.swift; sourceTree = "<group>"; };
+		171A447A0837120E4D502060 /* AlertPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertPolicy.swift; sourceTree = "<group>"; };
+		F1A3C0341D3D29C34932CD71 /* AlertPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertPolicyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
 		414803E5FF7504E226E72BA6 /* MeetingGuardian */ = {
 			isa = PBXGroup;
 			children = (
+				171A447A0837120E4D502060 /* AlertPolicy.swift */,
 				F70EFA4732AC9FC257AF68E9 /* GuardianSettingsView.swift */,
 				459F00052D74703344E4150B /* GuardianManager.swift */,
 				00C17F5E71DCC1A48987D5A2 /* GuardianStore.swift */,
@@ -136,6 +143,7 @@
 		7460F7FED0A4782D52B4599C /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
+				0903A2AFC13747F21522FC78 /* Recurrence.swift */,
 				36AD2C0304CADAA2A4A9EB01 /* EventFilter.swift */,
 				21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */,
 				EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */,
@@ -162,6 +170,7 @@
 		891429ABE2105F6DC4F6C044 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				F1A3C0341D3D29C34932CD71 /* AlertPolicyTests.swift */,
 				ABC37929D941CE0261272472 /* GuardianAlertTests.swift */,
 				A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */,
 				07B7508A51C0355251E4C503 /* LogicTests.swift */,
@@ -324,6 +333,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F5AC8F94533DC3749D96DE8D /* AlertPolicyTests.swift in Sources */,
 				AED34368EA1906BA8714238F /* GuardianAlertTests.swift in Sources */,
 				D91BCAA673BC62B6F4E5C0B6 /* EventFilterTests.swift in Sources */,
 				1409142A6A094F9C85FD16EF /* LogicTests.swift in Sources */,
@@ -334,6 +344,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				57CA01BC831A9139D549D6E8 /* AlertPolicy.swift in Sources */,
+				C38332E9EF59E1E40534A312 /* Recurrence.swift in Sources */,
 				B2638DFF04247D1B279E39DF /* GuardianSettingsView.swift in Sources */,
 				DE7313E46863234483DBBB69 /* EventFilterSettingsView.swift in Sources */,
 				0994B866D47027AA1091346B /* EventFilter.swift in Sources */,

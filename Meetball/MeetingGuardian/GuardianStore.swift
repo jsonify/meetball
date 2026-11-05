@@ -111,6 +111,8 @@ public enum AlertSound {
 public final class MeetingGuardianStore: ObservableObject {
     @Published var settings = GuardianSettings() { didSet { save() } }
     @Published public var calendarRules: [CalendarRule] = [] { didSet { save() } }
+    /// Checked top to bottom; the first enabled match sets the alert intensity.
+    @Published public var importanceRules: [ImportanceRule] = [] { didSet { save() } }
     /// Events whose alerts the user muted, keyed by event uid, valued by the event's end (pruned once it has passed).
     @Published public private(set) var mutedEvents: [String: Date] = [:] { didSet { save() } }
     private let defaults: UserDefaults
@@ -122,6 +124,7 @@ public final class MeetingGuardianStore: ObservableObject {
         loading = true; defer { loading = false }
         if let d = defaults.data(forKey: "guardian.settings"), let s = try? JSONDecoder().decode(GuardianSettings.self, from: d) { settings = s }
         if let d = defaults.data(forKey: "guardian.rules"), let r = try? JSONDecoder().decode([CalendarRule].self, from: d) { calendarRules = r }
+        if let d = defaults.data(forKey: "guardian.importance"), let r = try? JSONDecoder().decode([ImportanceRule].self, from: d) { importanceRules = r }
         if let d = defaults.data(forKey: "guardian.muted"), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
             let now = Date()
             mutedEvents = m.filter { $0.value > now }
@@ -131,6 +134,7 @@ public final class MeetingGuardianStore: ObservableObject {
         guard !loading else { return }
         if let d = try? JSONEncoder().encode(settings) { defaults.set(d, forKey: "guardian.settings") }
         if let d = try? JSONEncoder().encode(calendarRules) { defaults.set(d, forKey: "guardian.rules") }
+        if let d = try? JSONEncoder().encode(importanceRules) { defaults.set(d, forKey: "guardian.importance") }
         if let d = try? JSONEncoder().encode(mutedEvents) { defaults.set(d, forKey: "guardian.muted") }
     }
     public func isMuted(_ e: CalendarEvent) -> Bool { mutedEvents[e.uid] != nil }
@@ -141,5 +145,11 @@ public final class MeetingGuardianStore: ObservableObject {
     public func upsert(_ rule: CalendarRule) {
         if let i = calendarRules.firstIndex(where: { $0.calendarKey == rule.calendarKey }) { calendarRules[i] = rule } else { calendarRules.append(rule) }
     }
+    /// Sets a calendar's intensity; nil returns it to the default style.
+    public func setIntensity(_ intensity: AlertIntensity?, for calendarKey: String) {
+        if let intensity { upsert(CalendarRule(calendarKey: calendarKey, style: intensity.style)) }
+        else { calendarRules.removeAll { $0.calendarKey == calendarKey } }
+    }
+    public func intensity(for calendarKey: String) -> AlertIntensity? { rule(for: calendarKey).map { AlertIntensity($0.style) } }
     public func removeRulesNotIn(_ keys: Set<String>) { calendarRules.removeAll { !keys.contains($0.calendarKey) } }
 }

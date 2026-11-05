@@ -60,14 +60,18 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         ws.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willPowerOffNotification, object: nil)
     }
 
-    /// Effective style, enforcing Pro gating and per-calendar rules.
-    func effectiveStyle(for e: CalendarEvent) -> AlertStyle? {
-        var style = store.settings.style
-        if subs.isPremiumActive, let r = store.rule(for: "\(e.accountEmail)|\(e.calendarID)") {
-            guard let s = r.style else { return nil }
-            style = s
-        }
-        return subs.isPremiumActive ? style : .soft
+    var policy: AlertPolicy {
+        AlertPolicy(defaultStyle: store.settings.style, calendarRules: store.calendarRules,
+                    importanceRules: store.importanceRules, isPro: subs.isPremiumActive)
+    }
+
+    /// Effective style, enforcing Pro gating, per-calendar intensity and importance rules.
+    func effectiveStyle(for e: CalendarEvent) -> AlertStyle? { policy.style(for: e) }
+
+    /// The next alert that will fire across `events`, for the live summary in Settings.
+    func nextAlert(in events: [CalendarEvent], now: Date = Date()) -> (event: CalendarEvent, fireDate: Date, style: AlertStyle)? {
+        events.flatMap { e in plannedAlerts(for: e).filter { $0.fireDate > now }.map { (event: e, fireDate: $0.fireDate, style: $0.style) } }
+            .min { $0.fireDate < $1.fireDate }
     }
 
     /// Minutes-before-start at which alerts fire, given the current settings and plan.
