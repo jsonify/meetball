@@ -61,6 +61,35 @@ final class MeetingChangeTests: XCTestCase {
         XCTAssertEqual(changes.map(\.kind), [.rescheduled(from: at(2030, 11, 6, 14), to: at(2030, 11, 7, 10))])
     }
 
+    func testMoveIsFollowedWhenCalendarAppGivesTheEventANewIdentifier() {
+        // Exchange/CalDAV: editing in Calendar.app can change eventIdentifier, so neither uid nor base id matches.
+        let a = ev("OLD@\(Int(at(2030, 11, 6, 14).timeIntervalSince1970))", "Design review", start: at(2030, 11, 6, 14))
+        let b = ev("NEW@\(Int(at(2030, 11, 6, 16).timeIntervalSince1970))", "Design review", start: at(2030, 11, 6, 16))
+        let other = ev("X@\(Int(at(2030, 11, 6, 15).timeIntervalSince1970))", "Lunch", start: at(2030, 11, 6, 15))
+        XCTAssertEqual(MeetingChangeDetector.diff(old: snap([a]), new: snap([other, b]), now: now).map(\.kind),
+                       [.rescheduled(from: at(2030, 11, 6, 14), to: at(2030, 11, 6, 16))])
+    }
+
+    func testNewIdentifierWithADifferentTitleIsStillACancellation() {
+        let a = ev("OLD@1", "Design review", start: at(2030, 11, 6, 14))
+        let b = ev("NEW@2", "Lunch", start: at(2030, 11, 6, 14))
+        XCTAssertEqual(MeetingChangeDetector.diff(old: snap([a]), new: snap([b]), now: now).map(\.kind), [.cancelled])
+    }
+
+    func testTitleFallbackIgnoresEventsThatWereAlreadyThere() {
+        // Two same-titled meetings; one disappears. The one that stayed is not a "move" target.
+        let a = ev("A", "Standup", start: at(2030, 11, 6, 10))
+        let b = ev("B", "Standup", start: at(2030, 11, 6, 14))
+        XCTAssertEqual(MeetingChangeDetector.diff(old: snap([a, b]), new: snap([b]), now: now),
+                       [MeetingChange(kind: .cancelled, event: a)])
+    }
+
+    func testCancelTitleWithNewIdentifierIsACancellation() {
+        let a = ev("OLD", "Design review", start: at(2030, 11, 6, 14))
+        let b = ev("NEW", "Canceled: Design review", start: at(2030, 11, 6, 14))
+        XCTAssertEqual(MeetingChangeDetector.diff(old: snap([a]), new: snap([b]), now: now).map(\.kind), [.cancelled])
+    }
+
     func testLinkChanged() {
         let a = ev("a", start: at(2030, 11, 6, 14))
         let b = ev("a", start: at(2030, 11, 6, 14), url: "https://zoom.us/j/123")

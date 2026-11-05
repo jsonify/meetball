@@ -77,6 +77,10 @@ public final class CalendarStore: ObservableObject {
     private var storeObserver: NSObjectProtocol?
     private var timer: Timer?
     private var refreshTask: Task<Void, Never>?
+    /// Bumped by every load; only the newest one may publish its results.
+    private var loadGeneration = 0
+    /// Coalesces bursts of `EKEventStoreChanged` (a Calendar.app sync posts several) into one reload.
+    private var storeChangeTask: Task<Void, Never>?
     @AppStorage("refreshIntervalSeconds") var refreshInterval: Double = 120
 
     init(session: SessionManager) {
@@ -85,7 +89,7 @@ public final class CalendarStore: ObservableObject {
         hiddenCalendarKeys = Set(UserDefaults.standard.stringArray(forKey: "hiddenCalendars") ?? [])
         viewMode = CalendarViewMode(rawValue: UserDefaults.standard.string(forKey: "calendarViewMode") ?? "") ?? .month
         storeObserver = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in if self?.appleEnabled == true { self?.refresh() } }
+            Task { @MainActor in self?.appleStoreChanged() }
         }
     }
 
@@ -142,21 +146,40 @@ public final class CalendarStore: ObservableObject {
     func startAutoRefresh() {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: max(30, refreshInterval), repeats: true) { [weak self] _ in
-            Task { @MainActor in self?.refresh() }
+            Task { @MainActor in self?.refresh(.timer) }
         }
-        refresh()
+        refresh(.timer)
     }
 
-    func refresh() {
+    /// Why a reload was asked for. The timer and the user also ask Calendar.app's accounts to sync with their servers.
+    enum RefreshReason { case local, timer, user }
+
+    /// Reloads events. Pass `.user` from Refresh buttons and ⌘R: that also asks Apple Calendar's servers for changes
+    /// and reopens the EventKit store, so the view can't stay on stale data.
+    func refresh(_ reason: RefreshReason = .local) {
+        if appleEnabled, reason != .local { apple.sync(fresh: reason == .user) }
         refreshTask?.cancel()
         refreshTask = Task { await load() }
     }
 
+    private func appleStoreChanged() {
+        guard appleEnabled else { return }
+        storeChangeTask?.cancel()
+        storeChangeTask = Task {
+            try? await Task.sleep(for: .milliseconds(750))
+            guard !Task.isCancelled else { return }
+            refresh()
+        }
+    }
+
     func load() async {
         guard hasAnySource else { calendars = []; events = []; loadState = .idle; return }
+        loadGeneration += 1
+        let generation = loadGeneration
         if calendars.isEmpty { loadState = .loading }
         isRefreshing = true
-        defer { isRefreshing = false }
+        // A superseded load must not clear the spinner of the one that replaced it.
+        defer { if generation == loadGeneration { isRefreshing = false } }
         var expired: [String] = []
         var cals: [GCalendar] = []; var evs: [CalendarEvent] = []; var firstError: String?
         var loadedKeys = Set<String>(), attemptedKeys = Set<String>()
@@ -196,6 +219,9 @@ public final class CalendarStore: ObservableObject {
                 firstError = firstError ?? "Calendar access is off. Enable Meetball in System Settings › Privacy & Security › Calendars."
             }
         }
+        // A newer load replaced this one (a cancelled request surfaces as an error above): drop these partial results
+        // instead of publishing them, and leave change detection to the newer load.
+        guard !Task.isCancelled, generation == loadGeneration else { return }
         calendars = cals
         events = RecurrenceClassifier.annotate(evs).sorted { $0.start < $1.start }
         loadState = firstError.map { .failed($0) } ?? .loaded

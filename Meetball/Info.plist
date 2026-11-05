@@ -17,9 +17,9 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0</string>
+	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
-	<string>1</string>
+	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>GOOGLE_CLIENT_ID</key>
 	<string>$(GOOGLE_CLIENT_ID)</string>
 	<key>GOOGLE_CLIENT_SECRET</key>
@@ -28,6 +28,10 @@
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
+	<key>MeetballBuildDate</key>
+	<string>$(MEETBALL_BUILD_DATE)</string>
+	<key>MeetballCommit</key>
+	<string>$(MEETBALL_COMMIT)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Meetball reads your calendars to show upcoming meetings, the menu bar countdown, and Meeting Guardian alerts.</string>
 	<key>PRO_PRODUCT_IDS</key>

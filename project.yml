@@ -12,7 +12,11 @@ settings:
   base:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.1.0"
+    # Builds from Scripts/dist.sh (make run/dist/install) override these with the git commit count, short hash and
+    # build time, so Settings › General shows exactly which build is running. Xcode builds keep the defaults.
     CURRENT_PROJECT_VERSION: "1"
+    MEETBALL_COMMIT: ""
+    MEETBALL_BUILD_DATE: ""
     ENABLE_HARDENED_RUNTIME: YES
     DEAD_CODE_STRIPPING: YES
     ENABLE_USER_SCRIPT_SANDBOXING: YES
@@ -40,6 +44,10 @@ targets:
       properties:
         CFBundleName: Meetball
         CFBundleDisplayName: Meetball
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        MeetballCommit: "$(MEETBALL_COMMIT)"
+        MeetballBuildDate: "$(MEETBALL_BUILD_DATE)"
         NSCalendarsFullAccessUsageDescription: Meetball reads your calendars to show upcoming meetings, the menu bar countdown, and Meeting Guardian alerts.
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "15.0"

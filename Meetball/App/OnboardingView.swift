@@ -151,7 +151,7 @@ struct OnboardingView: View {
                 SKRow(title: store.loadState == .loading ? "Loading calendars\u{2026}" : "No calendars yet",
                       subtitle: store.loadState == .loading ? nil : "Meetball found no calendars on this account.") {
                     if store.loadState == .loading { SKLamp(color: .teal, lit: true, label: "Loading", blinking: true) }
-                    else { Button("Try Again") { store.refresh() }.buttonStyle(.sk1Key(size: .small)) }
+                    else { Button("Try Again") { store.refresh(.user) }.buttonStyle(.sk1Key(size: .small)) }
                 }
             }
         }

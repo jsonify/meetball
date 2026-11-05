@@ -153,7 +153,7 @@ struct SyncKeyTray: View {
     var body: some View {
         SKKeyTray(caption: "Sync") {
             TimelineView(.periodic(from: .now, by: 30)) { ctx in
-                Button { store.refresh() } label: {
+                Button { store.refresh(.user) } label: {
                     HStack(spacing: 5) {
                         Image(systemName: "arrow.clockwise")
                         SKLamp(color: lampColor, lit: true, glow: 0, size: 5, blinking: store.isRefreshing)
@@ -288,7 +288,7 @@ private struct SidebarStatusSection: View {
         } else if case .failed(let message) = store.loadState {
             Section {
                 notice(lamp: .danger, text: SyncErrorText.friendly(message)) {
-                    Button("Try Again") { store.refresh() }.buttonStyle(.sk1Key(size: .small))
+                    Button("Try Again") { store.refresh(.user) }.buttonStyle(.sk1Key(size: .small))
                 }
             }
         } else if store.loadState == .loaded && store.calendars.isEmpty {
