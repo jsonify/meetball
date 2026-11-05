@@ -49,7 +49,10 @@ struct GoogleCalendarClient {
     func events(for cal: GCalendar, range: DateInterval) async throws -> [CalendarEvent] {
         struct L: Decodable {
             struct T: Decodable { let dateTime: String?; let date: String? }
-            struct A: Decodable { let email: String? }
+            struct A: Decodable {
+                let email: String?; let responseStatus: String?; let isSelf: Bool?
+                enum CodingKeys: String, CodingKey { case email, responseStatus, isSelf = "self" }
+            }
             struct EP: Decodable { let entryPointType: String?; let uri: String? }
             struct CD: Decodable { let entryPoints: [EP]? }
             struct I: Decodable {
@@ -84,7 +87,8 @@ struct GoogleCalendarClient {
                                          title: i.summary ?? "(No title)", start: s, end: e, isAllDay: allDay,
                                          meetURL: meet, location: i.location,
                                          attendees: (i.attendees ?? []).compactMap(\.email),
-                                         htmlLink: i.htmlLink.flatMap(URL.init), colorHex: cal.colorHex))
+                                         htmlLink: i.htmlLink.flatMap(URL.init), colorHex: cal.colorHex,
+                                         isDeclined: (i.attendees ?? []).contains { $0.isSelf == true && $0.responseStatus == "declined" }))
             }
             pageToken = page.nextPageToken
         } while pageToken != nil

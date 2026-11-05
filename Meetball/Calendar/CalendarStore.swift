@@ -3,6 +3,26 @@ import SwiftUI
 
 public enum CalendarSidebarLoadState: Equatable { case idle, loading, loaded, failed(String) }
 
+public enum CalendarViewMode: String, CaseIterable, Identifiable {
+    case day, week, month
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .day: return "Day"
+        case .week: return "Week"
+        case .month: return "Month"
+        }
+    }
+    /// ⌘1 / ⌘2 / ⌘3
+    public var shortcut: Character {
+        switch self {
+        case .day: return "1"
+        case .week: return "2"
+        case .month: return "3"
+        }
+    }
+}
+
 @MainActor
 public final class CalendarStore: ObservableObject {
     @Published public private(set) var calendars: [GCalendar] = []
@@ -12,6 +32,16 @@ public final class CalendarStore: ObservableObject {
     @Published public var anchor = Date()
     @Published public var selectedDay = Calendar.current.startOfDay(for: Date())
     @Published public var actionError: String?
+    @Published public var viewMode: CalendarViewMode = .month {
+        didSet {
+            guard oldValue != viewMode else { return }
+            UserDefaults.standard.set(viewMode.rawValue, forKey: "calendarViewMode")
+            anchor = selectedDay
+            refresh()
+        }
+    }
+    /// Month shown by the menu bar's mini calendar; included in the fetch range so its event dots are populated.
+    @Published public var menuAnchor = Date()
 
     let session: SessionManager
     private var client: GoogleCalendarClient
@@ -23,11 +53,31 @@ public final class CalendarStore: ObservableObject {
         self.session = session
         self.client = GoogleCalendarClient(session: session)
         hiddenCalendarKeys = Set(UserDefaults.standard.stringArray(forKey: "hiddenCalendars") ?? [])
+        viewMode = CalendarViewMode(rawValue: UserDefaults.standard.string(forKey: "calendarViewMode") ?? "") ?? .month
     }
 
-    var visibleRange: DateInterval { CalendarVisibleRangeBuilder.build(anchor: anchor) }
+    /// Range the main window shows: full weeks of the month, or the week containing the selected day.
+    var visibleRange: DateInterval {
+        switch viewMode {
+        case .month: return CalendarVisibleRangeBuilder.build(anchor: anchor)
+        case .week, .day: return Calendar.current.dateInterval(of: .weekOfYear, for: selectedDay)!
+        }
+    }
+
+    /// Days shown as columns in the day/week time grid.
+    var displayedDays: [Date] {
+        switch viewMode {
+        case .day: return [selectedDay]
+        case .week, .month:
+            let start = Calendar.current.dateInterval(of: .weekOfYear, for: selectedDay)!.start
+            return (0..<7).compactMap { Calendar.current.date(byAdding: .day, value: $0, to: start) }
+        }
+    }
+
+    /// Loaded events on calendars that are currently visible.
+    var visibleEvents: [CalendarEvent] { events.filter { !hiddenCalendarKeys.contains($0.calendarKey) } }
     var visibleCalendars: [GCalendar] { calendars.filter { !hiddenCalendarKeys.contains($0.key) } }
-    var derived: CalendarDerivedEvents { CalendarDerivedEventsBuilder.build(events: events, range: visibleRange) }
+    var derived: CalendarDerivedEvents { CalendarDerivedEventsBuilder.build(events: visibleEvents, range: visibleRange) }
 
     func startAutoRefresh() {
         timer?.invalidate()
@@ -47,8 +97,9 @@ public final class CalendarStore: ObservableObject {
         if calendars.isEmpty { loadState = .loading }
         var cals: [GCalendar] = []; var evs: [CalendarEvent] = []; var firstError: String?
         // fetch a wider window so the menu bar / guardian always has upcoming events
-        let r = visibleRange
-        let range = DateInterval(start: min(r.start, Date().addingTimeInterval(-86400)), end: max(r.end, Date().addingTimeInterval(7 * 86400)))
+        let r = visibleRange, m = CalendarVisibleRangeBuilder.build(anchor: menuAnchor)
+        let range = DateInterval(start: min(r.start, m.start, Date().addingTimeInterval(-86400)),
+                                 end: max(r.end, m.end, Date().addingTimeInterval(7 * 86400)))
         for acct in session.accounts {
             do {
                 let c = try await client.calendars(email: acct.email)
@@ -88,8 +139,42 @@ public final class CalendarStore: ObservableObject {
         refresh()
     }
 
+    /// Previous/next period for the current view mode (← / →).
+    func step(_ n: Int) {
+        switch viewMode {
+        case .month: shiftMonth(n)
+        case .week: select(Calendar.current.date(byAdding: .day, value: 7 * n, to: selectedDay) ?? selectedDay)
+        case .day: moveSelectedDay(n)
+        }
+    }
+
+    /// Moves the selected day (J / K); the visible month/week follows.
+    func moveSelectedDay(_ n: Int) {
+        select(Calendar.current.date(byAdding: .day, value: n, to: selectedDay) ?? selectedDay)
+    }
+
+    func goToday() {
+        select(Date())
+        refresh()
+    }
+
+    /// Selects a day and refetches only when the visible range changed.
+    func select(_ day: Date) {
+        let before = visibleRange
+        selectedDay = Calendar.current.startOfDay(for: day)
+        anchor = selectedDay
+        if visibleRange != before { refresh() }
+    }
+
+    func setMenuAnchor(_ month: Date) {
+        let cal = Calendar.current
+        guard !cal.isDate(month, equalTo: menuAnchor, toGranularity: .month) else { return }
+        menuAnchor = month
+        refresh()
+    }
+
     /// Upcoming, non-all-day events that haven't ended, across visible calendars.
     func upcoming(limit: Int = 8, now: Date = Date()) -> [CalendarEvent] {
-        Array(events.filter { !$0.isAllDay && $0.end > now && !hiddenCalendarKeys.contains("\($0.accountEmail)|\($0.calendarID)") }.prefix(limit))
+        Array(visibleEvents.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now }.prefix(limit))
     }
 }

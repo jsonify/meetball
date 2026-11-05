@@ -33,6 +33,11 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .timeSensitive]) { [weak self] ok, _ in
             Task { @MainActor in self?.authorizationDenied = !ok }
         }
+        let center = UNUserNotificationCenter.current()
+        center.delegate = self
+        let join = UNNotificationAction(identifier: Self.joinActionID, title: "Join", options: [.foreground])
+        center.setNotificationCategories([UNNotificationCategory(identifier: Self.meetingCategoryID, actions: [join],
+                                                                 intentIdentifiers: [], options: [])])
         let ws = NSWorkspace.shared.notificationCenter
         ws.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willSleepNotification, object: nil)
         ws.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willPowerOffNotification, object: nil)
@@ -114,7 +119,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         c.body = "\(e.title) — \(lead == 0 ? "starting now" : "in \(lead) min")"
         c.sound = .default
         if store.settings.breakThroughFocus { c.interruptionLevel = .timeSensitive }
-        if let u = e.meetURL { c.userInfo = ["url": u.absoluteString] }
+        if let u = e.meetURL { c.userInfo = ["url": u.absoluteString, "uid": e.uid]; c.categoryIdentifier = Self.meetingCategoryID }
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }
 
@@ -133,7 +138,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
 
     func join(_ e: CalendarEvent) {
         joined.insert(e.uid)
-        if let u = e.meetURL { NSWorkspace.shared.open(u) }
+        MeetingJoiner.join(e)
         dismissOverlays()
     }
 
@@ -161,4 +166,27 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     }
 
     func dismissOverlays() { panels.forEach { $0.orderOut(nil) }; panels = [] }
+}
+
+extension MeetingGuardianManager: UNUserNotificationCenterDelegate {
+    nonisolated static let meetingCategoryID = "MEETING"
+    nonisolated static let joinActionID = "JOIN"
+
+    nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                                   withCompletionHandler completionHandler: @escaping () -> Void) {
+        let info = response.notification.request.content.userInfo
+        if response.actionIdentifier == Self.joinActionID, let s = info["url"] as? String, let url = URL(string: s) {
+            let uid = info["uid"] as? String
+            Task { @MainActor [weak self] in
+                if let uid { self?.joined.insert(uid) }
+                MeetingJoiner.join(url)
+            }
+        }
+        completionHandler()
+    }
+
+    nonisolated public func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                                   withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
+    }
 }

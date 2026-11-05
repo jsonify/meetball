@@ -83,7 +83,7 @@ public struct CalendarDerivedEventsBuilder {
         var weekStart = range.start
         while weekStart < range.end {
             let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart)!
-            let bars = events.filter { ($0.isAllDay || $0.end.timeIntervalSince($0.start) >= 86400 || !calendar.isDate($0.start, inSameDayAs: $0.end.addingTimeInterval(-1))) && $0.start < weekEnd && $0.end > weekStart }
+            let bars = events.filter { $0.isBarEvent(calendar: calendar) && $0.start < weekEnd && $0.end > weekStart }
                 .sorted { $0.start == $1.start ? $0.end > $1.end : $0.start < $1.start }
             var laneEnds: [Int] = []
             var spans: [CalendarEventWeekSpan] = []
