@@ -24,8 +24,15 @@ public enum CalendarViewMode: String, CaseIterable, Identifiable {
     }
 }
 
+/// What the main window's detail area shows.
+public enum MainSection: String { case upcoming, calendar }
+
 @MainActor
 public final class CalendarStore: ObservableObject {
+    /// Upcoming dashboard (default) or the calendar views; remembered across launches.
+    @Published public var section: MainSection = MainSection(rawValue: UserDefaults.standard.string(forKey: "mainSection") ?? "") ?? .upcoming {
+        didSet { if oldValue != section { UserDefaults.standard.set(section.rawValue, forKey: "mainSection") } }
+    }
     @Published public private(set) var calendars: [GCalendar] = []
     @Published public private(set) var events: [CalendarEvent] = []
     @Published public private(set) var loadState: CalendarSidebarLoadState = .idle

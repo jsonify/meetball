@@ -320,3 +320,36 @@ final class EventDetailTests: XCTestCase {
         XCTAssertFalse(store.isMuted(e))
     }
 }
+
+final class UpcomingTests: XCTestCase {
+    let cal = Calendar.current
+    func ev(_ id: String, _ s: Date, minutes: Double, declined: Bool = false, allDay: Bool = false) -> CalendarEvent {
+        CalendarEvent(id: id, calendarID: "c", accountEmail: "a@b.c", title: id, start: s, end: s.addingTimeInterval(minutes * 60),
+                      isAllDay: allDay, meetURL: nil, location: nil, attendees: [], htmlLink: nil, isDeclined: declined)
+    }
+
+    func testMeetingLoadMergesOverlapsAndSkipsDeclinedAndAllDay() {
+        let day = cal.date(from: DateComponents(year: 2026, month: 3, day: 10))!
+        let at = { (h: Int) in day.addingTimeInterval(Double(h) * 3600) }
+        let events = [ev("a", at(9), minutes: 60), ev("b", at(9).addingTimeInterval(1800), minutes: 60), // 9:00–10:30
+                      ev("c", at(14), minutes: 30), ev("d", at(16), minutes: 60, declined: true),
+                      ev("e", day, minutes: 24 * 60, allDay: true)]
+        let loads = MeetingLoadBuilder.build(events: events, from: day, days: 2)
+        XCTAssertEqual(loads.count, 2)
+        XCTAssertEqual(loads[0].hours, 2.0, accuracy: 0.001)
+        XCTAssertEqual(loads[0].count, 3)
+        XCTAssertEqual(loads[1].hours, 0)
+    }
+
+    func testNextTodayAndPreview() {
+        let day = cal.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 15))!
+        let tomorrow9 = cal.date(from: DateComponents(year: 2026, month: 3, day: 11, hour: 9))!
+        let done = ev("done", day.addingTimeInterval(-7200), minutes: 30)
+        let next = ev("next", tomorrow9, minutes: 30)
+        XCTAssertNil(UpcomingView.nextToday([done, next], now: day))
+        let preview = UpcomingView.nextDayPreview([done, next], now: day)
+        XCTAssertEqual(preview?.events.map(\.id), ["next"])
+        let later = ev("later", day.addingTimeInterval(3600), minutes: 30)
+        XCTAssertEqual(UpcomingView.nextToday([done, later, next], now: day)?.id, "later")
+    }
+}

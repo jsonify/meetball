@@ -12,6 +12,8 @@ struct CalendarContainerView: View {
         } detail: {
             if !store.hasAnySource {
                 ConnectPrompt()
+            } else if store.section == .upcoming {
+                UpcomingView { formRange = nil; showForm = true }
             } else {
                 VStack(spacing: 0) {
                     header
@@ -148,6 +150,14 @@ struct CalendarSidebarView: View {
     }
     var body: some View {
         List {
+            Section {
+                SidebarNavRow(title: "Upcoming", symbol: "clock", selected: store.section == .upcoming, shortcut: "⌘0") {
+                    store.section = .upcoming
+                }
+                SidebarNavRow(title: "Calendar", symbol: "calendar", selected: store.section == .calendar, shortcut: "⌘1–3") {
+                    store.section = .calendar
+                }
+            }
             switch store.loadState {
             case .loading: HStack { ProgressView().controlSize(.small); Text("Loading calendars") }
             case .failed(let m):
@@ -167,6 +177,24 @@ struct CalendarSidebarView: View {
                 }
             }
         }.navigationSplitViewColumnWidth(min: 190, ideal: 220)
+    }
+}
+
+private struct SidebarNavRow: View {
+    let title: String; let symbol: String; let selected: Bool; let shortcut: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .fontWeight(selected ? .semibold : .regular)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 3).padding(.horizontal, 6)
+                .background(selected ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(title) (\(shortcut))")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
 

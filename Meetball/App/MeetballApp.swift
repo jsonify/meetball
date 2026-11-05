@@ -78,8 +78,9 @@ struct MeetballApp: App {
         }
         .commands {
             CommandGroup(before: .toolbar) {
+                Button("Upcoming") { model.calendar.section = .upcoming }.keyboardShortcut("0", modifiers: .command)
                 ForEach(CalendarViewMode.allCases) { mode in
-                    Button(mode.title) { model.calendar.viewMode = mode }
+                    Button(mode.title) { model.calendar.section = .calendar; model.calendar.viewMode = mode }
                         .keyboardShortcut(KeyEquivalent(mode.shortcut), modifiers: .command)
                 }
                 Divider()
