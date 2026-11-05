@@ -37,6 +37,7 @@ struct EventDetailPopover: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showAllAttendees = false
     @State private var confirmingDelete = false
+    @AppStorage(AppPreferences.Key.showEventTimeZone) private var showEventTimeZone = true
 
     private var isApple: Bool { AppleCalendarClient.isApple(event.accountEmail) }
     private var calendarName: String? { store.calendars.first { $0.key == event.calendarKey }?.summary }
@@ -92,6 +93,11 @@ struct EventDetailPopover: View {
     private var details: some View {
         VStack(alignment: .leading, spacing: 6) {
             Label(timeText, systemImage: "clock").accessibilityLabel("When: \(timeText)")
+            if showEventTimeZone, let tz = event.foreignTimeZone() {
+                Label(EventTimeZoneText.there(event, in: tz), systemImage: "globe")
+                    .help("This event was set in \(tz.localizedName(for: .generic, locale: .current) ?? tz.identifier). Times above are in your time zone.")
+                    .accessibilityLabel("In the event's time zone: \(EventTimeZoneText.there(event, in: tz))")
+            }
             if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
                 Button { openLocation(loc) } label: {
                     Label(loc, systemImage: "mappin.and.ellipse").lineLimit(2).multilineTextAlignment(.leading)
@@ -218,7 +224,7 @@ struct EventDetailPopover: View {
     // MARK: Helpers
 
     private var timeText: String {
-        let cal = Calendar.current
+        let cal = Calendar.app
         if event.isAllDay {
             let lastDay = event.end.addingTimeInterval(-1)
             if cal.isDate(event.start, inSameDayAs: lastDay) {
@@ -229,10 +235,10 @@ struct EventDetailPopover: View {
         let duration = DurationFormatter.string(from: event.start, to: event.end)
         let startDay = event.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
         if cal.isDate(event.start, inSameDayAs: event.end.addingTimeInterval(-1)) {
-            return "\(startDay), \(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened)) (\(duration))"
+            return "\(startDay), \(event.start.shortTime) – \(event.end.shortTime) (\(duration))"
         }
         let endDay = event.end.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
-        return "\(startDay), \(event.start.formatted(date: .omitted, time: .shortened)) – \(endDay), \(event.end.formatted(date: .omitted, time: .shortened)) (\(duration))"
+        return "\(startDay), \(event.start.shortTime) – \(endDay), \(event.end.shortTime) (\(duration))"
     }
 
     private func responseSummary(_ all: [EventAttendee]) -> String {
@@ -275,5 +281,14 @@ struct EventDetailPopover: View {
         if let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.iCal") {
             NSWorkspace.shared.openApplication(at: app, configuration: NSWorkspace.OpenConfiguration())
         }
+    }
+}
+
+/// "9:00 – 10:00 AM in London (GMT+1)": an event's times where it was set.
+enum EventTimeZoneText {
+    static func there(_ e: CalendarEvent, in tz: TimeZone, locale: Locale = AppPreferences.locale) -> String {
+        let city = WorldClock.cityName(tz.identifier)
+        let abbr = tz.abbreviation(for: e.start).map { " (\($0))" } ?? ""
+        return "\(e.start.shortTime(locale: locale, timeZone: tz)) \u{2013} \(e.end.shortTime(locale: locale, timeZone: tz)) in \(city)\(abbr)"
     }
 }

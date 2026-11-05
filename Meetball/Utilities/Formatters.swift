@@ -56,7 +56,7 @@ public enum MeetingStatusText {
     }
 
     /// Timed, not-declined meetings today that haven't ended.
-    public static func remainingToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> Int {
+    public static func remainingToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .app) -> Int {
         events.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now && calendar.isDate($0.start, inSameDayAs: now) }.count
     }
 }
@@ -68,7 +68,7 @@ public struct NewEventDateRange: Equatable {
 
 /// Builds the default start/end for a new event on a chosen day: next half hour, 30 min long.
 public struct NewEventDateRangeBuilder {
-    public static func build(day: Date, now: Date = Date(), calendar: Calendar = .current) -> NewEventDateRange {
+    public static func build(day: Date, now: Date = Date(), calendar: Calendar = .app) -> NewEventDateRange {
         var comps = calendar.dateComponents([.year, .month, .day], from: day)
         let nowComps = calendar.dateComponents([.hour, .minute], from: now)
         let isToday = calendar.isDate(day, inSameDayAs: now)

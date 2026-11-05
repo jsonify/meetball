@@ -12,15 +12,14 @@ public struct CalendarEventDaySegment: Identifiable, Hashable {
     public var continuesBefore: Bool { !startsOnThisDay }
     public var continuesAfter: Bool { !endsOnThisDay }
     public var id: SegmentID { SegmentID(eventID: event.uid, day: day) }
-    public var bucketHour: Int { Calendar.current.component(.hour, from: segmentStart) }
+    public var bucketHour: Int { Calendar.app.component(.hour, from: segmentStart) }
 
     public func timeRangeText() -> String {
         if event.isAllDay { return "All day" }
-        let f = DateFormatter(); f.timeStyle = .short; f.dateStyle = .none
         if continuesBefore && continuesAfter { return "All day" }
-        if continuesBefore { return "until \(f.string(from: segmentEnd))" }
-        if continuesAfter { return "from \(f.string(from: segmentStart))" }
-        return "\(f.string(from: segmentStart)) – \(f.string(from: segmentEnd))"
+        if continuesBefore { return "until \(segmentEnd.shortTime)" }
+        if continuesAfter { return "from \(segmentStart.shortTime)" }
+        return "\(segmentStart.shortTime) – \(segmentEnd.shortTime)"
     }
 }
 
@@ -39,7 +38,7 @@ public struct CalendarEventWeekSpan: Identifiable, Hashable {
 
 public struct CalendarVisibleRangeBuilder {
     /// Full weeks covering the month containing `anchor`.
-    public static func build(anchor: Date, calendar: Calendar = .current) -> DateInterval {
+    public static func build(anchor: Date, calendar: Calendar = .app) -> DateInterval {
         let monthStart = calendar.dateInterval(of: .month, for: anchor)!.start
         let monthEnd = calendar.dateInterval(of: .month, for: anchor)!.end
         let first = calendar.dateInterval(of: .weekOfYear, for: monthStart)!.start
@@ -55,7 +54,7 @@ public struct CalendarDerivedEvents {
 }
 
 public struct CalendarDerivedEventsBuilder {
-    public static func build(events: [CalendarEvent], range: DateInterval, calendar: Calendar = .current) -> CalendarDerivedEvents {
+    public static func build(events: [CalendarEvent], range: DateInterval, calendar: Calendar = .app) -> CalendarDerivedEvents {
         var out = CalendarDerivedEvents()
         // Day segments
         for e in events {

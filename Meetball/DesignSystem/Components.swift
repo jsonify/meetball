@@ -52,3 +52,17 @@ public struct FlowWrap: Layout {
         return (CGSize(width: maxW, height: y + rowH), pts)
     }
 }
+
+/// A short animation for list and selection changes, off with Reduce Motion.
+private struct MotionAwareAnimation<V: Equatable>: ViewModifier {
+    let value: V
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: value)
+    }
+}
+
+extension View {
+    /// Animates changes of `value` unless Reduce Motion is on. SK-1 keys stay unanimated; use this for content.
+    func motionAwareAnimation<V: Equatable>(value: V) -> some View { modifier(MotionAwareAnimation(value: value)) }
+}

@@ -24,7 +24,7 @@ public enum AlertCountdown {
 }
 
 private func timeRange(_ e: CalendarEvent) -> String {
-    "\(e.start.formatted(date: .omitted, time: .shortened)) – \(e.end.formatted(date: .omitted, time: .shortened))"
+    "\(e.start.shortTime) – \(e.end.shortTime)"
 }
 
 // MARK: - Heads-up card

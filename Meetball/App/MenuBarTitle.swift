@@ -84,7 +84,7 @@ public enum MenuBarTitleBuilder {
     }
 
     public static func build(next: CalendarEvent?, now: Date, settings: MenuBarTitleSettings,
-                             calendar: Calendar = .current) -> MenuBarTitle {
+                             calendar: Calendar = .app) -> MenuBarTitle {
         guard let e = next, e.end > now else { return .idle }
         let inProgress = e.start <= now
         let until = e.start.timeIntervalSince(now)
@@ -121,7 +121,7 @@ public enum MenuBarTitleBuilder {
 
     /// "2:30 PM" today, "Tue 9:00 AM" on another day.
     static func startText(_ d: Date, now: Date, calendar: Calendar) -> String {
-        let time = d.formatted(date: .omitted, time: .shortened)
+        let time = d.shortTime
         if calendar.isDate(d, inSameDayAs: now) { return time }
         return "\(d.formatted(.dateTime.weekday(.abbreviated))) \(time)"
     }

@@ -5,30 +5,43 @@ import SK1UI
 struct CalendarContainerView: View {
     @EnvironmentObject var store: CalendarStore
     @EnvironmentObject var session: SessionManager
-    @State private var showForm = false
-    @State private var formRange: NewEventDateRange?
+    @AppStorage(OnboardingState.Key.completed) private var onboardingCompleted = false
+    @AppStorage(AppPreferences.Key.firstWeekday) private var firstWeekday = 0
+    @AppStorage(AppPreferences.Key.clockStyle) private var clockStyle = ClockStyle.system.rawValue
 
     var body: some View {
-        NavigationSplitView {
-            // The sidebar column draws its own material, so the chassis goes on each column, not behind the split view.
-            CalendarSidebarView().scrollContentBackground(.hidden).sk1Chassis()
-        } detail: {
-            detail.scrollContentBackground(.hidden).sk1Chassis()
+        Group {
+            if !onboardingCompleted || !store.hasAnySource {
+                OnboardingView().sk1Chassis()
+            } else {
+                NavigationSplitView {
+                    // The sidebar column draws its own material, so the chassis goes on each column, not behind the split view.
+                    CalendarSidebarView().scrollContentBackground(.hidden).sk1Chassis()
+                } detail: {
+                    detail.scrollContentBackground(.hidden).sk1Chassis()
+                }
+            }
         }
-        .sheet(isPresented: $showForm, onDismiss: { formRange = nil }) {
-            if let r = formRange { EventFormView(start: r.start, end: r.end) } else { EventFormView(day: store.selectedDay) }
+        // Rebuild the calendar views when the first weekday or the clock changes (they read them outside SwiftUI).
+        .id("\(firstWeekday)|\(clockStyle)")
+        .sheet(item: $store.composer) { composer in
+            switch composer {
+            case .quickAdd(let range):
+                QuickAddView(range: range, onMoreOptions: { store.composer = .form($0) }, onClose: { store.composer = nil })
+            case .form(let draft):
+                EventFormView(draft: draft)
+            }
         }
         .alert("Something went wrong", isPresented: Binding(get: { store.actionError != nil }, set: { if !$0 { store.actionError = nil } })) {
             Button("OK") { store.actionError = nil }
         } message: { Text(store.actionError ?? "") }
         .task { store.startAutoRefresh() }
+        .modifier(RegistersWindowOpener())
     }
 
     @ViewBuilder private var detail: some View {
-        if !store.hasAnySource {
-            ConnectPrompt()
-        } else if store.section == .upcoming {
-            UpcomingView { formRange = nil; showForm = true }
+        if store.section == .upcoming {
+            UpcomingView { store.composer = .quickAdd(nil) }
         } else {
             VStack(spacing: 0) {
                 header
@@ -39,12 +52,11 @@ struct CalendarContainerView: View {
                         SKWell { MonthGridView().padding(6) }
                             .padding(12)
                             .frame(minWidth: 520)
-                        DayEventsListView(showForm: $showForm).frame(minWidth: 260, idealWidth: 300)
+                        DayEventsListView().frame(minWidth: 260, idealWidth: 300)
                     }
                 case .week, .day:
                     TimeGridView(days: store.displayedDays) { start, end in
-                        formRange = NewEventDateRange(start: start, end: end)
-                        showForm = true
+                        store.composer = .quickAdd(NewEventDateRange(start: start, end: end))
                     }
                 }
             }
@@ -67,14 +79,17 @@ struct CalendarContainerView: View {
                 }
                 SKKeyTray(caption: "Go") {
                     Button { store.step(-1) } label: { Image(systemName: "chevron.left") }
-                        .buttonStyle(.sk1Key()).help("Previous (←)").accessibilityLabel("Previous")
+                        .buttonStyle(.sk1Key()).help(store.viewMode == .month ? "Previous month (⌘←)" : "Previous (←)")
+                        .accessibilityLabel("Previous")
                     Button("Today") { store.goToday() }.buttonStyle(.sk1Key()).help("Today (T)")
                     Button { store.step(1) } label: { Image(systemName: "chevron.right") }
-                        .buttonStyle(.sk1Key()).help("Next (→)").accessibilityLabel("Next")
+                        .buttonStyle(.sk1Key()).help(store.viewMode == .month ? "Next month (⌘→)" : "Next (→)")
+                        .accessibilityLabel("Next")
                 }
+                SyncKeyTray()
                 SKKeyTray(caption: "New") {
-                    Button { formRange = nil; showForm = true } label: { Label("Event", systemImage: "plus") }
-                        .buttonStyle(.sk1Key(.orange)).help("New event")
+                    Button { store.composer = .quickAdd(nil) } label: { Label("Event", systemImage: "plus") }
+                        .buttonStyle(.sk1Key(.orange)).help("Quick add an event (⌘N)")
                 }
             }
             MainStatusDisplay(title: store.viewMode.title,
@@ -92,7 +107,7 @@ struct CalendarContainerView: View {
         case .week:
             let days = store.displayedDays
             guard let first = days.first, let last = days.last else { return "" }
-            let cal = Calendar.current
+            let cal = Calendar.app
             if cal.isDate(first, equalTo: last, toGranularity: .month) {
                 return "\(first.formatted(.dateTime.month(.wide).day())) – \(last.formatted(.dateTime.day())), \(last.formatted(.dateTime.year()))"
             }
@@ -103,20 +118,72 @@ struct CalendarContainerView: View {
         }
     }
 
-    /// ←/→ previous/next period, T today, J/K next/previous day. Ignored while typing or with ⌘/⌥/⌃ held.
+    /// Keys, ignored while typing or with ⌥/⌃ held:
+    /// - Month: arrows move the selected day (↑↓ by a week), ⌘← / ⌘→ change month, Return opens the day.
+    /// - Day and week: ← / → previous and next period.
+    /// - Everywhere: T today, J / K next and previous day.
     private func handleKey(_ e: NSEvent) -> Bool {
-        guard e.modifierFlags.intersection([.command, .option, .control]).isEmpty else { return false }
+        let mods = e.modifierFlags.intersection([.command, .option, .control])
+        guard mods.isEmpty || mods == .command else { return false }
+        let command = mods == .command
+        let month = store.viewMode == .month
         switch Int(e.keyCode) {
-        case 123: store.step(-1); return true   // ←
-        case 124: store.step(1); return true    // →
+        case 123: if month && !command { store.moveSelectedDay(-1) } else if month || !command { store.step(-1) } else { return false }; return true   // ←
+        case 124: if month && !command { store.moveSelectedDay(1) } else if month || !command { store.step(1) } else { return false }; return true     // →
+        case 125 where month && !command: store.moveSelectedDay(7); return true   // ↓
+        case 126 where month && !command: store.moveSelectedDay(-7); return true  // ↑
+        case 36 where month && !command: store.viewMode = .day; return true       // Return
         default: break
         }
+        guard !command else { return false }
         switch e.charactersIgnoringModifiers?.lowercased() {
         case "t": store.goToday(); return true
         case "j": store.moveSelectedDay(1); return true
         case "k": store.moveSelectedDay(-1); return true
         default: return false
         }
+    }
+}
+
+/// The Sync tray: refresh (⌘R), with a lamp that blinks while syncing and turns red after a failed sync. Its help
+/// says when the last good sync was.
+struct SyncKeyTray: View {
+    @EnvironmentObject var store: CalendarStore
+
+    var body: some View {
+        SKKeyTray(caption: "Sync") {
+            TimelineView(.periodic(from: .now, by: 30)) { ctx in
+                Button { store.refresh() } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "arrow.clockwise")
+                        SKLamp(color: lampColor, lit: true, glow: 0, size: 5, blinking: store.isRefreshing)
+                    }
+                }
+                .buttonStyle(.sk1Key())
+                .help(SyncStatusText.help(lastSynced: store.lastSynced, refreshing: store.isRefreshing, failed: failed, now: ctx.date))
+                .accessibilityLabel("Refresh")
+                .accessibilityValue(SyncStatusText.help(lastSynced: store.lastSynced, refreshing: store.isRefreshing, failed: failed, now: ctx.date))
+            }
+        }
+    }
+
+    private var failed: Bool { if case .failed = store.loadState { return true } else { return false } }
+    private var lampColor: SKLampColor { failed ? .danger : (store.isRefreshing ? .teal : .success) }
+}
+
+/// "Synced 3 min ago", for the Sync key and the sidebar.
+enum SyncStatusText {
+    static func help(lastSynced: Date?, refreshing: Bool, failed: Bool, now: Date) -> String {
+        if refreshing { return "Syncing\u{2026} (⌘R)" }
+        let last = lastSynced.map { "Last synced \(ago($0, now: now))" } ?? "Not synced yet"
+        return (failed ? "The last sync failed. " : "") + last + ". Refresh (⌘R)"
+    }
+
+    static func ago(_ date: Date, now: Date) -> String {
+        let s = max(0, Int(now.timeIntervalSince(date)))
+        if s < 60 { return "just now" }
+        if s < 3600 { return "\(s / 60) min ago" }
+        return "at \(date.shortTime)"
     }
 }
 
@@ -149,23 +216,6 @@ struct KeyEventMonitor: NSViewRepresentable {
     }
 }
 
-struct ConnectPrompt: View {
-    @EnvironmentObject var session: SessionManager
-    @EnvironmentObject var store: CalendarStore
-    var body: some View {
-        VStack(spacing: 14) {
-            Image(systemName: "calendar.badge.plus").font(.system(size: 44)).foregroundStyle(.secondary)
-            Text("Connect your Google Calendar").font(.title2.bold())
-            Text("A fast, privacy-first Google Calendar app for your Mac.").foregroundStyle(.secondary)
-            Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.sk1Key(.orange)).disabled(session.state == .signingIn)
-            Button("Use Apple Calendar instead") { Task { await store.enableApple() } }.buttonStyle(.sk1Key())
-            Text("Reads calendars already set up in the Calendar app (Exchange, iCloud, …). No sign-in needed.").font(.caption).foregroundStyle(.secondary)
-            if store.appleAccessDenied { Text("Calendar access was denied. Enable Meetball in System Settings › Privacy & Security › Calendars.").font(.caption).foregroundStyle(.red).frame(maxWidth: 360) }
-            if let e = session.lastError { Text(e).font(.caption).foregroundStyle(.red).frame(maxWidth: 360) }
-        }.frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-}
-
 struct CalendarSidebarView: View {
     @EnvironmentObject var store: CalendarStore
     @EnvironmentObject var session: SessionManager
@@ -182,26 +232,122 @@ struct CalendarSidebarView: View {
                     store.section = .calendar
                 }
             }
-            switch store.loadState {
-            case .loading: HStack { ProgressView().controlSize(.small); Text("Loading calendars") }
-            case .failed(let m):
-                Text("Unable to load calendars. \(m)").font(.caption).foregroundStyle(.red)
-                Button("Try loading calendars again") { store.refresh() }
-            case .idle where store.calendars.isEmpty: Text("Calendars have not been loaded yet.").foregroundStyle(.secondary)
-            default:
-                if store.calendars.isEmpty { Text("No calendars found").foregroundStyle(.secondary) }
-            }
+            SidebarStatusSection()
             ForEach(sectionTitles, id: \.self) { title in
-                Section(title) {
+                Section {
                     ForEach(store.calendars.filter { $0.accountEmail == title }) { cal in
                         Toggle(isOn: Binding(get: { !store.hiddenCalendarKeys.contains(cal.key) }, set: { _ in store.toggle(cal) })) {
-                            HStack { Circle().fill(Color(hex: cal.colorHex)).frame(width: 9, height: 9); Text(cal.summary).lineLimit(1) }
+                            HStack { Circle().fill(Color(hex: cal.colorHex)).frame(width: 9, height: 9).accessibilityHidden(true)
+                                Text(cal.summary).lineLimit(1) }
                         }
                         .toggleStyle(.sk1Square)
+                        .help(store.hiddenCalendarKeys.contains(cal.key) ? "Show \(cal.summary)" : "Hide \(cal.summary)")
                     }
+                } header: {
+                    SKCaption(title, tone: .soft)
                 }
             }
-        }.navigationSplitViewColumnWidth(min: 190, ideal: 220)
+        }
+        .motionAwareAnimation(value: store.calendars)
+        .navigationSplitViewColumnWidth(min: 190, ideal: 220)
+    }
+}
+
+/// The sidebar's loading, error and permission states, each with the action that fixes it.
+private struct SidebarStatusSection: View {
+    @EnvironmentObject var store: CalendarStore
+    @EnvironmentObject var session: SessionManager
+
+    var body: some View {
+        if store.loadState == .loading && store.calendars.isEmpty {
+            Section {
+                ForEach(0..<4, id: \.self) { i in
+                    HStack { Circle().frame(width: 9, height: 9); Text(String(repeating: "x", count: 10 + i * 3)) }
+                }
+                .redacted(reason: .placeholder)
+                .modifier(Shimmer())
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Loading calendars")
+            }
+        }
+        if !session.accounts.isEmpty && session.lastError != nil || !store.expiredAccounts.isEmpty {
+            Section {
+                notice(lamp: .warning, text: session.lastError ?? "Your Google sign-in has expired.") {
+                    Button("Reconnect") { Task { await session.addAccount() } }
+                        .buttonStyle(.sk1Key(size: .small)).disabled(session.state == .signingIn)
+                }
+            }
+        }
+        if store.appleAccessDenied {
+            Section {
+                notice(lamp: .danger, text: "Meetball can't read Apple Calendar: access is off.") {
+                    Button("Open System Settings") { SystemSettingsLink.open(SystemSettingsLink.calendars) }
+                        .buttonStyle(.sk1Key(size: .small))
+                }
+            }
+        } else if case .failed(let message) = store.loadState {
+            Section {
+                notice(lamp: .danger, text: SyncErrorText.friendly(message)) {
+                    Button("Try Again") { store.refresh() }.buttonStyle(.sk1Key(size: .small))
+                }
+            }
+        } else if store.loadState == .loaded && store.calendars.isEmpty {
+            Section {
+                notice(lamp: .warning, text: "No calendars found on your connected accounts.") {
+                    SettingsLink { Text("Accounts\u{2026}") }.buttonStyle(.sk1Key(size: .small))
+                }
+            }
+        }
+    }
+
+    private func notice<Action: View>(lamp: SKLampColor, text: String, @ViewBuilder action: () -> Action) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                SKLamp(color: lamp, lit: true, size: 6).accessibilityHidden(true)
+                Text(text).font(.caption).fixedSize(horizontal: false, vertical: true)
+            }
+            action()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+/// Turns raw sync errors into a sentence with what to do.
+enum SyncErrorText {
+    static func friendly(_ raw: String) -> String {
+        let l = raw.lowercased()
+        if l.contains("offline") || l.contains("internet") || l.contains("network connection") || l.contains("timed out") {
+            return "You're offline. Meetball will sync when the connection is back."
+        }
+        if l.contains("401") || l.contains("invalid_grant") || l.contains("unauthorized") {
+            return "Google needs you to sign in again."
+        }
+        return "Couldn't sync your calendars. \(raw)"
+    }
+}
+
+/// A soft sweep of light over placeholder content while it loads; still with Reduce Motion.
+struct Shimmer: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var phase: CGFloat = -1
+
+    func body(content: Content) -> some View {
+        content
+            .overlay {
+                if !reduceMotion {
+                    GeometryReader { geo in
+                        LinearGradient(colors: [.clear, .white.opacity(0.35), .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: geo.size.width * 0.5)
+                            .offset(x: phase * geo.size.width * 1.5)
+                    }
+                    .allowsHitTesting(false)
+                    .mask(content)
+                }
+            }
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.4).repeatForever(autoreverses: false)) { phase = 1 }
+            }
     }
 }
 
@@ -229,61 +375,102 @@ private struct SidebarNavRow: View {
 
 struct MonthGridView: View {
     @EnvironmentObject var store: CalendarStore
-    private let laneH: CGFloat = 18, headerH: CGFloat = 22
+    @AppStorage(AppPreferences.Key.density) private var densityRaw = LayoutDensity.comfortable.rawValue
+    @AppStorage(AppPreferences.Key.weekNumbers) private var showWeekNumbers = false
+    @AppStorage(AppPreferences.Key.highlightWeekends) private var highlightWeekends = true
+    private let headerH: CGFloat = 22
+    private var laneH: CGFloat { (LayoutDensity(rawValue: densityRaw) ?? .comfortable).monthLaneHeight }
+    private let weekNumberWidth: CGFloat = 26
+
     var body: some View {
         let d = store.derived
+        let cal = Calendar.app
         VStack(spacing: 0) {
             HStack(spacing: 0) {
-                ForEach(Calendar.current.shortWeekdaySymbols.rotated(Calendar.current.firstWeekday - 1), id: \.self) {
+                if showWeekNumbers { SKCaption("Wk", tone: .soft).frame(width: weekNumberWidth) }
+                ForEach(cal.shortWeekdaySymbols.rotated(cal.firstWeekday - 1), id: \.self) {
                     SKCaption($0, tone: .soft).frame(maxWidth: .infinity)
                 }
             }.padding(.vertical, 4)
             ForEach(d.weeks, id: \.weekStart) { week in
-                GeometryReader { geo in
-                    let colW = geo.size.width / 7
-                    ZStack(alignment: .topLeading) {
-                        HStack(spacing: 0) {
-                            ForEach(0..<7, id: \.self) { i in
-                                let day = Calendar.current.date(byAdding: .day, value: i, to: week.weekStart)!
-                                dayCell(day, segments: d.segmentsByDay[day] ?? [], laneCount: week.laneCount)
-                                    .frame(width: colW, height: geo.size.height)
+                HStack(spacing: 0) {
+                    if showWeekNumbers {
+                        Text("\(cal.component(.weekOfYear, from: week.weekStart))")
+                            .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
+                            .frame(width: weekNumberWidth).frame(maxHeight: .infinity, alignment: .top).padding(.top, 5)
+                            .accessibilityLabel("Week \(cal.component(.weekOfYear, from: week.weekStart))")
+                    }
+                    GeometryReader { geo in
+                        let colW = geo.size.width / 7
+                        ZStack(alignment: .topLeading) {
+                            HStack(spacing: 0) {
+                                ForEach(0..<7, id: \.self) { i in
+                                    let day = cal.date(byAdding: .day, value: i, to: week.weekStart)!
+                                    dayCell(day, segments: d.segmentsByDay[day] ?? [], laneCount: week.laneCount)
+                                        .frame(width: colW, height: geo.size.height)
+                                }
                             }
-                        }
-                        ForEach(week.spans.filter { $0.lane < 3 }) { span in
-                            Text(span.event.title).font(.caption2).lineLimit(1).padding(.horizontal, 4)
-                                .frame(width: colW * CGFloat(span.endColumn - span.startColumn + 1) - 4, height: laneH - 2, alignment: .leading)
-                                .background(Color(hex: span.event.colorHex).opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
-                                .foregroundStyle(.white)
-                                .eventDetailOnClick(span.event, arrowEdge: .bottom)
-                                .offset(x: colW * CGFloat(span.startColumn) + 2, y: headerH + CGFloat(span.lane) * laneH)
+                            ForEach(week.spans.filter { $0.lane < 3 }) { span in
+                                Text(span.event.title).font(.caption2.weight(.medium)).lineLimit(1).padding(.horizontal, 4)
+                                    .frame(width: colW * CGFloat(span.endColumn - span.startColumn + 1) - 7, height: laneH - 2, alignment: .leading)
+                                    .eventChip(span.event.colorHex)
+                                    .opacity(span.event.isDeclined ? 0.5 : 1)
+                                    .eventDetailOnClick(span.event, arrowEdge: .bottom)
+                                    .help(span.event.title)
+                                    .offset(x: colW * CGFloat(span.startColumn) + 2, y: headerH + CGFloat(span.lane) * laneH)
+                            }
                         }
                     }
                 }
                 SKGroove()
             }
         }
+        .motionAwareAnimation(value: store.selectedDay)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Month grid. Arrow keys move the selected day; Return opens it.")
     }
 
     @ViewBuilder func dayCell(_ day: Date, segments: [CalendarEventDaySegment], laneCount: Int) -> some View {
-        let isSel = Calendar.current.isDate(day, inSameDayAs: store.selectedDay)
-        let inMonth = Calendar.current.isDate(day, equalTo: store.anchor, toGranularity: .month)
-        let isToday = Calendar.current.isDateInToday(day)
+        let cal = Calendar.app
+        let isSel = cal.isDate(day, inSameDayAs: store.selectedDay)
+        let inMonth = cal.isDate(day, equalTo: store.anchor, toGranularity: .month)
+        let isToday = cal.isDateInToday(day)
+        let weekend = highlightWeekends && cal.isDateInWeekend(day)
+        let timed = segments.filter { !isBar($0.event) }
         VStack(alignment: .leading, spacing: 1) {
-            Text("\(Calendar.current.component(.day, from: day))").font(.caption.bold())
+            Text("\(cal.component(.day, from: day))").font(.caption.bold())
                 .frame(width: 20, height: 20).background(isToday ? Color(sk1Hex: SK1.orange) : .clear, in: Circle())
                 .foregroundStyle(isToday ? .white : (inMonth ? .primary : .secondary))
             Spacer().frame(height: CGFloat(min(laneCount, 3)) * laneH - 2)
-            ForEach(segments.filter { !isBar($0.event) }.prefix(2)) { seg in
+            ForEach(timed.prefix(2)) { seg in
                 HStack(spacing: 3) { Circle().fill(Color(hex: seg.event.colorHex)).frame(width: 5, height: 5)
                     Text(seg.event.title).font(.caption2).lineLimit(1) }
+            }
+            if timed.count > 2 {
+                Text("+\(timed.count - 2) more").font(.caption2).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }
         .padding(3).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(weekend ? Color.secondary.opacity(0.06) : .clear)
         .background(isSel ? Color(sk1Hex: SK1.orange, opacity: 0.10) : .clear)
         .overlay(Rectangle().stroke(Color.secondary.opacity(0.15), lineWidth: 0.5))
+        .overlay { if isSel { Rectangle().stroke(Color(sk1Hex: SK1.orange, opacity: 0.6), lineWidth: 1.5) } }
         .contentShape(Rectangle())
+        .onTapGesture(count: 2) { store.select(day); store.viewMode = .day }
         .onTapGesture { store.selectedDay = day }
+        .help("Double-click to open the day")
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityLabel(day, events: segments.count, today: isToday))
+        .accessibilityAddTraits(isSel ? [.isButton, .isSelected] : .isButton)
+        .accessibilityAction { store.selectedDay = day }
+        .accessibilityAction(named: "Open day") { store.select(day); store.viewMode = .day }
+    }
+
+    static func accessibilityLabel(_ day: Date, events: Int, today: Bool) -> String {
+        let date = day.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        let count = events == 0 ? "no events" : events == 1 ? "1 event" : "\(events) events"
+        return (today ? "Today, " : "") + "\(date), \(count)"
     }
     private func isBar(_ e: CalendarEvent) -> Bool { e.isBarEvent() }
 }
@@ -294,16 +481,31 @@ extension Array {
 
 struct DayEventsListView: View {
     @EnvironmentObject var store: CalendarStore
-    @Binding var showForm: Bool
+    @AppStorage(AppPreferences.Key.density) private var densityRaw = LayoutDensity.comfortable.rawValue
+
     var body: some View {
         let segs = store.derived.segmentsByDay[store.selectedDay] ?? []
+        let density = LayoutDensity(rawValue: densityRaw) ?? .comfortable
         VStack(alignment: .leading) {
-            SKCaption(store.selectedDay.formatted(.dateTime.weekday(.wide).month().day()), tone: .soft).padding([.top, .horizontal], 12)
-            if segs.isEmpty { Text("No events for this day").sk1Hint().padding(12); Spacer() }
-            else {
+            HStack {
+                SKCaption(store.selectedDay.formatted(.dateTime.weekday(.wide).month().day()), tone: .soft)
+                Spacer()
+                Button { store.composer = .quickAdd(NewEventDateRangeBuilder.build(day: store.selectedDay)) } label: { Image(systemName: "plus") }
+                    .buttonStyle(.sk1Key(.round, size: .small))
+                    .help("New event on this day").accessibilityLabel("New event on this day")
+            }
+            .padding([.top, .horizontal], 12)
+            if segs.isEmpty {
+                EmptyStateView(symbol: "calendar.badge.checkmark", title: "Nothing on this day",
+                               detail: store.loadState == .loading ? "Loading\u{2026}" : "A free day. Add something, or pick another day.") {
+                    Button("Add Event") { store.composer = .quickAdd(NewEventDateRangeBuilder.build(day: store.selectedDay)) }
+                        .buttonStyle(.sk1Key(size: .small))
+                }
+                Spacer()
+            } else {
                 List(segs) { seg in
                     HStack(alignment: .top) {
-                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: seg.event.colorHex)).frame(width: 4)
+                        RoundedRectangle(cornerRadius: 2).fill(Color(hex: seg.event.colorHex)).frame(width: 4).accessibilityHidden(true)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(seg.event.title).bold()
                             Text(seg.timeRangeText()).font(.caption).foregroundStyle(.secondary)
@@ -312,6 +514,7 @@ struct DayEventsListView: View {
                         Spacer()
                         JoinButton(event: seg.event, size: .small, key: .cream)
                     }
+                    .padding(.vertical, density.rowPadding)
                     .opacity(seg.event.isDeclined ? 0.5 : 1)
                     .eventDetailOnClick(seg.event, arrowEdge: .leading)
                     .contextMenu {
@@ -320,8 +523,36 @@ struct DayEventsListView: View {
                         Button("Delete", role: .destructive) { Task { await store.delete(seg.event) } }
                     }
                 }
+                .motionAwareAnimation(value: segs.map(\.id))
             }
         }
+    }
+}
+
+/// An empty, offline or error state: a symbol, what's going on, and what to do about it.
+struct EmptyStateView<Action: View>: View {
+    let symbol: String
+    let title: String
+    var detail: String?
+    @ViewBuilder var action: () -> Action
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Image(systemName: symbol).font(.system(size: 30, weight: .light)).foregroundStyle(.secondary)
+                .symbolRenderingMode(.hierarchical).accessibilityHidden(true)
+            Text(title).font(.headline)
+            if let detail { Text(detail).sk1Hint().multilineTextAlignment(.center).fixedSize(horizontal: false, vertical: true) }
+            action()
+        }
+        .frame(maxWidth: .infinity)
+        .padding(20)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+extension EmptyStateView where Action == EmptyView {
+    init(symbol: String, title: String, detail: String? = nil) {
+        self.init(symbol: symbol, title: title, detail: detail, action: { EmptyView() })
     }
 }
 
@@ -340,6 +571,11 @@ struct EventFormView: View {
 
     init(start: Date, end: Date) {
         _draft = State(initialValue: NewEventDraft(start: start, end: end))
+    }
+
+    /// The full form, filled in from quick add's "More Options".
+    init(draft: NewEventDraft) {
+        _draft = State(initialValue: draft)
     }
     private var writable: [GCalendar] { store.calendars.filter(\.canWrite) }
 

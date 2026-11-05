@@ -41,11 +41,20 @@ public struct CalendarEvent: Identifiable, Hashable {
     /// Shared by every instance of a recurring event (Google `recurringEventId`, EventKit item id).
     public var seriesID: String? = nil
     public var recurrence: EventRecurrence = .none
+    /// The time zone the event was set in (Google `start.timeZone`, EventKit `timeZone`); nil for floating events.
+    public var timeZoneID: String? = nil
     public var uid: String { "\(accountEmail)|\(calendarID)|\(id)" }
     public var calendarKey: String { "\(accountEmail)|\(calendarID)" }
 
+    /// The event's own time zone when it isn't `local` and the event has a clock time.
+    public func foreignTimeZone(local: TimeZone = .current, at date: Date? = nil) -> TimeZone? {
+        guard !isAllDay, let id = timeZoneID, let tz = TimeZone(identifier: id) else { return nil }
+        let when = date ?? start
+        return tz.secondsFromGMT(for: when) == local.secondsFromGMT(for: when) ? nil : tz
+    }
+
     /// All-day or multi-day events render as bars (month grid, all-day row) rather than timed blocks.
-    public func isBarEvent(calendar: Calendar = .current) -> Bool {
+    public func isBarEvent(calendar: Calendar = .app) -> Bool {
         isAllDay || end.timeIntervalSince(start) >= 86400 || !calendar.isDate(start, inSameDayAs: end.addingTimeInterval(-1))
     }
 }

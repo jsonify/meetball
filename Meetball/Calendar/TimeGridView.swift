@@ -8,7 +8,8 @@ struct TimeGridView: View {
     let days: [Date]
     var onCreate: (Date, Date) -> Void
 
-    static let hourHeight: CGFloat = 48
+    @AppStorage(AppPreferences.Key.density) private var densityRaw = LayoutDensity.comfortable.rawValue
+    private var hourHeight: CGFloat { (LayoutDensity(rawValue: densityRaw) ?? .comfortable).hourHeight }
     let gutterWidth: CGFloat = 56
     let laneHeight: CGFloat = 20
     let workdayStartHour = 8
@@ -27,11 +28,11 @@ struct TimeGridView: View {
                         HStack(alignment: .top, spacing: 0) {
                             hourGutter
                             ForEach(days, id: \.self) { day in
-                                TimeGridDayColumn(day: day, segments: timedSegments(derived, day), now: now, onCreate: onCreate)
+                                TimeGridDayColumn(day: day, segments: timedSegments(derived, day), now: now, hourHeight: hourHeight, onCreate: onCreate)
                                     .frame(maxWidth: .infinity)
                             }
                         }
-                        .frame(height: Self.hourHeight * 24)
+                        .frame(height: hourHeight * 24)
                     }
                     .onAppear { scrollToStart(proxy, now: now) }
                     .onChange(of: days) { _, _ in scrollToStart(proxy, now: Date()) }
@@ -43,7 +44,7 @@ struct TimeGridView: View {
     // MARK: Header
 
     private func dayHeader(now: Date) -> some View {
-        let cal = Calendar.current
+        let cal = Calendar.app
         return HStack(spacing: 0) {
             Color.clear.frame(width: gutterWidth, height: 1)
             ForEach(days, id: \.self) { day in
@@ -63,6 +64,10 @@ struct TimeGridView: View {
                 .onTapGesture(count: 2) { store.select(day); store.viewMode = .day }
                 .onTapGesture { store.select(day) }
                 .help(days.count > 1 ? "Double-click to open the day view" : "")
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel((isToday ? "Today, " : "") + day.formatted(.dateTime.weekday(.wide).month(.wide).day()))
+                .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+                .accessibilityAction { store.select(day) }
             }
         }
     }
@@ -91,9 +96,9 @@ struct TimeGridView: View {
     }
 
     private func allDayBars(_ derived: CalendarDerivedEvents) -> [TimeGridAllDayBar] {
-        guard let first = days.first, let week = Calendar.current.dateInterval(of: .weekOfYear, for: first),
+        guard let first = days.first, let week = Calendar.app.dateInterval(of: .weekOfYear, for: first),
               let spans = derived.weeks.first(where: { $0.weekStart == week.start })?.spans else { return [] }
-        let offset = Calendar.current.dateComponents([.day], from: week.start, to: first).day ?? 0
+        let offset = Calendar.app.dateComponents([.day], from: week.start, to: first).day ?? 0
         return TimeGridLayoutBuilder.allDayBars(spans: spans, firstDayOffset: offset, dayCount: days.count)
     }
 
@@ -104,7 +109,7 @@ struct TimeGridView: View {
             ForEach(0..<24, id: \.self) { h in
                 Text(h == 0 ? "" : hourLabel(h))
                     .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
-                    .frame(width: gutterWidth - 8, height: Self.hourHeight, alignment: .topTrailing)
+                    .frame(width: gutterWidth - 8, height: hourHeight, alignment: .topTrailing)
                     .padding(.trailing, 8)
                     .offset(y: -7)
                     .id(h)
@@ -113,17 +118,17 @@ struct TimeGridView: View {
     }
 
     private func hourLabel(_ h: Int) -> String {
-        let d = Calendar.current.date(bySettingHour: h, minute: 0, second: 0, of: Date()) ?? Date()
-        return d.formatted(.dateTime.hour())
+        let d = Calendar.app.date(bySettingHour: h, minute: 0, second: 0, of: Date()) ?? Date()
+        return d.hourText
     }
 
     private func timedSegments(_ derived: CalendarDerivedEvents, _ day: Date) -> [CalendarEventDaySegment] {
-        (derived.segmentsByDay[Calendar.current.startOfDay(for: day)] ?? []).filter { !$0.event.isBarEvent() }
+        (derived.segmentsByDay[Calendar.app.startOfDay(for: day)] ?? []).filter { !$0.event.isBarEvent() }
     }
 
     /// Scroll to just before now when today is visible, otherwise to the start of working hours.
     private func scrollToStart(_ proxy: ScrollViewProxy, now: Date) {
-        let cal = Calendar.current
+        let cal = Calendar.app
         let hour = days.contains(where: { cal.isDate($0, inSameDayAs: now) })
             ? max(0, cal.component(.hour, from: now) - 1)
             : workdayStartHour
@@ -138,8 +143,7 @@ private struct AllDayBarView: View {
         Text((bar.continuesBefore ? "◂ " : "") + e.title).font(.caption2.weight(.medium)).lineLimit(1)
             .padding(.horizontal, 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-            .background(Color(hex: e.colorHex).opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
-            .foregroundStyle(.white)
+            .eventChip(e.colorHex)
             .opacity(e.isDeclined ? 0.5 : 1)
             .eventDetailOnClick(e, arrowEdge: .bottom)
             .contextMenu { MeetingSecondaryActions(event: e) }
@@ -153,13 +157,12 @@ struct TimeGridDayColumn: View {
     let day: Date
     let segments: [CalendarEventDaySegment]
     let now: Date
+    let hourHeight: CGFloat
     let onCreate: (Date, Date) -> Void
     @State private var dragRange: NewEventDateRange?
 
-    private var hourHeight: CGFloat { TimeGridView.hourHeight }
-
     var body: some View {
-        let isToday = Calendar.current.isDate(day, inSameDayAs: now)
+        let isToday = Calendar.app.isDate(day, inSameDayAs: now)
         GeometryReader { geo in
             let w = geo.size.width
             ZStack(alignment: .topLeading) {
@@ -178,7 +181,7 @@ struct TimeGridDayColumn: View {
                 if let r = dragRange {
                     RoundedRectangle(cornerRadius: 5).fill(Color(sk1Hex: SK1.orange, opacity: 0.25))
                         .overlay(alignment: .topLeading) {
-                            Text("\(r.start.formatted(date: .omitted, time: .shortened)) – \(r.end.formatted(date: .omitted, time: .shortened))")
+                            Text("\(r.start.shortTime) – \(r.end.shortTime)")
                                 .font(.caption2.bold()).padding(4)
                         }
                         .frame(width: w - 4, height: max(12, y(r.end) - y(r.start)))

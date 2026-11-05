@@ -9,6 +9,7 @@ struct MenuBarContent: View {
     @EnvironmentObject var session: SessionManager
     @EnvironmentObject var calendar: CalendarStore
     @EnvironmentObject var join: JoinController
+    @EnvironmentObject var shortcuts: AppShortcuts
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
     @State private var month = Date()
@@ -27,6 +28,7 @@ struct MenuBarContent: View {
             } else {
                 VStack(spacing: 8) {
                     statusStrip
+                    WorldClockStrip(now: model.now)
                     tiles
                 }
                 .padding([.horizontal, .top], 12)
@@ -46,6 +48,7 @@ struct MenuBarContent: View {
         .sk1Chassis()
         .environment(\.eventFilterSettings, calendar.filters)
         .onChange(of: month) { _, m in calendar.setMenuAnchor(m) }
+        .modifier(RegistersWindowOpener())
     }
 
     private var events: [CalendarEvent] { showHidden ? calendar.visibleEvents : calendar.meetingEvents }
@@ -55,13 +58,11 @@ struct MenuBarContent: View {
     }
 
     private var signInPrompt: some View {
-        VStack(spacing: 10) {
-            Image(systemName: "calendar.badge.plus").font(.system(size: 28)).foregroundStyle(.secondary)
-            Text("Connect a calendar").font(.headline)
-            Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.sk1Key(.orange))
-            Button("Use Apple Calendar") { Task { await calendar.enableApple() } }.buttonStyle(.sk1Key())
+        EmptyStateView(symbol: "calendar.badge.plus", title: "Connect a calendar",
+                       detail: "Meetball shows your next meeting here once a Google account or Apple Calendar is connected.") {
+            Button("Set Up Meetball") { openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true) }
+                .buttonStyle(.sk1Key(.orange))
         }
-        .frame(maxWidth: .infinity).padding(20)
     }
 
     @ViewBuilder private var agenda: some View {
@@ -78,8 +79,17 @@ struct MenuBarContent: View {
             }
             if let hero { HeroMeetingCard(event: hero, now: now) }
             if groups.isEmpty && hero == nil {
-                Text(scopedDay == nil ? "No upcoming events" : "No events on this day")
-                    .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 12)
+                if calendar.loadState == .loading && calendar.events.isEmpty {
+                    EmptyStateView(symbol: "arrow.triangle.2.circlepath", title: "Loading your calendars\u{2026}")
+                } else if case .failed(let message) = calendar.loadState, calendar.events.isEmpty {
+                    EmptyStateView(symbol: "wifi.exclamationmark", title: "Couldn't sync", detail: SyncErrorText.friendly(message)) {
+                        Button("Try Again") { calendar.refresh() }.buttonStyle(.sk1Key(size: .small))
+                    }
+                } else {
+                    EmptyStateView(symbol: "cup.and.saucer",
+                                   title: scopedDay == nil ? "No upcoming meetings" : "Nothing on this day",
+                                   detail: scopedDay == nil ? "Enjoy the quiet. New meetings show up here as soon as they're added." : nil)
+                }
             }
             ForEach(groups) { AgendaDaySection(group: $0, now: now, showHeader: scopedDay == nil) }
         }
@@ -131,6 +141,9 @@ struct MenuBarContent: View {
             SKCaptionedKey("Today", systemImage: "calendar.circle", onHover: hover("Back to today", "")) {
                 month = Date(); scopedDay = nil
             }
+            SKCaptionedKey("New", systemImage: "plus", onHover: hover("Quick add an event", shortcuts.combos[.quickAdd]?.display ?? "")) {
+                QuickAddPanel.show(store: calendar)
+            }
             SKCaptionedKey("Filtered", systemImage: "line.3.horizontal.decrease.circle", lamp: showHidden,
                            onHover: hover(showHidden ? "Hide filtered events" : "Show filtered events", "\(hidden) HIDDEN")) {
                 showHidden.toggle()
@@ -160,10 +173,11 @@ struct MiniMonthView: View {
     @Binding var month: Date
     @Binding var selection: Date?
     let dots: [Date: [String]]
-    @AppStorage("menuBar.showWeekNumbers") private var showWeekNumbers = false
+    @AppStorage(AppPreferences.Key.weekNumbers) private var showWeekNumbers = false
+    @AppStorage(AppPreferences.Key.highlightWeekends) private var highlightWeekends = true
 
     var body: some View {
-        let cal = Calendar.current
+        let cal = Calendar.app
         let range = CalendarVisibleRangeBuilder.build(anchor: month)
         let weekStarts = stride(from: 0, to: cal.dateComponents([.day], from: range.start, to: range.end).day ?? 35, by: 7)
             .compactMap { cal.date(byAdding: .day, value: $0, to: range.start) }
@@ -200,7 +214,7 @@ struct MiniMonthView: View {
     }
 
     private func dayCell(_ day: Date) -> some View {
-        let cal = Calendar.current
+        let cal = Calendar.app
         let isToday = cal.isDateInToday(day)
         let isSelected = selection.map { cal.isDate($0, inSameDayAs: day) } ?? false
         let inMonth = cal.isDate(day, equalTo: month, toGranularity: .month)
@@ -223,10 +237,14 @@ struct MiniMonthView: View {
                     }
                 }.frame(height: 4)
             }
-            .frame(maxWidth: .infinity).contentShape(Rectangle())
+            .frame(maxWidth: .infinity)
+            .background(highlightWeekends && cal.isDateInWeekend(day) ? Color.secondary.opacity(0.07) : .clear)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(Text(day, format: .dateTime.weekday(.wide).month().day()))
+        .accessibilityLabel((isToday ? "Today, " : "") + day.formatted(.dateTime.weekday(.wide).month(.wide).day())
+                            + ((dots[cal.startOfDay(for: day)] ?? []).isEmpty ? "" : ", has events"))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func navButton(_ symbol: String, help: String, _ action: @escaping () -> Void) -> some View {
@@ -235,7 +253,7 @@ struct MiniMonthView: View {
     }
 
     private func shift(_ n: Int) {
-        month = Calendar.current.date(byAdding: .month, value: n, to: month) ?? month
+        month = Calendar.app.date(byAdding: .month, value: n, to: month) ?? month
     }
 }
 
@@ -281,7 +299,7 @@ struct HeroMeetingCard: View {
     }
 
     private var timeRange: String {
-        "\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))"
+        "\(event.start.shortTime) – \(event.end.shortTime)"
     }
 }
 
@@ -303,7 +321,7 @@ struct AgendaDaySection: View {
                     ForEach(group.allDay, id: \.uid) { e in
                         Text(e.title).font(.caption2.weight(.medium)).lineLimit(1)
                             .padding(.horizontal, 6).padding(.vertical, 2)
-                            .background(Color(hex: e.colorHex).opacity(0.22), in: Capsule())
+                            .eventChip(e.colorHex)
                             .opacity(e.isDeclined || dimmed(e) ? 0.5 : 1)
                             .eventDetailOnClick(e, arrowEdge: .leading)
                             .contextMenu { MeetingSecondaryActions(event: e) }
@@ -319,7 +337,7 @@ struct AgendaDaySection: View {
     }
 
     private var title: String {
-        let cal = Calendar.current
+        let cal = Calendar.app
         if cal.isDateInToday(group.day) { return "Today" }
         if cal.isDateInTomorrow(group.day) { return "Tomorrow" }
         return group.day.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())
@@ -333,7 +351,7 @@ private struct NowLine: View {
             let red = Color(sk1Hex: SK1.recRed)
             Circle().fill(red).frame(width: 6, height: 6)
             Rectangle().fill(red).frame(height: 1)
-            Text(now.formatted(date: .omitted, time: .shortened)).font(.caption2.monospacedDigit()).foregroundStyle(red)
+            Text(now.shortTime).font(.caption2.monospacedDigit()).foregroundStyle(red)
         }
         .padding(.vertical, 2)
         .accessibilityLabel("Now")
@@ -359,11 +377,15 @@ struct AgendaRow: View {
                 Text(event.title).font(.callout.weight(inProgress ? .semibold : .regular)).lineLimit(1)
                     .strikethrough(event.isDeclined)
                 HStack(spacing: 4) {
-                    Text("\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))")
+                    Text("\(event.start.shortTime) – \(event.end.shortTime)")
                     if !ended && !inProgress && event.start.timeIntervalSince(now) < 12 * 3600 {
                         Text("· in \(TimeUntilFormatter.string(until: event.start, now: now))")
                     }
                     if let u = event.meetURL { MeetingServiceBadge(url: u) }
+                    if let tz = event.foreignTimeZone() {
+                        Image(systemName: "globe").help(EventTimeZoneText.there(event, in: tz))
+                            .accessibilityLabel(EventTimeZoneText.there(event, in: tz))
+                    }
                 }
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
@@ -375,5 +397,45 @@ struct AgendaRow: View {
         .help(hideReason.map { "Hidden by your filters: \($0.label)" } ?? (tentativeDimmed ? "You replied Maybe" : ""))
         .eventDetailOnClick(event, arrowEdge: .leading)
         .contextMenu { MeetingSecondaryActions(event: event) }
+    }
+}
+
+/// The world clocks from Settings › Menu Bar, under the status strip: each city's time on LCD glass, and the day when it
+/// differs from here.
+struct WorldClockStrip: View {
+    let now: Date
+    @AppStorage(AppPreferences.Key.worldClocks) private var raw = ""
+    @AppStorage(AppPreferences.Key.clockStyle) private var clockRaw = ClockStyle.system.rawValue
+
+    var body: some View {
+        let clocks = WorldClock.decode(raw)
+        if !clocks.isEmpty {
+            let locale = AppPreferences.locale(clock: ClockStyle(rawValue: clockRaw) ?? .system)
+            SKLCD {
+                HStack(spacing: 0) {
+                    ForEach(Array(clocks.enumerated()), id: \.element.id) { i, clock in
+                        if i > 0 { Rectangle().fill(Color(sk1Hex: SK1.lcdInk, opacity: 0.2)).frame(width: 1).padding(.vertical, 5) }
+                        VStack(spacing: 0) {
+                            Text(clock.displayLabel.uppercased())
+                                .font(.system(size: 8.5, weight: .heavy)).tracking(0.8).lineLimit(1)
+                            HStack(spacing: 3) {
+                                Text(now.shortTime(locale: locale, timeZone: clock.timeZone))
+                                    .font(.sk1(SK1.TypeScale.lcdMono)).monospacedDigit()
+                                if let shift = clock.dayShift(at: now) {
+                                    Text(shift == "Tomorrow" ? "+1" : "\u{2212}1").font(.system(size: 8, weight: .heavy))
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity)
+                        .help("\(clock.displayLabel): \(clock.offsetText(from: .current))\(clock.dayShift(at: now).map { ", \($0.lowercased())" } ?? "")")
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel("\(clock.displayLabel), \(now.shortTime(locale: locale, timeZone: clock.timeZone))\(clock.dayShift(at: now).map { ", \($0.lowercased())" } ?? "")")
+                    }
+                }
+                .foregroundStyle(Color(sk1Hex: SK1.lcdInk))
+                .padding(.horizontal, 6)
+            }
+            .frame(height: 34)
+        }
     }
 }
