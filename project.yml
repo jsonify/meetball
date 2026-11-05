@@ -1,6 +1,7 @@
 name: Meetball
 options:
   bundleIdPrefix: app.meetball
+  xcodeVersion: "16.4"
   deploymentTarget:
     macOS: "15.0"
 settings:
@@ -25,7 +26,6 @@ targets:
         com.apple.security.network.server: true
         com.apple.security.personal-information.calendars: true
         com.apple.security.files.user-selected.read-only: true
-        com.apple.developer.usernotifications.time-sensitive: true
     info:
       path: Meetball/Info.plist
       properties:
