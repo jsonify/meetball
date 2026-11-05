@@ -335,7 +335,78 @@ struct MiniMonthView: View {
     }
 }
 
-/// The next / in-progress meeting in a sunken tray: an LCD countdown, title, time, and the orange Join key.
+/// How close the menu bar's next meeting is, which sets how loudly its card is drawn.
+enum HeroUrgency: Equatable {
+    /// More than `soonWindow` away: a quiet teal edge.
+    case later
+    /// Within `soonWindow`: an orange edge and an amber lamp.
+    case soon
+    /// Within `imminentWindow`: a brighter, glowing orange edge and a blinking amber lamp.
+    case imminent
+    /// Under way: glowing orange edge, red blinking lamp.
+    case live
+
+    static let soonWindow: TimeInterval = 15 * 60
+    static let imminentWindow: TimeInterval = 2 * 60
+
+    static func of(_ event: CalendarEvent, now: Date) -> HeroUrgency {
+        of(start: event.start, end: event.end, now: now)
+    }
+
+    static func of(start: Date, end: Date, now: Date) -> HeroUrgency {
+        if start <= now { return .live }
+        let lead = start.timeIntervalSince(now)
+        if lead <= imminentWindow { return .imminent }
+        if lead <= soonWindow { return .soon }
+        return .later
+    }
+
+    var lamp: SKLampColor {
+        switch self {
+        case .later: return .success
+        case .soon, .imminent: return .warning
+        case .live: return .danger
+        }
+    }
+
+    var lampBlinks: Bool { self == .imminent || self == .live }
+
+    /// The card's edge: orange once the meeting is near, teal before.
+    var edgeColor: Color {
+        self == .later ? Color(sk1Hex: SK1.teal) : Color(sk1Hex: SK1.orange)
+    }
+
+    var edgeOpacity: Double {
+        switch self {
+        case .later: return 0.45
+        case .soon: return 0.75
+        case .imminent, .live: return 1
+        }
+    }
+
+    var edgeWidth: CGFloat { self == .later ? 1 : 1.5 }
+
+    /// The glow around the card (none while the meeting is still a while off).
+    var glow: CGFloat {
+        switch self {
+        case .later: return 0
+        case .soon: return 4
+        case .imminent, .live: return 8
+        }
+    }
+
+    /// A faint wash of the edge colour across the tray, so the card reads as lit from inside.
+    var washOpacity: Double {
+        switch self {
+        case .later: return 0.04
+        case .soon: return 0.07
+        case .imminent, .live: return 0.10
+        }
+    }
+}
+
+/// The next / in-progress meeting in a sunken tray: a large LCD countdown, title, time, and the Join key. Its edge
+/// turns from teal to a glowing orange as the meeting nears (`HeroUrgency`), so it stands apart from the agenda.
 struct HeroMeetingCard: View {
     let event: CalendarEvent
     let now: Date
@@ -346,15 +417,18 @@ struct HeroMeetingCard: View {
         let inProgress = event.start <= now
         let target = inProgress ? event.end : event.start
         let countdown = SK1CountdownDigits.compact(target.timeIntervalSince(now))
+        let urgency = HeroUrgency.of(event, now: now)
+        let shape = RoundedRectangle(cornerRadius: SK1.Metrics.wellRadius, style: .continuous)
         SKWell {
             VStack(alignment: .leading, spacing: 8) {
                 SK1CountdownLCD(caption: inProgress ? "Now · ends in" : "Starts in",
                                 digits: countdown.digits, unit: countdown.unit, live: inProgress,
+                                lamp: urgency.lamp, lampBlinking: urgency.lampBlinks, height: 50,
                                 accessibilityText: (inProgress ? "In progress, ends " : "Starts ")
                                     + RelativeTimeFormatter.string(for: target, relativeTo: now))
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Circle().fill(Color(hex: event.colorHex)).frame(width: 7, height: 7)
-                    Text(event.title).font(.title3.bold()).lineLimit(2)
+                    Circle().fill(Color(hex: event.colorHex)).frame(width: 8, height: 8)
+                    Text(event.title).font(.title2.bold()).lineLimit(2)
                 }
                 HStack(spacing: 10) {
                     Label(timeRange, systemImage: "clock")
@@ -362,7 +436,7 @@ struct HeroMeetingCard: View {
                         Label("\(event.attendees.count)", systemImage: "person.2").help("\(event.attendees.count) attendees")
                     }
                 }
-                .font(.caption).foregroundStyle(.secondary)
+                .font(.callout).foregroundStyle(.secondary)
                 if let loc = event.location, !loc.isEmpty {
                     Label(loc, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                 }
@@ -370,13 +444,21 @@ struct HeroMeetingCard: View {
                     Label("Auto-joins at \(at.shortTime)", systemImage: "bolt.circle").font(.caption).foregroundStyle(.secondary)
                 }
                 if event.meetURL != nil {
+                    // Cream: the popover's one orange key is Join in the tray above.
                     JoinButton(event: event, size: .large, fillsWidth: true, key: .cream)
                 } else {
                     Text("No video link").sk1Hint()
                 }
             }
-            .padding(10)
+            .padding(12)
+            .background(shape.fill(urgency.edgeColor.opacity(urgency.washOpacity)))
         }
+        .overlay(
+            shape.strokeBorder(urgency.edgeColor.opacity(urgency.edgeOpacity), lineWidth: urgency.edgeWidth)
+                .shadow(color: urgency.edgeColor.opacity(urgency.glow > 0 ? 0.6 : 0), radius: urgency.glow)
+                .allowsHitTesting(false)
+        )
+        .animation(.easeInOut(duration: 0.4), value: urgency)
         .eventDetailOnClick(event, arrowEdge: .leading)
         .contextMenu { MeetingSecondaryActions(event: event) }
     }
