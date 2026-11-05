@@ -30,7 +30,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     init(store: MeetingGuardianStore, subs: SubscriptionManager) {
         self.store = store; self.subs = subs
         super.init()
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .timeSensitive]) { [weak self] ok, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] ok, _ in
             Task { @MainActor in self?.authorizationDenied = !ok }
         }
         let center = UNUserNotificationCenter.current()
