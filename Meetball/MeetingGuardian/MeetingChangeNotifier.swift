@@ -14,6 +14,7 @@ final class MeetingChangeNotifier {
     func handle(_ changes: [MeetingChange], now: Date = Date()) {
         let s = store.settings
         guard s.notifyChanges, !changes.isEmpty else { return }
+        if s.changeCard { MeetingChangeCardPanel.show(changes) }
         let c = UNMutableNotificationContent()
         if changes.count == 1, let change = changes.first {
             c.title = MeetingChangeText.title(change)

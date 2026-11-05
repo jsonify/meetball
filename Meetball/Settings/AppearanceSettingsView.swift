@@ -102,6 +102,8 @@ enum SettingsSearch {
         .init(title: "Hide or fade events", tab: .events, group: "Hide or fade", keywords: ["filter", "declined", "all-day", "focus", "ignore"]),
         .init(title: "Rules per source", tab: .events, group: "Per source", keywords: ["filter", "account", "source"]),
         .init(title: "Google accounts", tab: .accounts, group: "Google accounts", keywords: ["sign in", "google", "account", "accent", "colour", "color"]),
+        .init(title: "Notify when a meeting changes", tab: .alerts, group: "Meeting changes", keywords: ["moved", "rescheduled", "cancelled", "canceled", "link", "change"]),
+        .init(title: "Show a card until dismissed", tab: .alerts, group: "Meeting changes", keywords: ["card", "moved", "change", "dismiss", "banner"]),
         .init(title: "Use Apple Calendar", tab: .accounts, group: "Apple Calendar", keywords: ["icloud", "exchange", "apple", "calendar access"]),
         .init(title: "Alert style", tab: .alerts, group: "Alert style", keywords: ["guardian", "notification", "heads-up", "hard alert", "full screen"]),
         .init(title: "Sound", tab: .alerts, group: "Alert style", keywords: ["sound", "audio", "chime"]),

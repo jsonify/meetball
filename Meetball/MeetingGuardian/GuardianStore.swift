@@ -68,6 +68,8 @@ public struct GuardianSettings: Codable, Equatable {
     var notifyChanges = true
     /// Confetti when a meeting is cancelled.
     var celebrateCancellations = true
+    /// Also show an on-screen card for meeting changes that stays until it's dismissed.
+    var changeCard = true
     /// Minutes after the start that auto-join opens a meeting nobody joined yet (#24); 0 = at the start.
     var autoJoinDelayMinutes = 1
 
@@ -76,7 +78,7 @@ public struct GuardianSettings: Codable, Equatable {
     enum CodingKeys: String, CodingKey {
         case style, leadMinutes, alsoAtFiveMinutes, playSound, breakThroughFocus, skipWhileScreenSharing, stillJoiningPrompt,
              repeatIfNotJoined, warnBeforeSleep, limitToActiveHours, activeStartHour, activeEndHour, soundName,
-             notifyChanges, celebrateCancellations, autoJoinDelayMinutes
+             notifyChanges, celebrateCancellations, changeCard, autoJoinDelayMinutes
     }
 
     /// Missing keys keep their defaults, so adding a setting never resets the saved ones.
@@ -98,6 +100,7 @@ public struct GuardianSettings: Codable, Equatable {
         soundName = try v(.soundName, soundName)
         notifyChanges = try v(.notifyChanges, notifyChanges)
         celebrateCancellations = try v(.celebrateCancellations, celebrateCancellations)
+        changeCard = try v(.changeCard, changeCard)
         autoJoinDelayMinutes = try v(.autoJoinDelayMinutes, autoJoinDelayMinutes)
     }
 }
