@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import EventKit
+import os
 
 public enum CalendarSidebarLoadState: Equatable { case idle, loading, loaded, failed(String) }
 
@@ -66,8 +67,11 @@ public final class CalendarStore: ObservableObject {
 
     /// Called on the main actor with the upcoming meetings that changed or were cancelled since the previous sync (#30).
     var onMeetingChanges: (@MainActor ([MeetingChange]) -> Void)?
-    /// The previous sync, compared with each new one to spot changes.
-    private var snapshot: EventSnapshot?
+    /// The previous sync, compared with each new one to spot changes. Starts from the copy saved by the last run, so
+    /// changes made while Meetball was closed or restarting are reported too.
+    private var snapshot: EventSnapshot? = StoredEventSnapshot.load()?.snapshot(now: Date())
+    /// `log show --last 2h --predicate 'subsystem == "app.meetball"'` shows what each sync compared and found.
+    private let changeLog = Logger(subsystem: "app.meetball", category: "changes")
     /// Events deleted in Meetball, so their disappearance isn't reported as a cancellation.
     private var locallyRemoved = Set<String>()
 
@@ -235,10 +239,21 @@ public final class CalendarStore: ObservableObject {
         let now = Date()
         // Accounts that failed this time keep their previous events, so they're compared again next sync.
         let next = current.carryingOver(snapshot, hidden: hiddenCalendarKeys, attempted: attempted)
-        defer { snapshot = next }
-        guard let previous = snapshot else { return }
-        let changes = MeetingChangeDetector.diff(old: previous, new: current, now: now, ignoring: locallyRemoved)
+        defer {
+            snapshot = next
+            StoredEventSnapshot(next, savedAt: now).save()
+        }
+        guard let previous = snapshot else {
+            changeLog.notice("First sync: \(current.events.count) events, nothing to compare yet")
+            return
+        }
+        let found = MeetingChangeDetector.diff(old: previous, new: current, now: now, ignoring: locallyRemoved)
+        let changes = found
             .filter { !hiddenCalendarKeys.contains($0.event.calendarKey) && EventFilter.hideReason($0.event, settings: filters) == nil }
+        changeLog.notice("Compared \(previous.events.count) → \(current.events.count) events on \(previous.calendars.intersection(current.calendars).count) shared calendars: \(found.count) changes, \(changes.count) after filters")
+        for c in found {
+            changeLog.notice("\(MeetingChangeText.title(c), privacy: .private) at \(c.event.start) on \(c.event.calendarKey, privacy: .private)")
+        }
         // A local delete is forgotten once a sync has confirmed it.
         locallyRemoved.subtract(locallyRemoved.filter { previous.events[$0] != nil && current.events[$0] == nil })
         if !changes.isEmpty { onMeetingChanges?(changes) }

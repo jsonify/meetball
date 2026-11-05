@@ -160,3 +160,64 @@ public enum MeetingChangeText {
         return "\(d.formatted(.dateTime.weekday(.abbreviated))) \(d.shortTime)"
     }
 }
+
+/// The last sync's snapshot on disk, so a change made while Meetball was closed or restarting (after an update, say) is
+/// still reported at the first sync after launch. Only the fields change detection looks at are kept.
+struct StoredEventSnapshot: Codable, Equatable {
+    struct Event: Codable, Equatable {
+        var id, calendarID, accountEmail, title: String
+        var start, end: Date
+        var isAllDay, isDeclined: Bool
+        var meetURL: URL?
+        var location: String?
+        var colorHex: String
+    }
+
+    /// A saved snapshot older than this is ignored: comparing against it would report stale news.
+    static let maxAge: TimeInterval = 12 * 3600
+
+    var savedAt: Date
+    var calendars: [String]
+    var rangeStart: Date
+    var rangeEnd: Date
+    var events: [Event]
+
+    init(_ s: EventSnapshot, savedAt: Date) {
+        self.savedAt = savedAt
+        calendars = s.calendars.sorted()
+        rangeStart = s.range.start; rangeEnd = s.range.end
+        events = s.events.values.sorted { $0.uid < $1.uid }.map {
+            Event(id: $0.id, calendarID: $0.calendarID, accountEmail: $0.accountEmail, title: $0.title, start: $0.start, end: $0.end,
+                  isAllDay: $0.isAllDay, isDeclined: $0.isDeclined, meetURL: $0.meetURL, location: $0.location, colorHex: $0.colorHex)
+        }
+    }
+
+    /// The snapshot, or nil when it's older than `maxAge`.
+    func snapshot(now: Date) -> EventSnapshot? {
+        guard now.timeIntervalSince(savedAt) < Self.maxAge, rangeEnd > rangeStart else { return nil }
+        let evs = events.map { e -> CalendarEvent in
+            var c = CalendarEvent(id: e.id, calendarID: e.calendarID, accountEmail: e.accountEmail, title: e.title, start: e.start,
+                                  end: e.end, isAllDay: e.isAllDay, meetURL: e.meetURL, location: e.location, attendees: [],
+                                  htmlLink: nil, colorHex: e.colorHex)
+            c.isDeclined = e.isDeclined
+            return c
+        }
+        return EventSnapshot(events: evs, calendars: Set(calendars), range: DateInterval(start: rangeStart, end: rangeEnd))
+    }
+
+    static var fileURL: URL? {
+        guard let dir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else { return nil }
+        return dir.appendingPathComponent("Meetball", isDirectory: true).appendingPathComponent("last-sync.json")
+    }
+
+    static func load(from url: URL? = fileURL) -> StoredEventSnapshot? {
+        guard let url, let data = try? Data(contentsOf: url) else { return nil }
+        return try? JSONDecoder().decode(Self.self, from: data)
+    }
+
+    func save(to url: URL? = Self.fileURL) {
+        guard let url, let data = try? JSONEncoder().encode(self) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? data.write(to: url, options: .atomic)
+    }
+}

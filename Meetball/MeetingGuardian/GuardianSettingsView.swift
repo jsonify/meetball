@@ -78,9 +78,16 @@ struct MeetingGuardianSettingsView: View {
                 }
             }
             SKGroup(caption: "Meeting changes",
-                    note: "For meetings in the next 48 hours. Meetball compares each sync with the last one, so changes show up within a refresh.") {
+                    note: "For meetings in the next 48 hours. Meetball compares each sync with the last one (also across restarts), so changes show up within a refresh.") {
                 SKRow(title: "Notify when a meeting changes", subtitle: "Moved to another time, given a new join link, or cancelled.") {
                     Toggle("Notify when a meeting changes", isOn: $store.settings.notifyChanges).toggleStyle(.sk1Switch)
+                }
+                SKRow(title: "Show a card until dismissed", subtitle: "Besides the notification, a card stays in the top-right corner until you dismiss it.") {
+                    HStack(spacing: 8) {
+                        Button("Preview") { MeetingChangeCardPanel.preview() }
+                            .buttonStyle(.sk1Key(size: .small))
+                        Toggle("Show a card until dismissed", isOn: $store.settings.changeCard).toggleStyle(.sk1Switch)
+                    }
                 }
                 SKRow(title: "Celebrate cancellations", subtitle: "Confetti and a chime when a meeting is called off.") {
                     HStack(spacing: 8) {
