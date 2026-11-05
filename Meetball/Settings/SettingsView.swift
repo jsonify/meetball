@@ -5,6 +5,7 @@ struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
+            MenuBarSettingsView().tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
             AccountsSettings().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
             MeetingGuardianSettingsView().tabItem { Label("Alerts", systemImage: "bell.badge") }
             JoinSettingsView().tabItem { Label("Joining", systemImage: "video") }
@@ -16,7 +17,6 @@ struct SettingsView: View {
 struct GeneralSettings: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("refreshIntervalSeconds") private var refresh: Double = 120
-    @AppStorage("showCountdownInMenuBar") private var showCountdown = true
     var body: some View {
         Form {
             Section("App") {
@@ -24,7 +24,6 @@ struct GeneralSettings: View {
                     do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { launchAtLogin.toggle() }
                 }
                 Text("Choose whether Meetball should launch automatically when you sign in to your Mac.").font(.caption).foregroundStyle(.secondary)
-                Toggle("Show next meeting countdown in the menu bar", isOn: $showCountdown)
             }
             Section("Sync") {
                 Picker("Refresh Google Calendar", selection: $refresh) {
@@ -81,7 +80,6 @@ struct JoinSettingsView: View {
     @EnvironmentObject var join: JoinController
     @State private var browsers: [InstalledBrowser] = []
     @State private var modes: [MeetingService: String] = [:]
-    @AppStorage("menuBar.showWeekNumbers") private var showWeekNumbers = false
     private let prefs = JoinPreferences()
 
     var body: some View {
@@ -109,9 +107,6 @@ struct JoinSettingsView: View {
                     }
                 }
             }
-            Section("Menu bar") {
-                Toggle("Show week numbers in the mini calendar", isOn: $showWeekNumbers)
-            }
         }
         .formStyle(.grouped)
         .onAppear {
@@ -123,5 +118,54 @@ struct JoinSettingsView: View {
     private func binding(for s: MeetingService) -> Binding<String> {
         Binding(get: { modes[s] ?? prefs.mode(for: s).raw },
                 set: { modes[s] = $0; prefs.setMode(JoinOpenMode(raw: $0), for: s) })
+    }
+}
+
+struct MenuBarSettingsView: View {
+    @AppStorage(MenuBarTitleSettings.Key.format) private var formatRaw = MenuBarTitleSettings(defaults: .standard).format.rawValue
+    @AppStorage(MenuBarTitleSettings.Key.maxTitleLength) private var maxTitleLength = MenuBarTitleSettings().maxTitleLength
+    @AppStorage(MenuBarTitleSettings.Key.showServiceIcon) private var showServiceIcon = true
+    @AppStorage(MenuBarTitleSettings.Key.hideBeyondHours) private var hideBeyondHours = 0
+    @AppStorage(MenuBarTitleSettings.Key.pulseWhenSoon) private var pulseWhenSoon = true
+    @AppStorage("menuBar.showWeekNumbers") private var showWeekNumbers = false
+
+    private var format: MenuBarTitleFormat { MenuBarTitleFormat(rawValue: formatRaw) ?? .countdown }
+    private var showsTitle: Bool { format == .titleCountdown || format == .titleStartTime }
+
+    var body: some View {
+        Form {
+            Section("Title") {
+                Picker("Show", selection: $formatRaw) {
+                    ForEach(MenuBarTitleFormat.allCases) { f in
+                        Text(f.example.isEmpty ? f.title : "\(f.title)  (\(f.example))").tag(f.rawValue)
+                    }
+                }
+                LabeledContent("Longest title") {
+                    HStack {
+                        Slider(value: Binding(get: { Double(maxTitleLength) }, set: { maxTitleLength = Int($0.rounded()) }),
+                               in: Double(MenuBarTitleSettings.titleLengthRange.lowerBound)...Double(MenuBarTitleSettings.titleLengthRange.upperBound),
+                               step: 1)
+                        Text("\(maxTitleLength) characters").monospacedDigit().frame(width: 100, alignment: .trailing)
+                    }
+                }
+                .disabled(!showsTitle)
+                Text("Longer titles are cut with \u{2026} so the item never crowds out other menu bar icons.")
+                    .font(.caption).foregroundStyle(.secondary)
+                Picker("Show text", selection: $hideBeyondHours) {
+                    Text("Always").tag(0)
+                    ForEach([1, 2, 4, 8, 12], id: \.self) { h in Text("When a meeting starts within \(h) hour\(h == 1 ? "" : "s")").tag(h) }
+                }
+                Text("While a meeting is in progress the item shows \"now\" and the time left.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Icon") {
+                Toggle("Use the meeting's service icon (Meet, Zoom, Teams, Webex) when it has a join link", isOn: $showServiceIcon)
+                Toggle("Pulse the icon when a meeting starts in under 5 minutes", isOn: $pulseWhenSoon)
+                Text("The icon turns orange when a meeting is less than 5 minutes away.").font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Popover") {
+                Toggle("Show week numbers in the mini calendar", isOn: $showWeekNumbers)
+            }
+        }
+        .formStyle(.grouped)
     }
 }

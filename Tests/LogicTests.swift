@@ -207,3 +207,72 @@ final class KeychainTests: XCTestCase {
         k.remove("x"); XCTAssertNil(k.get("x"))
     }
 }
+
+final class MenuBarTitleTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    func ev(_ title: String, startIn: TimeInterval, minutes: Double = 30, url: String? = nil) -> CalendarEvent {
+        let s = now.addingTimeInterval(startIn)
+        return CalendarEvent(id: title, calendarID: "c", accountEmail: "a@b.c", title: title, start: s,
+                             end: s.addingTimeInterval(minutes * 60), isAllDay: false,
+                             meetURL: url.flatMap(URL.init(string:)), location: nil, attendees: [], htmlLink: nil)
+    }
+    func settings(_ f: MenuBarTitleFormat, max: Int = 24, hide: Int = 0) -> MenuBarTitleSettings {
+        var s = MenuBarTitleSettings(); s.format = f; s.maxTitleLength = max; s.hideBeyondHours = hide; return s
+    }
+
+    func testFormats() {
+        let e = ev("Design review", startIn: 12 * 60)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.countdown)).text, "12m")
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.titleCountdown)).text, "Design review · in 12m")
+        XCTAssertTrue(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.titleStartTime)).text.hasPrefix("Design review · "))
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.iconOnly)).text, "")
+    }
+
+    func testInProgressShowsTimeLeft() {
+        let e = ev("Standup", startIn: -5 * 60, minutes: 15)
+        let t = MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.countdown))
+        XCTAssertEqual(t.text, "now · 10m left")
+        XCTAssertTrue(t.inProgress)
+        XCTAssertFalse(t.isSoon)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.titleCountdown)).text, "Standup · 10m left")
+    }
+
+    func testTruncation() {
+        XCTAssertEqual(MenuBarTitleBuilder.truncate("Quarterly planning offsite", to: 10), "Quarterly…")
+        XCTAssertEqual(MenuBarTitleBuilder.truncate("  Short  ", to: 10), "Short")
+        let t = MenuBarTitleBuilder.build(next: ev(String(repeating: "x", count: 80), startIn: 600), now: now, settings: settings(.titleCountdown, max: 20))
+        XCTAssertEqual(t.text, String(repeating: "x", count: 19) + "… · in 10m")
+    }
+
+    func testHideBeyondHoursAndSoon() {
+        let far = ev("Later", startIn: 3 * 3600)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: far, now: now, settings: settings(.countdown, hide: 2)), .idle)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: far, now: now, settings: settings(.countdown, hide: 4)).text, "3h")
+        XCTAssertTrue(MenuBarTitleBuilder.build(next: ev("Soon", startIn: 4 * 60), now: now, settings: settings(.countdown)).isSoon)
+        XCTAssertFalse(MenuBarTitleBuilder.build(next: ev("Not yet", startIn: 6 * 60), now: now, settings: settings(.countdown)).isSoon)
+    }
+
+    func testServiceIcon() {
+        let zoom = ev("Sync", startIn: 600, url: "https://acme.zoom.us/j/1")
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: zoom, now: now, settings: settings(.countdown)).symbol, MeetingService.zoom.symbol)
+        var s = settings(.countdown); s.showServiceIcon = false
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: zoom, now: now, settings: s).symbol, MenuBarTitleBuilder.defaultSymbol)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: ev("x", startIn: 600), now: now, settings: settings(.countdown)).symbol,
+                       MenuBarTitleBuilder.defaultSymbol)
+    }
+
+    func testPicksInProgressOverNext() {
+        let current = ev("Current", startIn: -600), next = ev("Next", startIn: 300)
+        XCTAssertEqual(MenuBarTitleBuilder.pick([current, next], now: now)?.title, "Current")
+        XCTAssertEqual(MenuBarTitleBuilder.pick([next, ev("Tomorrow", startIn: 86400)], now: now)?.title, "Next")
+    }
+
+    func testLegacyCountdownToggleMapsToIconOnly() {
+        let d = UserDefaults(suiteName: "test.\(UUID())")!
+        XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .countdown)
+        d.set(false, forKey: "showCountdownInMenuBar")
+        XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .iconOnly)
+        d.set(MenuBarTitleFormat.titleCountdown.rawValue, forKey: "menuBar.format")
+        XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .titleCountdown)
+    }
+}
