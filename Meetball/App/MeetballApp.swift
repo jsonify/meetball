@@ -59,9 +59,10 @@ struct MenuBarContent: View {
     @Environment(\.openSettings) private var openSettings
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if session.accounts.isEmpty {
-                Text("Connect your Google Calendar").font(.headline)
+            if !calendar.hasAnySource {
+                Text("Connect a calendar").font(.headline)
                 Button("Sign in with Google") { Task { await session.addAccount() } }
+                Button("Use Apple Calendar") { Task { await calendar.enableApple() } }
             } else if calendar.upcoming().isEmpty {
                 Text("No upcoming events").foregroundStyle(.secondary)
             } else {

@@ -28,6 +28,8 @@
 	<string>public.app-category.productivity</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>15.0</string>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>Meetball reads your calendars to show upcoming meetings, the menu bar countdown, and Meeting Guardian alerts.</string>
 	<key>PRO_PRODUCT_IDS</key>
 	<string>$(PRO_PRODUCT_IDS)</string>
 	<key>PRO_UNLOCKED</key>
