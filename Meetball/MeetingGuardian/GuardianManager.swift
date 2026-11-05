@@ -3,15 +3,29 @@ import AppKit
 import SwiftUI
 import UserNotifications
 
-public protocol MeetingGuardianSoundPlaying { func play() }
+public protocol MeetingGuardianSoundPlaying { func play(named: String) }
 
 public final class HardAlertSoundPlayer: MeetingGuardianSoundPlaying {
     public static let shared = HardAlertSoundPlayer()
     private var sound: NSSound?
-    public func play() {
-        sound = NSSound(named: "Sosumi") ?? NSSound(named: "Funk")
+    public func play(named name: String) {
+        sound?.stop()
+        sound = NSSound(named: NSSound.Name(name)) ?? NSSound(named: NSSound.Name(AlertSound.defaultName))
         sound?.play()
     }
+}
+
+/// Borderless panels can't become key by default; alerts need to so Esc and Return reach their buttons.
+final class AlertPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+}
+
+/// What the overlay buttons do. Previews get closures that only close the overlay.
+struct AlertActions {
+    var join: () -> Void
+    var snooze: (Int) -> Void
+    var dismiss: () -> Void
+    var notJoining: () -> Void
 }
 
 /// Schedules and presents alerts for upcoming events. Resets timers whenever events/settings change.
@@ -25,6 +39,9 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     private var panels: [NSPanel] = []
     private var lastEvents: [CalendarEvent] = []
     private var joined = Set<String>()
+    /// Snoozed alerts by event uid: when to show again, and how.
+    private var snoozes: [String: (until: Date, style: AlertStyle)] = [:]
+    public static let snoozePresets = [1, 5, 10]
     @Published var authorizationDenied = false
 
     init(store: MeetingGuardianStore, subs: SubscriptionManager) {
@@ -43,14 +60,18 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         ws.addObserver(self, selector: #selector(willSleep), name: NSWorkspace.willPowerOffNotification, object: nil)
     }
 
-    /// Effective style, enforcing Pro gating and per-calendar rules.
-    func effectiveStyle(for e: CalendarEvent) -> AlertStyle? {
-        var style = store.settings.style
-        if subs.isPremiumActive, let r = store.rule(for: "\(e.accountEmail)|\(e.calendarID)") {
-            guard let s = r.style else { return nil }
-            style = s
-        }
-        return subs.isPremiumActive ? style : .soft
+    var policy: AlertPolicy {
+        AlertPolicy(defaultStyle: store.settings.style, calendarRules: store.calendarRules,
+                    importanceRules: store.importanceRules, isPro: subs.isPremiumActive)
+    }
+
+    /// Effective style, enforcing Pro gating, per-calendar intensity and importance rules.
+    func effectiveStyle(for e: CalendarEvent) -> AlertStyle? { policy.style(for: e) }
+
+    /// The next alert that will fire across `events`, for the live summary in Settings.
+    func nextAlert(in events: [CalendarEvent], now: Date = Date()) -> (event: CalendarEvent, fireDate: Date, style: AlertStyle)? {
+        events.flatMap { e in plannedAlerts(for: e).filter { $0.fireDate > now }.map { (event: e, fireDate: $0.fireDate, style: $0.style) } }
+            .min { $0.fireDate < $1.fireDate }
     }
 
     /// Minutes-before-start at which alerts fire, given the current settings and plan.
@@ -70,12 +91,19 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     func reschedule(events: [CalendarEvent], now: Date = Date()) {
         lastEvents = events
         timers.forEach { $0.invalidate() }; timers = []
+        snoozes = snoozes.filter { $0.value.until > now }
         let s = store.settings
         for e in events where !e.isAllDay && e.end > now && !store.isMuted(e) {
             guard let style = effectiveStyle(for: e) else { continue }
             for lead in leadMinutes {
                 schedule(e.start.addingTimeInterval(-Double(lead) * 60), key: "\(e.uid)|lead\(lead)", now: now) { [weak self] in
                     self?.present(e, style: style, lead: lead)
+                }
+            }
+            if let z = snoozes[e.uid], z.until > now {
+                schedule(z.until, key: "\(e.uid)|snooze\(Int(z.until.timeIntervalSince1970))", now: now) { [weak self] in
+                    self?.snoozes[e.uid] = nil
+                    self?.present(e, style: z.style, lead: max(0, Int((e.start.timeIntervalSinceNow / 60).rounded(.up))))
                 }
             }
             if s.stillJoiningPrompt && subs.isPremiumActive && e.meetURL != nil {
@@ -125,32 +153,83 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         }
     }
 
-    func postNotification(_ e: CalendarEvent, lead: Int) {
+    func postNotification(_ e: CalendarEvent, lead: Int, preview: Bool = false) {
         let c = UNMutableNotificationContent()
-        c.title = lead == 0 ? "It's time for your meeting" : "You have a meeting soon"
+        c.title = preview ? "Preview: soft reminder" : (lead == 0 ? "It's time for your meeting" : "You have a meeting soon")
         c.body = "\(e.title) — \(lead == 0 ? "starting now" : "in \(lead) min")"
         c.sound = .default
         if store.settings.breakThroughFocus { c.interruptionLevel = .timeSensitive }
-        if let u = e.meetURL { c.userInfo = ["url": u.absoluteString, "uid": e.uid]; c.categoryIdentifier = Self.meetingCategoryID }
+        if let u = e.meetURL, !preview { c.userInfo = ["url": u.absoluteString, "uid": e.uid]; c.categoryIdentifier = Self.meetingCategoryID }
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: c, trigger: nil))
     }
 
     func showOverlay(_ e: CalendarEvent, hard: Bool, lead: Int) {
-        dismissOverlays()
-        if hard && store.settings.playSound { sound.play() }
-        let view = AlertOverlayHost(event: e, hard: hard, lead: lead,
-                                    onJoin: { [weak self] in self?.join(e) }, onDismiss: { [weak self] in self?.dismissOverlays() })
-        present(view: AnyView(view), fullscreen: hard)
+        let style: AlertStyle = hard ? .hard : .headsUp
+        showOverlay(e, style: style, actions: AlertActions(
+            join: { [weak self] in self?.join(e) },
+            snooze: { [weak self] m in self?.snooze(e, style: style, minutes: m) },
+            dismiss: { [weak self] in self?.dismissOverlays() },
+            notJoining: { [weak self] in self?.notJoining(e) }))
     }
 
+    private func showOverlay(_ e: CalendarEvent, style: AlertStyle, actions: AlertActions) {
+        dismissOverlays(animated: false)
+        if style == .hard {
+            if store.settings.playSound { sound.play(named: store.settings.soundName) }
+            for screen in NSScreen.screens {
+                // Only the screen under the pointer gets keyboard focus; the others mirror it.
+                let focused = screen == Self.activeScreen
+                present(view: AnyView(HardAlertView(event: e, actions: actions, takesFocus: focused)), on: screen, fullscreen: true, key: focused)
+            }
+        } else {
+            present(view: AnyView(HeadsUpAlertCard(event: e, mode: .upcoming, actions: actions)), on: Self.activeScreen, fullscreen: false, key: false)
+        }
+    }
+
+    /// Shows a sample alert so the user can see what each style looks like. Buttons only close it.
+    func preview(_ style: AlertStyle) {
+        let now = Date()
+        let sample = CalendarEvent(id: "preview", calendarID: "preview", accountEmail: "preview", title: "Design review",
+                                   start: now.addingTimeInterval(2 * 60 + 30), end: now.addingTimeInterval(32 * 60 + 30), isAllDay: false,
+                                   meetURL: URL(string: "https://meet.google.com/abc-defg-hij"), location: "Room 4 · 2nd floor",
+                                   attendees: ["ana@example.com", "ben@example.com", "chi@example.com"], htmlLink: nil, colorHex: "#7C4DFF",
+                                   organizer: "Ana Ruiz")
+        let close: () -> Void = { [weak self] in self?.dismissOverlays() }
+        let actions = AlertActions(join: close, snooze: { _ in close() }, dismiss: close, notJoining: close)
+        switch style {
+        case .soft:
+            postNotification(sample, lead: 2, preview: true)
+        case .headsUp, .hard:
+            showOverlay(sample, style: style, actions: actions)
+        }
+    }
+
+    func previewSound() { sound.play(named: store.settings.soundName) }
+
     func presentStillJoining(_ e: CalendarEvent) {
-        let view = StillJoiningPromptView(event: e, onJoin: { [weak self] in self?.join(e) }, onDismiss: { [weak self] in self?.dismissOverlays() })
-        present(view: AnyView(view), fullscreen: false)
+        dismissOverlays(animated: false)
+        let actions = AlertActions(join: { [weak self] in self?.join(e) }, snooze: { _ in },
+                                   dismiss: { [weak self] in self?.dismissOverlays() }, notJoining: { [weak self] in self?.notJoining(e) })
+        present(view: AnyView(HeadsUpAlertCard(event: e, mode: .stillJoining, actions: actions)), on: Self.activeScreen, fullscreen: false, key: false)
     }
 
     func join(_ e: CalendarEvent) {
         joined.insert(e.uid)
         MeetingJoiner.join(e)
+        dismissOverlays()
+    }
+
+    /// Hide the alert and show it again in `minutes` (same style).
+    func snooze(_ e: CalendarEvent, style: AlertStyle, minutes: Int) {
+        snoozes[e.uid] = (Date().addingTimeInterval(Double(minutes) * 60), style)
+        dismissOverlays()
+        reschedule(events: lastEvents)
+    }
+
+    /// "I'm not joining": no more alerts or prompts for this meeting.
+    func notJoining(_ e: CalendarEvent) {
+        snoozes[e.uid] = nil
+        store.setMuted(true, for: e)
         dismissOverlays()
     }
 
@@ -164,20 +243,60 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: "sleep", content: c, trigger: nil))
     }
 
-    private func present(view: AnyView, fullscreen: Bool) {
-        for screen in (fullscreen ? NSScreen.screens : [NSScreen.main ?? NSScreen.screens[0]]) {
-            let frame = fullscreen ? screen.frame : NSRect(x: screen.frame.midX - 220, y: screen.frame.midY - 120, width: 440, height: 240)
-            let p = NSPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-            p.level = fullscreen ? .screenSaver : .floating
-            p.isOpaque = false; p.backgroundColor = .clear; p.hasShadow = true
-            p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
-            p.contentView = NSHostingView(rootView: view)
-            p.orderFrontRegardless()
-            panels.append(p)
-        }
+    /// The screen under the pointer (where the user is looking), else the main screen.
+    static var activeScreen: NSScreen {
+        let mouse = NSEvent.mouseLocation
+        return NSScreen.screens.first { NSMouseInRect(mouse, $0.frame, false) } ?? NSScreen.main ?? NSScreen.screens[0]
     }
 
-    func dismissOverlays() { panels.forEach { $0.orderOut(nil) }; panels = [] }
+    private func present(view: AnyView, on screen: NSScreen, fullscreen: Bool, key: Bool) {
+        let host = NSHostingView(rootView: view)
+        let frame: NSRect
+        if fullscreen {
+            frame = screen.frame
+        } else {
+            // Top-right corner, just under the menu bar (and clear of the notch on built-in displays).
+            let size = host.fittingSize
+            let area = screen.visibleFrame
+            frame = NSRect(x: area.maxX - size.width - 8, y: area.maxY - size.height - 8, width: size.width, height: size.height)
+        }
+        let p = AlertPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.level = fullscreen ? .screenSaver : .floating
+        p.isOpaque = false; p.backgroundColor = .clear
+        p.hasShadow = false // the SwiftUI views draw their own
+        p.isReleasedWhenClosed = false
+        p.hidesOnDeactivate = false
+        // Every Space, including over full-screen apps, and stays put when Spaces switch.
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        p.contentView = host
+        p.setFrame(frame, display: false)
+        if key {
+            // A non-activating panel can take key focus without bringing Meetball's other windows forward.
+            p.makeKeyAndOrderFront(nil)
+        } else {
+            p.orderFrontRegardless()
+        }
+        panels.append(p)
+    }
+
+    func dismissOverlays() { dismissOverlays(animated: true) }
+
+    private func dismissOverlays(animated: Bool) {
+        let closing = panels
+        panels = []
+        guard animated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else {
+            closing.forEach { $0.orderOut(nil) }
+            return
+        }
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.18
+            for p in closing { p.animator().alphaValue = 0 }
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(220))
+            closing.forEach { $0.orderOut(nil) }
+        }
+    }
 }
 
 extension MeetingGuardianManager: UNUserNotificationCenterDelegate {

@@ -6,6 +6,7 @@ struct SettingsView: View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             MenuBarSettingsView().tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
+            EventFilterSettingsView().tabItem { Label("Events", systemImage: "line.3.horizontal.decrease.circle") }
             AccountsSettings().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
             MeetingGuardianSettingsView().tabItem { Label("Alerts", systemImage: "bell.badge") }
             JoinSettingsView().tabItem { Label("Joining", systemImage: "video") }

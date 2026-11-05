@@ -48,7 +48,10 @@ final class AppleCalendarClient {
                                  notes: e.notes,
                                  organizer: e.organizer.map { Self.attendee($0).displayName },
                                  participants: people,
-                                 calendarAppURL: e.eventIdentifier.flatMap(Self.calendarAppURL))
+                                 calendarAppURL: e.eventIdentifier.flatMap(Self.calendarAppURL),
+                                 organizerIsSelf: e.organizer?.isCurrentUser ?? people.isEmpty,
+                                 seriesID: e.hasRecurrenceRules ? e.calendarItemIdentifier : nil,
+                                 recurrence: Self.recurrence(e))
         }
     }
 
@@ -64,6 +67,18 @@ final class AppleCalendarClient {
         }
         return EventAttendee(email: email, name: p.name, response: response,
                              isOrganizer: p.participantRole == .chair, isSelf: p.isCurrentUser)
+    }
+
+    private static func recurrence(_ e: EKEvent) -> EventRecurrence {
+        guard e.hasRecurrenceRules, let rule = e.recurrenceRules?.first else { return .none }
+        switch rule.frequency {
+        case .daily: return rule.interval == 1 ? .daily : .other
+        case .weekly:
+            // "Every weekday" is stored as weekly on Mon–Fri.
+            if rule.interval == 1, (rule.daysOfTheWeek?.count ?? 0) >= 5 { return .daily }
+            return .weekly
+        default: return .other
+        }
     }
 
     /// Calendar.app's URL scheme for showing a specific event.

@@ -53,14 +53,17 @@ struct GoogleCalendarClient {
                 let email: String?; let displayName: String?; let responseStatus: String?; let isSelf: Bool?; let organizer: Bool?
                 enum CodingKeys: String, CodingKey { case email, displayName, responseStatus, organizer, isSelf = "self" }
             }
-            struct O: Decodable { let email: String?; let displayName: String? }
+            struct O: Decodable {
+                let email: String?; let displayName: String?; let isSelf: Bool?
+                enum CodingKeys: String, CodingKey { case email, displayName, isSelf = "self" }
+            }
             struct EP: Decodable { let entryPointType: String?; let uri: String? }
             struct CD: Decodable { let entryPoints: [EP]? }
             struct I: Decodable {
                 let id: String; let summary: String?; let status: String?
                 let start: T?; let end: T?; let hangoutLink: String?; let location: String?
                 let attendees: [A]?; let htmlLink: String?; let conferenceData: CD?
-                let description: String?; let organizer: O?
+                let description: String?; let organizer: O?; let recurringEventId: String?
             }
             let items: [I]; let nextPageToken: String?
         }
@@ -97,7 +100,9 @@ struct GoogleCalendarClient {
                                              EventAttendee(email: $0.email, name: $0.displayName,
                                                            response: AttendeeResponse(rawValue: $0.responseStatus ?? "") ?? .needsAction,
                                                            isOrganizer: $0.organizer ?? false, isSelf: $0.isSelf ?? false)
-                                         }))
+                                         },
+                                         organizerIsSelf: i.organizer?.isSelf ?? false,
+                                         seriesID: i.recurringEventId))
             }
             pageToken = page.nextPageToken
         } while pageToken != nil

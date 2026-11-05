@@ -8,14 +8,29 @@ public enum AlertStyle: String, Codable, CaseIterable, Identifiable {
         switch self {
         case .soft: "Soft reminder (system notification)"
         case .headsUp: "Heads-up overlay"
-        case .hard: "Hard alert (fullscreen-ish)"
+        case .hard: "Hard alert (full screen)"
+        }
+    }
+    /// Short name for compact UI ("Heads-up").
+    var shortTitle: String {
+        switch self {
+        case .soft: "Soft"
+        case .headsUp: "Heads-up"
+        case .hard: "Hard"
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .soft: "bell"
+        case .headsUp: "rectangle.inset.topright.filled"
+        case .hard: "rectangle.inset.filled"
         }
     }
     var detail: String {
         switch self {
         case .soft: "Standard macOS notification in the corner of your screen. Easy to dismiss, good for low-stress reminders."
-        case .headsUp: "A small overlay in the center of your screen with a clear Join button. It slightly dims the background but doesn't take over your entire display."
-        case .hard: "A large, focused overlay that appears on top of everything with a big Join button. Ideal if you absolutely cannot afford to miss meetings."
+        case .headsUp: "A card slides in at the top right with a live countdown, Join, Snooze and Dismiss. It never takes focus from what you're doing."
+        case .hard: "Covers every display with a large countdown, the meeting's details and a big Join button. Ideal if you absolutely cannot afford to miss meetings."
         }
     }
     var isPro: Bool { self != .soft }
@@ -47,6 +62,48 @@ public struct GuardianSettings: Codable, Equatable {
     var limitToActiveHours = false
     var activeStartHour = 8
     var activeEndHour = 19
+    /// System sound played with hard alerts (a name from /System/Library/Sounds).
+    var soundName = AlertSound.defaultName
+
+    init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case style, leadMinutes, alsoAtFiveMinutes, playSound, breakThroughFocus, skipWhileScreenSharing, stillJoiningPrompt,
+             repeatIfNotJoined, warnBeforeSleep, limitToActiveHours, activeStartHour, activeEndHour, soundName
+    }
+
+    /// Missing keys keep their defaults, so adding a setting never resets the saved ones.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        func v<T: Decodable>(_ k: CodingKeys, _ d: T) throws -> T { try c.decodeIfPresent(T.self, forKey: k) ?? d }
+        style = try v(.style, style)
+        leadMinutes = try v(.leadMinutes, leadMinutes)
+        alsoAtFiveMinutes = try v(.alsoAtFiveMinutes, alsoAtFiveMinutes)
+        playSound = try v(.playSound, playSound)
+        breakThroughFocus = try v(.breakThroughFocus, breakThroughFocus)
+        skipWhileScreenSharing = try v(.skipWhileScreenSharing, skipWhileScreenSharing)
+        stillJoiningPrompt = try v(.stillJoiningPrompt, stillJoiningPrompt)
+        repeatIfNotJoined = try v(.repeatIfNotJoined, repeatIfNotJoined)
+        warnBeforeSleep = try v(.warnBeforeSleep, warnBeforeSleep)
+        limitToActiveHours = try v(.limitToActiveHours, limitToActiveHours)
+        activeStartHour = try v(.activeStartHour, activeStartHour)
+        activeEndHour = try v(.activeEndHour, activeEndHour)
+        soundName = try v(.soundName, soundName)
+    }
+}
+
+/// System alert sounds offered for hard alerts.
+public enum AlertSound {
+    public static let defaultName = "Sosumi"
+
+    /// Names of the sounds in /System/Library/Sounds, sorted.
+    public static var available: [String] {
+        let dir = URL(fileURLWithPath: "/System/Library/Sounds")
+        let names = (try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil))?
+            .filter { ["aiff", "aif", "caf", "wav"].contains($0.pathExtension.lowercased()) }
+            .map { $0.deletingPathExtension().lastPathComponent } ?? []
+        return names.isEmpty ? [defaultName] : names.sorted()
+    }
 }
 
 /// Persistence for settings and per-calendar rules.
@@ -54,6 +111,8 @@ public struct GuardianSettings: Codable, Equatable {
 public final class MeetingGuardianStore: ObservableObject {
     @Published var settings = GuardianSettings() { didSet { save() } }
     @Published public var calendarRules: [CalendarRule] = [] { didSet { save() } }
+    /// Checked top to bottom; the first enabled match sets the alert intensity.
+    @Published public var importanceRules: [ImportanceRule] = [] { didSet { save() } }
     /// Events whose alerts the user muted, keyed by event uid, valued by the event's end (pruned once it has passed).
     @Published public private(set) var mutedEvents: [String: Date] = [:] { didSet { save() } }
     private let defaults: UserDefaults
@@ -65,6 +124,7 @@ public final class MeetingGuardianStore: ObservableObject {
         loading = true; defer { loading = false }
         if let d = defaults.data(forKey: "guardian.settings"), let s = try? JSONDecoder().decode(GuardianSettings.self, from: d) { settings = s }
         if let d = defaults.data(forKey: "guardian.rules"), let r = try? JSONDecoder().decode([CalendarRule].self, from: d) { calendarRules = r }
+        if let d = defaults.data(forKey: "guardian.importance"), let r = try? JSONDecoder().decode([ImportanceRule].self, from: d) { importanceRules = r }
         if let d = defaults.data(forKey: "guardian.muted"), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
             let now = Date()
             mutedEvents = m.filter { $0.value > now }
@@ -74,6 +134,7 @@ public final class MeetingGuardianStore: ObservableObject {
         guard !loading else { return }
         if let d = try? JSONEncoder().encode(settings) { defaults.set(d, forKey: "guardian.settings") }
         if let d = try? JSONEncoder().encode(calendarRules) { defaults.set(d, forKey: "guardian.rules") }
+        if let d = try? JSONEncoder().encode(importanceRules) { defaults.set(d, forKey: "guardian.importance") }
         if let d = try? JSONEncoder().encode(mutedEvents) { defaults.set(d, forKey: "guardian.muted") }
     }
     public func isMuted(_ e: CalendarEvent) -> Bool { mutedEvents[e.uid] != nil }
@@ -84,5 +145,11 @@ public final class MeetingGuardianStore: ObservableObject {
     public func upsert(_ rule: CalendarRule) {
         if let i = calendarRules.firstIndex(where: { $0.calendarKey == rule.calendarKey }) { calendarRules[i] = rule } else { calendarRules.append(rule) }
     }
+    /// Sets a calendar's intensity; nil returns it to the default style.
+    public func setIntensity(_ intensity: AlertIntensity?, for calendarKey: String) {
+        if let intensity { upsert(CalendarRule(calendarKey: calendarKey, style: intensity.style)) }
+        else { calendarRules.removeAll { $0.calendarKey == calendarKey } }
+    }
+    public func intensity(for calendarKey: String) -> AlertIntensity? { rule(for: calendarKey).map { AlertIntensity($0.style) } }
     public func removeRulesNotIn(_ keys: Set<String>) { calendarRules.removeAll { !keys.contains($0.calendarKey) } }
 }

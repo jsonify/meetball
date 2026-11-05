@@ -36,6 +36,11 @@ public struct CalendarEvent: Identifiable, Hashable {
     public var participants: [EventAttendee] = []
     /// Deep link that opens the event in Calendar.app (Apple Calendar events only).
     public var calendarAppURL: URL? = nil
+    /// You organise this event (or it's your own event with no one invited).
+    public var organizerIsSelf = false
+    /// Shared by every instance of a recurring event (Google `recurringEventId`, EventKit item id).
+    public var seriesID: String? = nil
+    public var recurrence: EventRecurrence = .none
     public var uid: String { "\(accountEmail)|\(calendarID)|\(id)" }
     public var calendarKey: String { "\(accountEmail)|\(calendarID)" }
 
@@ -43,6 +48,11 @@ public struct CalendarEvent: Identifiable, Hashable {
     public func isBarEvent(calendar: Calendar = .current) -> Bool {
         isAllDay || end.timeIntervalSince(start) >= 86400 || !calendar.isDate(start, inSameDayAs: end.addingTimeInterval(-1))
     }
+}
+
+public enum EventRecurrence: String, Hashable, Codable {
+    case none, daily, weekly, other
+    public var isRecurring: Bool { self != .none }
 }
 
 public enum AttendeeResponse: String, Hashable {

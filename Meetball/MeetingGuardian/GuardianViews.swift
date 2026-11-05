@@ -1,69 +1,195 @@
 import SwiftUI
 
-struct AlertOverlayHost: View {
-    let event: CalendarEvent; let hard: Bool; let lead: Int
-    let onJoin: () -> Void; let onDismiss: () -> Void
-    var body: some View {
-        if hard { HardAlertOverlayView(event: event, lead: lead, onJoin: onJoin, onDismiss: onDismiss) }
-        else { HeadsUpOverlayView(event: event, lead: lead, onJoin: onJoin, onDismiss: onDismiss) }
+/// Countdown text used by the alert overlays.
+public enum AlertCountdown {
+    /// "4:59" or "1:02:03" before the start; "Now" in the first minute after it; then "3 min ago".
+    public static func clock(until start: Date, now: Date) -> String {
+        let t = start.timeIntervalSince(now)
+        if t > 0 {
+            let s = Int(t.rounded(.up)), h = s / 3600, m = (s % 3600) / 60, sec = s % 60
+            return h > 0 ? String(format: "%d:%02d:%02d", h, m, sec) : String(format: "%d:%02d", m, sec)
+        }
+        let ago = Int(-t / 60)
+        return ago < 1 ? "Now" : "\(ago) min ago"
+    }
+
+    /// Label above the clock.
+    public static func caption(until start: Date, now: Date) -> String {
+        let t = start.timeIntervalSince(now)
+        if t > 0 { return "Starts in" }
+        return t > -60 ? "Starting" : "Started"
     }
 }
 
-struct HeadsUpOverlayView: View {
-    let event: CalendarEvent; let lead: Int
-    let onJoin: () -> Void; let onDismiss: () -> Void
+private func timeRange(_ e: CalendarEvent) -> String {
+    "\(e.start.formatted(date: .omitted, time: .shortened)) – \(e.end.formatted(date: .omitted, time: .shortened))"
+}
+
+// MARK: - Heads-up card
+
+/// Non-intrusive card in the top-right corner: calendar colour accent, live countdown, Join / Snooze / Dismiss.
+struct HeadsUpAlertCard: View {
+    enum Mode { case upcoming, stillJoining }
+
+    let event: CalendarEvent
+    let mode: Mode
+    let actions: AlertActions
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    private var accent: Color { Color(hex: event.colorHex) }
+
     var body: some View {
-        VStack(spacing: 12) {
-            Text(lead == 0 ? "It's time for your meeting" : "You have a meeting soon").font(.subheadline).foregroundStyle(.secondary)
-            Text(event.title).font(.title2.bold()).multilineTextAlignment(.center).lineLimit(2)
-            Text(event.start, style: .time).font(.title3.monospacedDigit())
-            HStack {
-                JoinButton(event: event, action: onJoin).keyboardShortcut(.defaultAction)
-                Button("Dismiss", action: onDismiss)
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in card(now: ctx.date) }
+            .frame(width: 360)
+            .padding(18) // room for the shadow and the slide
+            .offset(x: shown || reduceMotion ? 0 : 80)
+            .opacity(shown ? 1 : 0)
+            .onAppear {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.38, dampingFraction: 0.82)) { shown = true }
+            }
+    }
+
+    private func card(now: Date) -> some View {
+        HStack(spacing: 0) {
+            Rectangle().fill(accent).frame(width: 5)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: mode == .stillJoining ? "person.badge.clock" : "bell.badge.fill").foregroundStyle(accent)
+                    Text(header(now: now)).font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(.secondary)
+                    Spacer()
+                    Button(action: actions.dismiss) {
+                        Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 18, height: 18)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.secondary)
+                    .keyboardShortcut(.cancelAction)
+                    .help("Dismiss (Esc)")
+                }
+                Text(event.title).font(.headline).lineLimit(2)
+                HStack(spacing: 8) {
+                    Label(timeRange(event), systemImage: "clock")
+                    if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
+                        Label(loc, systemImage: "mappin.and.ellipse").lineLimit(1)
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    JoinButton(event: event, action: actions.join).keyboardShortcut(.defaultAction)
+                    switch mode {
+                    case .upcoming:
+                        Menu("Snooze") {
+                            ForEach(MeetingGuardianManager.snoozePresets, id: \.self) { m in
+                                Button("\(m) minute\(m == 1 ? "" : "s")") { actions.snooze(m) }
+                            }
+                        }
+                        .menuStyle(.borderlessButton).fixedSize()
+                        Button("Dismiss", action: actions.dismiss)
+                    case .stillJoining:
+                        Button("I'm not joining", action: actions.notJoining)
+                    }
+                }
+                .controlSize(.regular)
+            }
+            .padding(14)
+        }
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(accent.opacity(0.35)))
+        .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+    }
+
+    private func header(now: Date) -> String {
+        switch mode {
+        case .stillJoining:
+            return "Started \(AlertCountdown.clock(until: event.start, now: now)) · Are you still joining?"
+        case .upcoming:
+            let clock = AlertCountdown.clock(until: event.start, now: now)
+            return event.start > now ? "Starts in \(clock)" : (clock == "Now" ? "Starting now" : "Started \(clock)")
+        }
+    }
+}
+
+// MARK: - Hard alert
+
+/// Full-screen alert shown on every display: big countdown, the meeting's details, Join, snooze presets.
+struct HardAlertView: View {
+    let event: CalendarEvent
+    let actions: AlertActions
+    /// The copy on the focused display shows the keyboard hint.
+    var takesFocus = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown = false
+    private var accent: Color { Color(hex: event.colorHex) }
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { ctx in content(now: ctx.date) }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background {
+                ZStack {
+                    Rectangle().fill(.ultraThinMaterial)
+                    LinearGradient(colors: [accent.opacity(0.55), .black.opacity(0.88)], startPoint: .top, endPoint: .bottom)
+                }
+                .ignoresSafeArea()
+            }
+            .environment(\.colorScheme, .dark)
+            .opacity(shown ? 1 : 0)
+            .scaleEffect(shown || reduceMotion ? 1 : 1.03)
+            .onAppear { withAnimation(.easeOut(duration: reduceMotion ? 0.12 : 0.28)) { shown = true } }
+    }
+
+    private func content(now: Date) -> some View {
+        VStack(spacing: 26) {
+            Text(AlertCountdown.caption(until: event.start, now: now).uppercased())
+                .font(.title3.weight(.semibold)).tracking(3).foregroundStyle(.white.opacity(0.7))
+            Text(AlertCountdown.clock(until: event.start, now: now))
+                .font(.system(size: 150, weight: .bold, design: .rounded).monospacedDigit())
+                .foregroundStyle(.white)
+                .contentTransition(.numericText())
+                .accessibilityLabel(Text("\(AlertCountdown.caption(until: event.start, now: now)) \(TimeUntilFormatter.string(until: event.start, now: now))"))
+            Text(event.title)
+                .font(.system(size: 44, weight: .semibold)).foregroundStyle(.white)
+                .multilineTextAlignment(.center).lineLimit(3)
+            details
+            HStack(spacing: 16) {
+                if event.meetURL != nil {
+                    JoinButton(event: event, size: .large, action: actions.join).keyboardShortcut(.defaultAction)
+                } else {
+                    Button("Got it", action: actions.dismiss).buttonStyle(.borderedProminent).controlSize(.large)
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            HStack(spacing: 10) {
+                Text("Snooze").foregroundStyle(.white.opacity(0.7))
+                ForEach(MeetingGuardianManager.snoozePresets, id: \.self) { m in
+                    Button("\(m) min") { actions.snooze(m) }.buttonStyle(.bordered)
+                }
+                Divider().frame(height: 20).padding(.horizontal, 6)
+                Button("I'm not joining", action: actions.notJoining).buttonStyle(.bordered)
+                Button("Dismiss", action: actions.dismiss).buttonStyle(.bordered).keyboardShortcut(.cancelAction)
+            }
+            .controlSize(.large)
+            if takesFocus {
+                Text(event.meetURL != nil ? "Return to join · Esc to dismiss" : "Esc to dismiss")
+                    .font(.caption).foregroundStyle(.white.opacity(0.5))
             }
         }
-        .padding(24).frame(width: 440, height: 240)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+        .padding(60)
+        .frame(maxWidth: 1000)
     }
-}
 
-struct HardAlertOverlayView: View {
-    let event: CalendarEvent; let lead: Int
-    let onJoin: () -> Void; let onDismiss: () -> Void
-    var body: some View {
-        ZStack {
-            Color.black.opacity(0.75)
-            VStack(spacing: 24) {
-                Text(lead == 0 ? "It's time for your meeting" : "Starting in \(lead) min").font(.title).foregroundStyle(.white.opacity(0.8))
-                Text(event.title).font(.system(size: 56, weight: .bold)).foregroundStyle(.white).multilineTextAlignment(.center).lineLimit(3)
-                Text(event.start, style: .time).font(.system(size: 28).monospacedDigit()).foregroundStyle(.white.opacity(0.8))
-                HStack(spacing: 16) {
-                    JoinButton(event: event, size: .large, action: onJoin)
-                    Button("Dismiss", action: onDismiss).buttonStyle(.bordered).controlSize(.large)
-                }
-            }.padding(60)
+    private var details: some View {
+        HStack(spacing: 22) {
+            Label(timeRange(event), systemImage: "clock")
+            if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
+                Label(loc, systemImage: "mappin.and.ellipse").lineLimit(1)
+            }
+            if !event.attendees.isEmpty {
+                Label("\(event.attendees.count) \(event.attendees.count == 1 ? "person" : "people")", systemImage: "person.2")
+            }
+            if let org = event.organizer, !org.isEmpty {
+                Label(org, systemImage: "person.crop.circle")
+            }
         }
-    }
-}
-
-struct StillJoiningPromptView: View {
-    let event: CalendarEvent
-    let onJoin: () -> Void; let onDismiss: () -> Void
-    var body: some View {
-        VStack(spacing: 12) {
-            Text("Are you still joining?").font(.title3.bold())
-            Text("\(event.title) started 2 minutes ago.").foregroundStyle(.secondary)
-            HStack { JoinButton(event: event, action: onJoin); Button("I'm not joining", action: onDismiss) }
-        }
-        .padding(24).frame(width: 440, height: 240)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-    }
-}
-
-struct SleepWarningOverlayView: View {
-    let event: CalendarEvent
-    var body: some View {
-        Label("\(event.title) starts in \(TimeUntilFormatter.string(until: event.start))", systemImage: "moon.zzz.fill").padding()
+        .font(.title3).foregroundStyle(.white.opacity(0.8))
     }
 }
 
@@ -75,81 +201,5 @@ struct MeetingGuardianStatusRow: View {
             Image(systemName: subs.isPremiumActive ? "shield.checkered" : "bell")
             Text(subs.isPremiumActive ? "Active for your important meetings." : "Basic reminders only. Upgrade to Meetball Pro for advanced alerts.")
         }.font(.callout).foregroundStyle(.secondary)
-    }
-}
-
-struct MeetingGuardianSettingsView: View {
-    @EnvironmentObject var store: MeetingGuardianStore
-    @EnvironmentObject var subs: SubscriptionManager
-    @EnvironmentObject var calendars: CalendarStore
-    @EnvironmentObject var manager: MeetingGuardianManager
-    @State private var showPaywall = false
-
-    var body: some View {
-        Form {
-            Section {
-                MeetingGuardianStatusRow(store: store)
-                if !subs.isPremiumActive {
-                    Text("Meeting Guardian is a Pro feature. You can preview settings, but alerts will only use the basic notification until you upgrade.").font(.caption)
-                    Button("Upgrade to Meetball Pro") { showPaywall = true }
-                }
-            }
-            Section("Alert style") {
-                Picker("Style", selection: $store.settings.style) {
-                    ForEach(AlertStyle.allCases) { s in Text(s.title + (s.isPro ? " — Pro" : "")).tag(s) }
-                }.pickerStyle(.radioGroup)
-                Text(store.settings.style.detail).font(.caption).foregroundStyle(.secondary)
-                Toggle("Play sound with hard alerts", isOn: $store.settings.playSound)
-            }
-            Section("Timing") {
-                Picker("Remind me", selection: $store.settings.leadMinutes) {
-                    ForEach(TimingOption.all) { o in Text(o.title + (o.isPro && !subs.isPremiumActive ? " (Pro)" : "")).tag(o.minutes) }
-                }
-                Toggle("Also show at 5 minutes before", isOn: $store.settings.alsoAtFiveMinutes)
-                Toggle("Repeat if I haven't joined", isOn: $store.settings.repeatIfNotJoined)
-                Toggle("Ask \"Are you still joining?\" if I haven't joined after 2 minutes", isOn: $store.settings.stillJoiningPrompt)
-                if !subs.isPremiumActive { Text("More reminder timings are available in Meetball Pro.").font(.caption).foregroundStyle(.secondary) }
-            }
-            Section("Control when alerts show") {
-                Toggle("Show alerts even when macOS Focus mode is on", isOn: $store.settings.breakThroughFocus)
-                Text("Meetball will request the necessary permission so it can break through Focus mode for calendar alerts only.").font(.caption).foregroundStyle(.secondary)
-                Toggle("Don't show hard alerts when I'm screen-sharing or presenting", isOn: $store.settings.skipWhileScreenSharing)
-                Toggle("Warn me before sleep or shutdown", isOn: $store.settings.warnBeforeSleep)
-                Text("If a meeting starts in the next 10 minutes and you try to sleep or shut down your Mac, Meetball will show a warning.").font(.caption).foregroundStyle(.secondary)
-                Toggle("Only use strong alerts during active hours", isOn: $store.settings.limitToActiveHours)
-                if store.settings.limitToActiveHours {
-                    Stepper("From \(store.settings.activeStartHour):00", value: $store.settings.activeStartHour, in: 0...23)
-                    Stepper("Until \(store.settings.activeEndHour):00", value: $store.settings.activeEndHour, in: 1...24)
-                    Text("Outside of these hours, Meetball will only use soft reminders.").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Section("Per-calendar rules (Pro)") {
-                if calendars.calendars.isEmpty {
-                    Text("Connect your Google account to customize rules for each calendar.").foregroundStyle(.secondary)
-                } else {
-                    ForEach(calendars.calendars) { cal in
-                        HStack {
-                            Circle().fill(Color(hex: cal.colorHex)).frame(width: 10, height: 10)
-                            Text(cal.summary)
-                            Spacer()
-                            Picker("", selection: Binding<String>(
-                                get: { guard let r = store.rule(for: cal.key) else { return "default" }; return r.style?.rawValue ?? "off" },
-                                set: { v in
-                                    if v == "default" { store.calendarRules.removeAll { $0.calendarKey == cal.key } }
-                                    else { store.upsert(CalendarRule(calendarKey: cal.key, style: AlertStyle(rawValue: v))) }
-                                })) {
-                                Text("Default").tag("default")
-                                Text("No Meeting Guardian actions for this calendar").tag("off")
-                                ForEach(AlertStyle.allCases) { Text($0.title).tag($0.rawValue) }
-                            }.labelsHidden().frame(width: 220).disabled(!subs.isPremiumActive)
-                        }
-                    }
-                    if !subs.isPremiumActive { Text("Unlock per-calendar control with Meetball Pro.").font(.caption).foregroundStyle(.secondary) }
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .sheet(isPresented: $showPaywall) { PaywallView() }
-        .onChange(of: store.settings) { _, _ in manager.reschedule(events: calendars.events) }
     }
 }

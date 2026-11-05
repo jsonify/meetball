@@ -133,7 +133,7 @@ final class JoinController: ObservableObject {
 
     func joinNearest(now: Date = Date()) {
         guard let calendar else { return }
-        if let e = NearestMeetingPicker.pick(calendar.visibleEvents, now: now, window: TimeInterval(windowMinutes * 60)),
+        if let e = NearestMeetingPicker.pick(calendar.meetingEvents, now: now, window: TimeInterval(windowMinutes * 60)),
            let url = e.meetURL {
             MeetingJoiner.join(url)
             Toast.show("Joining \(e.title)", systemImage: MeetingService.detect(url).symbol)
