@@ -30,7 +30,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     init(store: MeetingGuardianStore, subs: SubscriptionManager) {
         self.store = store; self.subs = subs
         super.init()
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .timeSensitive]) { [weak self] ok, _ in
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { [weak self] ok, _ in
             Task { @MainActor in self?.authorizationDenied = !ok }
         }
         let center = UNUserNotificationCenter.current()
@@ -53,15 +53,27 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
         return subs.isPremiumActive ? style : .soft
     }
 
+    /// Minutes-before-start at which alerts fire, given the current settings and plan.
+    var leadMinutes: [Int] {
+        let s = store.settings
+        var leads = [subs.isPremiumActive ? s.leadMinutes : min(s.leadMinutes, 5)]
+        if s.alsoAtFiveMinutes && subs.isPremiumActive { leads.append(5) }
+        return Array(Set(leads)).sorted(by: >)
+    }
+
+    /// The alerts that will fire for `e` (empty when muted, all-day, or the calendar's rule turns them off).
+    func plannedAlerts(for e: CalendarEvent) -> [(fireDate: Date, lead: Int, style: AlertStyle)] {
+        guard !e.isAllDay, !store.isMuted(e), let style = effectiveStyle(for: e) else { return [] }
+        return leadMinutes.map { (fireDate: e.start.addingTimeInterval(-Double($0) * 60), lead: $0, style: style) }
+    }
+
     func reschedule(events: [CalendarEvent], now: Date = Date()) {
         lastEvents = events
         timers.forEach { $0.invalidate() }; timers = []
         let s = store.settings
-        for e in events where !e.isAllDay && e.end > now {
+        for e in events where !e.isAllDay && e.end > now && !store.isMuted(e) {
             guard let style = effectiveStyle(for: e) else { continue }
-            var leads = [subs.isPremiumActive ? s.leadMinutes : min(s.leadMinutes, 5)]
-            if s.alsoAtFiveMinutes && subs.isPremiumActive { leads.append(5) }
-            for lead in Set(leads) {
+            for lead in leadMinutes {
                 schedule(e.start.addingTimeInterval(-Double(lead) * 60), key: "\(e.uid)|lead\(lead)", now: now) { [weak self] in
                     self?.present(e, style: style, lead: lead)
                 }

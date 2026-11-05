@@ -2,6 +2,7 @@ import Foundation
 import Network
 import CryptoKit
 import AppKit
+import os
 
 public enum MeetySessionError: LocalizedError {
     case notConfigured, cancelled, tokenExchange(String), noAccount
@@ -53,7 +54,8 @@ public final class GoogleSignInCoordinator {
             .init(name: "code_challenge", value: challenge), .init(name: "code_challenge_method", value: "S256"),
             .init(name: "state", value: state), .init(name: "access_type", value: "offline"),
             .init(name: "prompt", value: "consent select_account")]
-        await MainActor.run { _ = NSWorkspace.shared.open(c.url!) }
+        let authURL = c.url!
+        await MainActor.run { _ = NSWorkspace.shared.open(authURL) }
         defer { listener?.cancel(); listener = nil }
         guard let code = try await codeStream() else { throw MeetySessionError.cancelled }
 
@@ -126,14 +128,20 @@ public final class GoogleSignInCoordinator {
             }
         }
         let port: UInt16 = try await withCheckedThrowingContinuation { cont in
-            var resumed = false
+            // The handler can fire more than once; resume the continuation only on the first ready/failed.
+            let resumed = OSAllocatedUnfairLock(initialState: false)
             l.stateUpdateHandler = { st in
-                guard !resumed else { return }
+                let result: Result<UInt16, Error>
                 switch st {
-                case .ready: resumed = true; cont.resume(returning: l.port?.rawValue ?? 0)
-                case .failed(let e): resumed = true; cont.resume(throwing: e)
-                default: break
+                case .ready: result = .success(l.port?.rawValue ?? 0)
+                case .failed(let e): result = .failure(e)
+                default: return
                 }
+                let isFirst = resumed.withLock { done -> Bool in
+                    defer { done = true }
+                    return !done
+                }
+                if isFirst { cont.resume(with: result) }
             }
             l.start(queue: .global())
         }

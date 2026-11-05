@@ -54,6 +54,8 @@ public struct GuardianSettings: Codable, Equatable {
 public final class MeetingGuardianStore: ObservableObject {
     @Published var settings = GuardianSettings() { didSet { save() } }
     @Published public var calendarRules: [CalendarRule] = [] { didSet { save() } }
+    /// Events whose alerts the user muted, keyed by event uid, valued by the event's end (pruned once it has passed).
+    @Published public private(set) var mutedEvents: [String: Date] = [:] { didSet { save() } }
     private let defaults: UserDefaults
     private var loading = false
 
@@ -63,11 +65,20 @@ public final class MeetingGuardianStore: ObservableObject {
         loading = true; defer { loading = false }
         if let d = defaults.data(forKey: "guardian.settings"), let s = try? JSONDecoder().decode(GuardianSettings.self, from: d) { settings = s }
         if let d = defaults.data(forKey: "guardian.rules"), let r = try? JSONDecoder().decode([CalendarRule].self, from: d) { calendarRules = r }
+        if let d = defaults.data(forKey: "guardian.muted"), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
+            let now = Date()
+            mutedEvents = m.filter { $0.value > now }
+        }
     }
     func save() {
         guard !loading else { return }
         if let d = try? JSONEncoder().encode(settings) { defaults.set(d, forKey: "guardian.settings") }
         if let d = try? JSONEncoder().encode(calendarRules) { defaults.set(d, forKey: "guardian.rules") }
+        if let d = try? JSONEncoder().encode(mutedEvents) { defaults.set(d, forKey: "guardian.muted") }
+    }
+    public func isMuted(_ e: CalendarEvent) -> Bool { mutedEvents[e.uid] != nil }
+    public func setMuted(_ muted: Bool, for e: CalendarEvent) {
+        if muted { mutedEvents[e.uid] = e.end } else { mutedEvents[e.uid] = nil }
     }
     public func rule(for key: String) -> CalendarRule? { calendarRules.first { $0.calendarKey == key } }
     public func upsert(_ rule: CalendarRule) {

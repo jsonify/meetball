@@ -208,6 +208,152 @@ final class KeychainTests: XCTestCase {
     }
 }
 
+final class MenuBarTitleTests: XCTestCase {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    func ev(_ title: String, startIn: TimeInterval, minutes: Double = 30, url: String? = nil) -> CalendarEvent {
+        let s = now.addingTimeInterval(startIn)
+        return CalendarEvent(id: title, calendarID: "c", accountEmail: "a@b.c", title: title, start: s,
+                             end: s.addingTimeInterval(minutes * 60), isAllDay: false,
+                             meetURL: url.flatMap(URL.init(string:)), location: nil, attendees: [], htmlLink: nil)
+    }
+    func settings(_ f: MenuBarTitleFormat, max: Int = 24, hide: Int = 0) -> MenuBarTitleSettings {
+        var s = MenuBarTitleSettings(); s.format = f; s.maxTitleLength = max; s.hideBeyondHours = hide; return s
+    }
+
+    func testFormats() {
+        let e = ev("Design review", startIn: 12 * 60)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.countdown)).text, "12m")
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.titleCountdown)).text, "Design review · in 12m")
+        XCTAssertTrue(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.titleStartTime)).text.hasPrefix("Design review · "))
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.iconOnly)).text, "")
+    }
+
+    func testInProgressShowsTimeLeft() {
+        let e = ev("Standup", startIn: -5 * 60, minutes: 15)
+        let t = MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.countdown))
+        XCTAssertEqual(t.text, "now · 10m left")
+        XCTAssertTrue(t.inProgress)
+        XCTAssertFalse(t.isSoon)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: e, now: now, settings: settings(.titleCountdown)).text, "Standup · 10m left")
+    }
+
+    func testTruncation() {
+        XCTAssertEqual(MenuBarTitleBuilder.truncate("Quarterly planning offsite", to: 10), "Quarterly…")
+        XCTAssertEqual(MenuBarTitleBuilder.truncate("  Short  ", to: 10), "Short")
+        let t = MenuBarTitleBuilder.build(next: ev(String(repeating: "x", count: 80), startIn: 600), now: now, settings: settings(.titleCountdown, max: 20))
+        XCTAssertEqual(t.text, String(repeating: "x", count: 19) + "… · in 10m")
+    }
+
+    func testHideBeyondHoursAndSoon() {
+        let far = ev("Later", startIn: 3 * 3600)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: far, now: now, settings: settings(.countdown, hide: 2)), .idle)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: far, now: now, settings: settings(.countdown, hide: 4)).text, "3h")
+        XCTAssertTrue(MenuBarTitleBuilder.build(next: ev("Soon", startIn: 4 * 60), now: now, settings: settings(.countdown)).isSoon)
+        XCTAssertFalse(MenuBarTitleBuilder.build(next: ev("Not yet", startIn: 6 * 60), now: now, settings: settings(.countdown)).isSoon)
+    }
+
+    func testServiceIcon() {
+        let zoom = ev("Sync", startIn: 600, url: "https://acme.zoom.us/j/1")
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: zoom, now: now, settings: settings(.countdown)).symbol, MeetingService.zoom.symbol)
+        var s = settings(.countdown); s.showServiceIcon = false
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: zoom, now: now, settings: s).symbol, MenuBarTitleBuilder.defaultSymbol)
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: ev("x", startIn: 600), now: now, settings: settings(.countdown)).symbol,
+                       MenuBarTitleBuilder.defaultSymbol)
+    }
+
+    func testPicksInProgressOverNext() {
+        let current = ev("Current", startIn: -600), next = ev("Next", startIn: 300)
+        XCTAssertEqual(MenuBarTitleBuilder.pick([current, next], now: now)?.title, "Current")
+        XCTAssertEqual(MenuBarTitleBuilder.pick([next, ev("Tomorrow", startIn: 86400)], now: now)?.title, "Next")
+    }
+
+    func testLegacyCountdownToggleMapsToIconOnly() {
+        let d = UserDefaults(suiteName: "test.\(UUID())")!
+        XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .countdown)
+        d.set(false, forKey: "showCountdownInMenuBar")
+        XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .iconOnly)
+        d.set(MenuBarTitleFormat.titleCountdown.rawValue, forKey: "menuBar.format")
+        XCTAssertEqual(MenuBarTitleSettings(defaults: d).format, .titleCountdown)
+    }
+}
+
+final class EventDetailTests: XCTestCase {
+    func testHTMLNotesBecomePlainText() {
+        let html = #"<p>Agenda:</p><ul><li>Intro &amp; goals</li><li>Q&amp;A</li></ul>Docs: <a href="https://example.com/doc">the doc</a><br>Call <a href="https://meet.google.com/abc">https://meet.google.com/abc</a>"#
+        XCTAssertEqual(EventNotesFormatter.plainText(html),
+                       "Agenda:\n\n• Intro & goals\n• Q&A\nDocs: the doc (https://example.com/doc)\nCall https://meet.google.com/abc")
+    }
+
+    func testPlainNotesAreKeptAndTrimmed() {
+        XCTAssertEqual(EventNotesFormatter.plainText("  Line 1\n\n\n\nLine 2 < 3  \n"), "Line 1\n\nLine 2 < 3")
+        let long = String(repeating: "a", count: EventNotesFormatter.maxLength + 50)
+        XCTAssertTrue(EventNotesFormatter.plainText(long).hasSuffix("…"))
+    }
+
+    func testLinksAreDetected() {
+        let s = EventNotesFormatter.linked("See https://example.com/x for details")
+        XCTAssertTrue(s.runs.contains { $0.link == URL(string: "https://example.com/x") })
+    }
+
+    func testAttendeeInitials() {
+        XCTAssertEqual(EventAttendee(email: "ada@x.com", name: "Ada Lovelace").initials, "AL")
+        XCTAssertEqual(EventAttendee(email: "grace.hopper@x.com").initials, "GH")
+        XCTAssertEqual(EventAttendee(email: "bob@x.com").initials, "B")
+        XCTAssertEqual(EventAttendee(email: "bob@x.com", name: "  ").displayName, "bob@x.com")
+    }
+
+    func testDuration() {
+        let s = Date(timeIntervalSince1970: 0)
+        XCTAssertEqual(DurationFormatter.string(from: s, to: s.addingTimeInterval(30 * 60)), "30 min")
+        XCTAssertEqual(DurationFormatter.string(from: s, to: s.addingTimeInterval(75 * 60)), "1 hr 15 min")
+        XCTAssertEqual(DurationFormatter.string(from: s, to: s.addingTimeInterval(2 * 86400)), "2 days")
+    }
+
+    @MainActor func testMuteEvent() {
+        let store = MeetingGuardianStore(defaults: UserDefaults(suiteName: "test.\(UUID())")!)
+        let e = CalendarEvent(id: "1", calendarID: "c", accountEmail: "a@b.c", title: "x", start: Date(), end: Date().addingTimeInterval(600),
+                              isAllDay: false, meetURL: nil, location: nil, attendees: [], htmlLink: nil)
+        XCTAssertFalse(store.isMuted(e))
+        store.setMuted(true, for: e)
+        XCTAssertTrue(store.isMuted(e))
+        store.setMuted(false, for: e)
+        XCTAssertFalse(store.isMuted(e))
+    }
+}
+
+final class UpcomingTests: XCTestCase {
+    let cal = Calendar.current
+    func ev(_ id: String, _ s: Date, minutes: Double, declined: Bool = false, allDay: Bool = false) -> CalendarEvent {
+        CalendarEvent(id: id, calendarID: "c", accountEmail: "a@b.c", title: id, start: s, end: s.addingTimeInterval(minutes * 60),
+                      isAllDay: allDay, meetURL: nil, location: nil, attendees: [], htmlLink: nil, isDeclined: declined)
+    }
+
+    func testMeetingLoadMergesOverlapsAndSkipsDeclinedAndAllDay() {
+        let day = cal.date(from: DateComponents(year: 2026, month: 3, day: 10))!
+        let at = { (h: Int) in day.addingTimeInterval(Double(h) * 3600) }
+        let events = [ev("a", at(9), minutes: 60), ev("b", at(9).addingTimeInterval(1800), minutes: 60), // 9:00–10:30
+                      ev("c", at(14), minutes: 30), ev("d", at(16), minutes: 60, declined: true),
+                      ev("e", day, minutes: 24 * 60, allDay: true)]
+        let loads = MeetingLoadBuilder.build(events: events, from: day, days: 2)
+        XCTAssertEqual(loads.count, 2)
+        XCTAssertEqual(loads[0].hours, 2.0, accuracy: 0.001)
+        XCTAssertEqual(loads[0].count, 3)
+        XCTAssertEqual(loads[1].hours, 0)
+    }
+
+    func testNextTodayAndPreview() {
+        let day = cal.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 15))!
+        let tomorrow9 = cal.date(from: DateComponents(year: 2026, month: 3, day: 11, hour: 9))!
+        let done = ev("done", day.addingTimeInterval(-7200), minutes: 30)
+        let next = ev("next", tomorrow9, minutes: 30)
+        XCTAssertNil(UpcomingView.nextToday([done, next], now: day))
+        let preview = UpcomingView.nextDayPreview([done, next], now: day)
+        XCTAssertEqual(preview?.events.map(\.id), ["next"])
+        let later = ev("later", day.addingTimeInterval(3600), minutes: 30)
+        XCTAssertEqual(UpcomingView.nextToday([done, later, next], now: day)?.id, "later")
+    }
+}
+
 final class HotKeyComboTests: XCTestCase {
     func testLoadDefaultsClearedAndCorrupt() {
         let d = UserDefaults(suiteName: "test.\(UUID())")!

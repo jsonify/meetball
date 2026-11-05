@@ -32,6 +32,9 @@
 		D4AA18F71EE5999F40566A2D /* SubscriptionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06474DBFAB05B242D0795163 /* SubscriptionManager.swift */; };
 		EB5D1682750B6163C6F4A6ED /* SubscriptionViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 137A24B7B630C8D6F09C73D9 /* SubscriptionViews.swift */; };
 		FE2138D2EBD11E34C61F2A2A /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */; };
+		712FDBBADAB08C6D3077AAE1 /* MenuBarTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02DCA36ADE6CF8428FC61CDF /* MenuBarTitle.swift */; };
+		3DB1DD35F74ABE3D819A4E69 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */; };
+		C6A16C5CF655A5CE4563E7E1 /* UpcomingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -75,6 +78,9 @@
 		E62613057E6DD164566C4B5E /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		EEAC6760014CBEE5A0B25E62 /* AppleCalendarClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleCalendarClient.swift; sourceTree = "<group>"; };
 		FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		02DCA36ADE6CF8428FC61CDF /* MenuBarTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarTitle.swift; sourceTree = "<group>"; };
+		EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
+		21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -119,6 +125,8 @@
 		7460F7FED0A4782D52B4599C /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
+				21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */,
+				EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */,
 				EEAC6760014CBEE5A0B25E62 /* AppleCalendarClient.swift */,
 				D8FD841BC534057508842B4B /* CalendarStore.swift */,
 				506F6F645DBCFF4332F13767 /* CalendarViews.swift */,
@@ -203,6 +211,7 @@
 		E0228AD2BB8C125DA331F474 /* App */ = {
 			isa = PBXGroup;
 			children = (
+				02DCA36ADE6CF8428FC61CDF /* MenuBarTitle.swift */,
 				B5A499B3E5245CF808108529 /* MeetballApp.swift */,
 				CD098851D5D05244273C8B4E /* MenuBarViews.swift */,
 			);
@@ -263,10 +272,11 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 1640;
 				TargetAttributes = {
 					291C403C38B4F9A9C2C90063 = {
 						DevelopmentTeam = TS339TNM5P;
+						ProvisioningStyle = Automatic;
 					};
 					4174149C88CA89621BF9796E = {
 						DevelopmentTeam = TS339TNM5P;
@@ -324,6 +334,9 @@
 				C3D455C92C47F1F36F64E865 /* Layout.swift in Sources */,
 				0573F7A63F360E72C820750C /* TimeGridView.swift in Sources */,
 				5C4372656E52F71E4E98E625 /* TimeGridLayout.swift in Sources */,
+				712FDBBADAB08C6D3077AAE1 /* MenuBarTitle.swift in Sources */,
+				3DB1DD35F74ABE3D819A4E69 /* EventDetailView.swift in Sources */,
+				C6A16C5CF655A5CE4563E7E1 /* UpcomingView.swift in Sources */,
 				450287F7474F7EE5343F51E8 /* MeetballApp.swift in Sources */,
 				6F0D646FFD81F9A79BFCA0DA /* MenuBarViews.swift in Sources */,
 				1E1065EB9AA51EEEB3328DA6 /* Models.swift in Sources */,
@@ -380,10 +393,13 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = TS339TNM5P;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
@@ -411,7 +427,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = TS339TNM5P;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -433,7 +449,8 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = TS339TNM5P;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Meetball/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -482,10 +499,13 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = TS339TNM5P;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_C_LANGUAGE_STANDARD = gnu11;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -520,7 +540,7 @@
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = TS339TNM5P;
+				DEAD_CODE_STRIPPING = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -539,10 +559,11 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Meetball/Meetball.entitlements;
-				CODE_SIGN_IDENTITY = "Developer ID Application";
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = TS339TNM5P;
+				DEAD_CODE_STRIPPING = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Meetball/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (

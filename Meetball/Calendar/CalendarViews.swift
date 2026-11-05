@@ -12,6 +12,8 @@ struct CalendarContainerView: View {
         } detail: {
             if !store.hasAnySource {
                 ConnectPrompt()
+            } else if store.section == .upcoming {
+                UpcomingView { formRange = nil; showForm = true }
             } else {
                 VStack(spacing: 0) {
                     header
@@ -148,6 +150,14 @@ struct CalendarSidebarView: View {
     }
     var body: some View {
         List {
+            Section {
+                SidebarNavRow(title: "Upcoming", symbol: "clock", selected: store.section == .upcoming, shortcut: "⌘0") {
+                    store.section = .upcoming
+                }
+                SidebarNavRow(title: "Calendar", symbol: "calendar", selected: store.section == .calendar, shortcut: "⌘1–3") {
+                    store.section = .calendar
+                }
+            }
             switch store.loadState {
             case .loading: HStack { ProgressView().controlSize(.small); Text("Loading calendars") }
             case .failed(let m):
@@ -167,6 +177,24 @@ struct CalendarSidebarView: View {
                 }
             }
         }.navigationSplitViewColumnWidth(min: 190, ideal: 220)
+    }
+}
+
+private struct SidebarNavRow: View {
+    let title: String; let symbol: String; let selected: Bool; let shortcut: String
+    let action: () -> Void
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .fontWeight(selected ? .semibold : .regular)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, 3).padding(.horizontal, 6)
+                .background(selected ? Color.accentColor.opacity(0.18) : .clear, in: RoundedRectangle(cornerRadius: 6))
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(title) (\(shortcut))")
+        .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
 }
 
@@ -197,6 +225,7 @@ struct MonthGridView: View {
                                 .frame(width: colW * CGFloat(span.endColumn - span.startColumn + 1) - 4, height: laneH - 2, alignment: .leading)
                                 .background(Color(hex: span.event.colorHex).opacity(0.85), in: RoundedRectangle(cornerRadius: 4))
                                 .foregroundStyle(.white)
+                                .eventDetailOnClick(span.event, arrowEdge: .bottom)
                                 .offset(x: colW * CGFloat(span.startColumn) + 2, y: headerH + CGFloat(span.lane) * laneH)
                         }
                     }
@@ -255,6 +284,7 @@ struct DayEventsListView: View {
                         JoinButton(event: seg.event, size: .small)
                     }
                     .opacity(seg.event.isDeclined ? 0.5 : 1)
+                    .eventDetailOnClick(seg.event, arrowEdge: .leading)
                     .contextMenu {
                         MeetingSecondaryActions(event: seg.event)
                         Divider()

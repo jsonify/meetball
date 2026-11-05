@@ -224,6 +224,7 @@ struct HeroMeetingCard: View {
         .padding(12)
         .background(Color(hex: event.colorHex).opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color(hex: event.colorHex).opacity(0.25)))
+        .eventDetailOnClick(event, arrowEdge: .leading)
         .contextMenu { MeetingSecondaryActions(event: event) }
     }
 
@@ -249,6 +250,7 @@ struct AgendaDaySection: View {
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Color(hex: e.colorHex).opacity(0.22), in: Capsule())
                             .opacity(e.isDeclined ? 0.5 : 1)
+                            .eventDetailOnClick(e, arrowEdge: .leading)
                             .contextMenu { MeetingSecondaryActions(event: e) }
                     }
                 }
@@ -308,7 +310,7 @@ struct AgendaRow: View {
         }
         .padding(.vertical, 2)
         .opacity(ended || event.isDeclined ? 0.5 : 1)
-        .contentShape(Rectangle())
+        .eventDetailOnClick(event, arrowEdge: .leading)
         .contextMenu { MeetingSecondaryActions(event: event) }
     }
 }
