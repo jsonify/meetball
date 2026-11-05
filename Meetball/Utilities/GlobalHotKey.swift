@@ -46,7 +46,8 @@ public struct HotKeyCombo: Codable, Equatable {
         case kVK_DownArrow: return "↓"
         default:
             if let n = functionKeyNumber(Int(e.keyCode)) { return "F\(n)" }
-            return (e.charactersIgnoringModifiers ?? "?").uppercased()
+            // Ask for the key's character with no modifiers, so ⇧1 is labeled "1", not "!".
+            return (e.characters(byApplyingModifiers: []) ?? e.charactersIgnoringModifiers ?? "?").uppercased()
         }
     }
 
@@ -57,11 +58,11 @@ public struct HotKeyCombo: Codable, Equatable {
         return map[code]
     }
 
-    /// Missing key → default shortcut; empty string → user cleared it.
+    /// Missing or unreadable value → default shortcut; empty string → user cleared it.
     static func load(_ d: UserDefaults = .standard) -> HotKeyCombo? {
         guard let s = d.string(forKey: defaultsKey) else { return defaultCombo }
         guard !s.isEmpty else { return nil }
-        return try? JSONDecoder().decode(HotKeyCombo.self, from: Data(s.utf8))
+        return (try? JSONDecoder().decode(HotKeyCombo.self, from: Data(s.utf8))) ?? defaultCombo
     }
 
     static func save(_ c: HotKeyCombo?, _ d: UserDefaults = .standard) {
