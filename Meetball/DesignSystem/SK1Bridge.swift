@@ -20,13 +20,6 @@ struct SK1SettingsPane<Content: View>: View {
     }
 }
 
-extension View {
-    /// A grouped `Form` shown on the SK-1 chassis, for settings tabs not yet built from `SKGroup` rows.
-    func sk1FormChassis() -> some View {
-        scrollContentBackground(.hidden).sk1Chassis()
-    }
-}
-
 /// One line of LCD: a lamp and a caption at the left, seven-segment digits (with their unit) or short mono text at the right.
 struct SK1CountdownLCD: View {
     let caption: String

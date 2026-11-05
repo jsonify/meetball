@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import SK1UI
 
 /// Meeting-first rules (Settings › Events). They decide which events the menu bar title, the popover,
 /// the Upcoming dashboard, the join shortcut and Meeting Guardian alerts care about. The calendar grids
@@ -177,7 +178,7 @@ struct HiddenEventsToggle: View {
             HStack(spacing: 4) {
                 Image(systemName: "line.3.horizontal.decrease.circle")
                 Text(showing ? "Showing events hidden by your filters" : "\(count) hidden by your filters")
-                Button(showing ? "Hide again" : "Show anyway") { showing.toggle() }.buttonStyle(.link)
+                Button(showing ? "Hide again" : "Show anyway") { showing.toggle() }.buttonStyle(.sk1Key(size: .small))
             }
             .font(.caption).foregroundStyle(.secondary)
             .frame(maxWidth: .infinity)

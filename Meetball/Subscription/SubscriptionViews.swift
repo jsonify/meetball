@@ -1,5 +1,7 @@
 import SwiftUI
 import StoreKit
+import SK1Tokens
+import SK1UI
 
 public struct ProBadge: View {
     public init() {}
@@ -10,50 +12,78 @@ public struct ProBadge: View {
     }
 }
 
+/// The upgrade sheet on the chassis: what Pro adds, each plan as a key with its price on a chip, and Restore / Not now.
 public struct PaywallView: View {
     @EnvironmentObject var subs: SubscriptionManager
     @Environment(\.dismiss) private var dismiss
     public init() {}
     public var body: some View {
-        VStack(spacing: 16) {
+        VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
             Text("Upgrade to Meetball Pro").font(.title.bold())
-            VStack(alignment: .leading, spacing: 8) {
-                BulletRow("Hard, fullscreen-ish alerts that make missing meetings practically impossible")
-                BulletRow("Smart follow-ups: \"Are you still joining?\"")
-                BulletRow("Per-calendar alert rules")
-                BulletRow("More reminder timings and quiet hours")
+            SKGroup(caption: "Pro adds") {
+                SKRow(title: "Hard alerts") { BulletRow("Full screen, on every display") }
+                SKRow(title: "Smart follow-ups") { BulletRow("\u{201C}Are you still joining?\u{201D}") }
+                SKRow(title: "Per-calendar rules") { BulletRow("Alert strength for each calendar") }
+                SKRow(title: "More timings") { BulletRow("Reminders up to 15 minutes before") }
             }
-            if subs.isLoadingOfferings { ProgressView() }
-            else if subs.offerings.isEmpty { Text("No offerings available. Check PRO_PRODUCT_IDS and your StoreKit configuration.").font(.caption).foregroundStyle(.secondary) }
-            ForEach(subs.offerings) { p in
-                Button { Task { await subs.purchase(p) } } label: {
-                    HStack { Text(p.displayName); Spacer(); Text(p.displayPrice).bold() }.padding(8)
-                }.buttonStyle(.borderedProminent)
+            SKGroup(caption: "Plans") {
+                if subs.isLoadingOfferings {
+                    SKRow(title: "Loading plans") { SKLamp(color: .warning, lit: true, label: "Loading", blinking: true) }
+                } else if subs.offerings.isEmpty {
+                    SKRow(title: "No plans available", subtitle: "Check PRO_PRODUCT_IDS and your StoreKit configuration.") {
+                        SKLamp(color: .danger, lit: true, label: "Unavailable")
+                    }
+                }
+                ForEach(subs.offerings) { p in
+                    SKRow(title: p.displayName) {
+                        HStack(spacing: 8) {
+                            SKChip(p.displayPrice)
+                            Button("Buy") { Task { await subs.purchase(p) } }.buttonStyle(.sk1Key())
+                        }
+                    }
+                }
             }
-            if let e = subs.lastErrorMessage { Text(e).font(.caption).foregroundStyle(.red) }
-            HStack { Button("Restore purchases") { Task { await subs.restore() } }; Spacer(); Button("Not now") { dismiss() } }
+            if let e = subs.lastErrorMessage { Text(e).sk1Hint() }
+            SKGroove()
+            HStack {
+                Button("Restore purchases") { Task { await subs.restore() } }.buttonStyle(.sk1Key())
+                Spacer()
+                Button("Not now") { dismiss() }.buttonStyle(.sk1Key())
+            }
         }
-        .padding(24).frame(width: 440)
+        .padding(SK1.Metrics.paneMargin)
+        .frame(width: 460)
+        .sk1Chassis()
         .onChange(of: subs.isPremiumActive) { _, new in if new { dismiss() } }
     }
 }
 
+/// Settings › Pro: whether Pro is on (a lamp), when it renews, and Upgrade / Restore.
 public struct SubscriptionStatusView: View {
     @EnvironmentObject var subs: SubscriptionManager
     @State private var showPaywall = false
     public init() {}
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            if subs.isPremiumActive {
-                Label("Meetball Pro is active", systemImage: "checkmark.seal.fill").foregroundStyle(.green)
-                if let d = subs.latestExpirationDate {
-                    Text(subs.isAutoRenewing ? "Renews \(d.formatted(date: .abbreviated, time: .omitted))" : "Expires \(d.formatted(date: .abbreviated, time: .omitted))").foregroundStyle(.secondary)
-                }
-            } else {
-                Text("You're on the free plan.")
-                Button("Upgrade to Meetball Pro") { showPaywall = true }.buttonStyle(.borderedProminent)
+        SKGroup(caption: "Meetball Pro", note: subs.isPremiumActive ? nil : "Soft reminders are free; heads-up and hard alerts, per-calendar rules and more timings are Pro.") {
+            SKRow(title: subs.isPremiumActive ? "Pro is active" : "You're on the free plan", subtitle: renewal) {
+                SKLamp(color: subs.isPremiumActive ? .success : .warning, lit: true, size: 8,
+                       label: subs.isPremiumActive ? "Pro active" : "Free plan")
             }
-            Button("Restore purchases") { Task { await subs.restore() } }
-        }.sheet(isPresented: $showPaywall) { PaywallView() }
+            if !subs.isPremiumActive {
+                SKRow(title: "Upgrade") {
+                    Button("Upgrade to Pro") { showPaywall = true }.buttonStyle(.sk1Key(.orange))
+                }
+            }
+            SKRow(title: "Restore purchases", subtitle: "Bought Pro on another Mac? Restore it here.") {
+                Button("Restore") { Task { await subs.restore() } }.buttonStyle(.sk1Key())
+            }
+        }
+        .sheet(isPresented: $showPaywall) { PaywallView() }
+    }
+
+    private var renewal: String? {
+        guard subs.isPremiumActive, let d = subs.latestExpirationDate else { return nil }
+        let day = d.formatted(date: .abbreviated, time: .omitted)
+        return subs.isAutoRenewing ? "Renews \(day)" : "Expires \(day)"
     }
 }

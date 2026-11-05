@@ -197,6 +197,7 @@ struct CalendarSidebarView: View {
                         Toggle(isOn: Binding(get: { !store.hiddenCalendarKeys.contains(cal.key) }, set: { _ in store.toggle(cal) })) {
                             HStack { Circle().fill(Color(hex: cal.colorHex)).frame(width: 9, height: 9); Text(cal.summary).lineLimit(1) }
                         }
+                        .toggleStyle(.sk1Square)
                     }
                 }
             }
@@ -258,7 +259,7 @@ struct MonthGridView: View {
                         }
                     }
                 }
-                Divider()
+                SKGroove()
             }
         }
     }
@@ -315,7 +316,7 @@ struct DayEventsListView: View {
                     .eventDetailOnClick(seg.event, arrowEdge: .leading)
                     .contextMenu {
                         MeetingSecondaryActions(event: seg.event)
-                        Divider()
+                        Divider()  // sk1-audit: ignore (a menu item separator)
                         Button("Delete", role: .destructive) { Task { await store.delete(seg.event) } }
                     }
                 }
@@ -343,34 +344,71 @@ struct EventFormView: View {
     private var writable: [GCalendar] { store.calendars.filter(\.canWrite) }
 
     var body: some View {
-        Form {
-            TextField("Title", text: $draft.title, prompt: Text("e.g. Weekly sync with Anna"))
-            Toggle("Focus block", isOn: $draft.isFocusBlock)
-            DatePicker("Starts", selection: $draft.start).onChange(of: draft.start) { _, s in if draft.end <= s { draft.end = s.addingTimeInterval(1800) } }
-            DatePicker("Ends", selection: $draft.end, in: draft.start...)
-            Picker("Calendar", selection: $draft.calendar) {
-                ForEach(writable) { Text($0.summary).tag(Optional($0)) }
-            }
-            Toggle("Add Google Meet link", isOn: $draft.addMeet).disabled(!(draft.calendar?.allowsMeet ?? false))
-            if let c = draft.calendar, !c.allowsMeet { Text("This calendar doesn't allow Google Meet conferences.").font(.caption).foregroundStyle(.secondary) }
-            Section("Attendees") {
-                HStack {
-                    TextField("Add attendee email", text: $attendeeText).onSubmit(addAttendee)
-                    Button("Add", action: addAttendee)
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+                    SKGroup(caption: "Event") {
+                        SKRow(title: "Title") {
+                            SKTextField("Title", text: $draft.title, prompt: "Weekly sync with Anna", height: 30).frame(width: 260)
+                        }
+                        SKRow(title: "Focus block", subtitle: "Time for yourself: no attendees or Meet link.") {
+                            Toggle("Focus block", isOn: $draft.isFocusBlock).toggleStyle(.sk1Switch)
+                        }
+                        SKRow(title: "Starts") {
+                            DatePicker("Starts", selection: $draft.start).labelsHidden()
+                                .onChange(of: draft.start) { _, s in if draft.end <= s { draft.end = s.addingTimeInterval(1800) } }
+                        }
+                        SKRow(title: "Ends", subtitle: DurationFormatter.string(from: draft.start, to: draft.end)) {
+                            DatePicker("Ends", selection: $draft.end, in: draft.start...).labelsHidden()
+                        }
+                        SKRow(title: "Calendar") {
+                            SKPicker(selection: $draft.calendar,
+                                     options: writable.map { SKPicker<GCalendar?>.Option($0, $0.summary) }, stepper: false)
+                        }
+                        SKRow(title: "Add a Google Meet link",
+                              subtitle: meetUnavailable ? "This calendar doesn't allow Google Meet conferences." : nil) {
+                            Toggle("Add Google Meet link", isOn: $draft.addMeet).toggleStyle(.sk1Switch).disabled(meetUnavailable)
+                        }
+                    }
+                    SKGroup(caption: "Attendees", note: attendeeError) {
+                        SKRow(title: "Invite") {
+                            HStack(spacing: 6) {
+                                if attendeeError != nil { SKLamp(color: .danger, lit: true, label: "Check the address") }
+                                SKTextField("Attendee email", text: $attendeeText, prompt: "name@example.com", height: 30)
+                                    .frame(width: 220)
+                                    .onSubmit(addAttendee)
+                                Button("Add", action: addAttendee).buttonStyle(.sk1Key())
+                            }
+                        }
+                        if !draft.attendees.isEmpty {
+                            FlowWrap(spacing: 6) {
+                                ForEach(draft.attendees, id: \.self) { a in
+                                    Button { draft.attendees.removeAll { $0 == a } } label: { Label(a, systemImage: "xmark") }
+                                        .buttonStyle(.sk1Key(size: .small))
+                                        .help("Remove \(a)")
+                                }
+                            }
+                            .padding(.vertical, 10)
+                        }
+                    }
                 }
-                if let attendeeError { Text(attendeeError).font(.caption).foregroundStyle(.red) }
-                FlowWrap { ForEach(draft.attendees, id: \.self) { a in
-                    Button { draft.attendees.removeAll { $0 == a } } label: { Label(a, systemImage: "xmark.circle.fill") }.buttonStyle(.bordered).controlSize(.small)
-                } }
+                .padding(SK1.Metrics.paneMargin)
             }
-            HStack { Spacer(); Button("Cancel") { dismiss() }.buttonStyle(.sk1Key())
+            SKGroove()
+            HStack(spacing: 8) {
+                Spacer()
+                Button("Cancel") { dismiss() }.buttonStyle(.sk1Key())
                 Button("Save") { Task { saving = true; if await store.create(draft) { dismiss() }; saving = false } }
                     .buttonStyle(.sk1Key(.orange)).disabled(saving || draft.calendar == nil)
             }
+            .padding(12)
         }
-        .formStyle(.grouped).sk1FormChassis().frame(width: 480, height: 520)
+        .frame(width: 540, height: 580)
+        .sk1Chassis()
         .onAppear { draft.calendar = draft.calendar ?? writable.first(where: \.isPrimary) ?? writable.first }
     }
+
+    private var meetUnavailable: Bool { !(draft.calendar?.allowsMeet ?? false) }
 
     func addAttendee() {
         let e = attendeeText.trimmingCharacters(in: .whitespaces)

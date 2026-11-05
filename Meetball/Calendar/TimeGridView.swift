@@ -19,9 +19,9 @@ struct TimeGridView: View {
             let now = ctx.date
             VStack(spacing: 0) {
                 dayHeader(now: now)
-                Divider()
+                SKGroove()
                 allDayRow(derived)
-                Divider()
+                SKGroove()
                 ScrollViewReader { proxy in
                     ScrollView(.vertical) {
                         HStack(alignment: .top, spacing: 0) {
@@ -257,7 +257,7 @@ struct TimeGridEventBlock: View {
         .eventDetailOnClick(e)
         .contextMenu {
             MeetingSecondaryActions(event: e)
-            Divider()
+            Divider()  // sk1-audit: ignore (a menu item separator)
             Button("Delete", role: .destructive) { Task { await store.delete(e) } }
         }
         .help(e.title)

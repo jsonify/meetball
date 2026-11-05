@@ -1,51 +1,14 @@
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
-public struct GradientBackground: View {
-    public init() {}
-    public var body: some View {
-        LinearGradient(colors: [Color(red: 0.10, green: 0.12, blue: 0.28),
-                                Color(red: 0.32, green: 0.16, blue: 0.45)],
-                       startPoint: .topLeading, endPoint: .bottomTrailing)
-            .ignoresSafeArea()
-    }
-}
-
-public struct GlassCard<Content: View>: View {
-    let content: Content
-    public init(@ViewBuilder content: () -> Content) { self.content = content() }
-    public var body: some View {
-        content.padding(16)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
-            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.15)))
-    }
-}
-
-public struct LayerCard<Content: View>: View {
-    let content: Content
-    public init(@ViewBuilder content: () -> Content) { self.content = content() }
-    public var body: some View {
-        content.padding(12)
-            .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
-    }
-}
-
-public struct SectionHeader: View {
-    let title: String; let subtitle: String?
-    public init(_ title: String, subtitle: String? = nil) { self.title = title; self.subtitle = subtitle }
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title).font(.headline)
-            if let subtitle { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) }
-        }
-    }
-}
-
+/// A line in a feature list: a teal lamp (ready, included) and the text.
 public struct BulletRow: View {
     let text: String
     public init(_ text: String) { self.text = text }
     public var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "checkmark.circle.fill").foregroundStyle(.green)
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            SKLamp(color: .success, lit: true, size: 6).accessibilityHidden(true)
             Text(text).fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -57,7 +20,7 @@ public struct StepIndicator: View {
     public var body: some View {
         HStack(spacing: 6) {
             ForEach(0..<count, id: \.self) { i in
-                Capsule().fill(i == current ? Color.accentColor : Color.secondary.opacity(0.3))
+                Capsule().fill(i == current ? Color(sk1Hex: SK1.orange) : Color.secondary.opacity(0.3))
                     .frame(width: i == current ? 20 : 8, height: 8)
             }
         }

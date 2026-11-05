@@ -39,7 +39,7 @@ struct JoinButton: View {
                     // SK-1 keys come in two sizes on the Mac; the large (56 pt) one is for iOS.
                     button.buttonStyle(.sk1Key(key, size: size == .small ? .small : .regular))
                 } else {
-                    button.buttonStyle(.borderedProminent).tint(service.tint).controlSize(controlSize)
+                    button.buttonStyle(.borderedProminent).tint(service.tint).controlSize(controlSize)  // sk1-audit: ignore (only the hard alert, which keeps its own look)
                 }
             }
             .help("Join on \(service.displayName)")
