@@ -22,14 +22,18 @@ final class AppModel: ObservableObject {
         calendar = CalendarStore(session: session)
         guardian = MeetingGuardianManager(store: guardianStore, subs: subs)
         join = JoinController(calendar: calendar)
-        bag.append(calendar.$events.sink { [guardian] evs in guardian.reschedule(events: evs) })
         // @Published emits before the new value is stored, so hop to the next main-loop turn before reading state back.
+        // Guardian only alerts for events that pass the meeting-first rules (Settings › Events).
         bag.append(subs.$entitlementState.receive(on: DispatchQueue.main)
-            .sink { [guardian, calendar] _ in guardian.reschedule(events: calendar.events) })
+            .sink { [guardian, calendar] _ in guardian.reschedule(events: calendar.meetingEvents) })
         bag.append(guardianStore.objectWillChange.receive(on: DispatchQueue.main)
-            .sink { [guardian, calendar] _ in guardian.reschedule(events: calendar.events) })
+            .sink { [guardian, calendar] _ in guardian.reschedule(events: calendar.meetingEvents) })
         bag.append(calendar.objectWillChange.receive(on: DispatchQueue.main)
-            .sink { [weak self] _ in self?.updateMenuBarTitle() })
+            .sink { [weak self] _ in
+                guard let self else { return }
+                self.updateMenuBarTitle()
+                self.guardian.reschedule(events: self.calendar.meetingEvents)
+            })
         bag.append(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification)
             .receive(on: DispatchQueue.main).sink { [weak self] _ in self?.updateMenuBarTitle() })
         tick = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
@@ -41,7 +45,7 @@ final class AppModel: ObservableObject {
     func updateMenuBarTitle() {
         let now = Date()
         let settings = MenuBarTitleSettings(defaults: .standard)
-        let title = MenuBarTitleBuilder.build(next: MenuBarTitleBuilder.pick(calendar.visibleEvents, now: now), now: now, settings: settings)
+        let title = MenuBarTitleBuilder.build(next: MenuBarTitleBuilder.pick(calendar.meetingEvents, now: now), now: now, settings: settings)
         if title != menuBarTitle { menuBarTitle = title }
         setPulsing(title.isSoon, pulse: settings.pulseWhenSoon)
     }

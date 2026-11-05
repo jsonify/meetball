@@ -150,6 +150,6 @@ struct MeetingGuardianSettingsView: View {
         }
         .formStyle(.grouped)
         .sheet(isPresented: $showPaywall) { PaywallView() }
-        .onChange(of: store.settings) { _, _ in manager.reschedule(events: calendars.events) }
+        .onChange(of: store.settings) { _, _ in manager.reschedule(events: calendars.meetingEvents) }
     }
 }

@@ -52,6 +52,10 @@ public final class CalendarStore: ObservableObject {
     @Published public var menuAnchor = Date()
     @Published public private(set) var appleEnabled: Bool = UserDefaults.standard.bool(forKey: "appleCalendarEnabled")
     @Published public private(set) var appleAccessDenied = false
+    /// Meeting-first rules (Settings › Events).
+    @Published public var filters = EventFilterSettings.load() {
+        didSet { if oldValue != filters { filters.save() } }
+    }
 
     let session: SessionManager
     private var client: GoogleCalendarClient
@@ -109,6 +113,16 @@ public final class CalendarStore: ObservableObject {
     /// Loaded events on calendars that are currently visible.
     var visibleEvents: [CalendarEvent] { events.filter { !hiddenCalendarKeys.contains($0.calendarKey) } }
     var visibleCalendars: [GCalendar] { calendars.filter { !hiddenCalendarKeys.contains($0.key) } }
+    /// Visible events split by the meeting-first rules.
+    var meetingFeed: EventFilterResult { EventFilter.apply(visibleEvents, settings: filters) }
+    /// Events the menu bar title, join shortcut and Meeting Guardian act on.
+    var meetingEvents: [CalendarEvent] { meetingFeed.shown }
+    /// Sources (Google accounts, Apple Calendar accounts) that have calendars, in sidebar order.
+    var sources: [String] {
+        var seen: [String] = []
+        for c in calendars where !seen.contains(c.accountEmail) { seen.append(c.accountEmail) }
+        return seen
+    }
     var derived: CalendarDerivedEvents { CalendarDerivedEventsBuilder.build(events: visibleEvents, range: visibleRange) }
 
     func startAutoRefresh() {
@@ -218,6 +232,6 @@ public final class CalendarStore: ObservableObject {
 
     /// Upcoming, non-all-day events that haven't ended, across visible calendars.
     func upcoming(limit: Int = 8, now: Date = Date()) -> [CalendarEvent] {
-        Array(visibleEvents.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now }.prefix(limit))
+        Array(meetingEvents.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now }.prefix(limit))
     }
 }

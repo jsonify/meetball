@@ -11,6 +11,8 @@ struct MenuBarContent: View {
     @State private var month = Date()
     @State private var scopedDay: Date?
     @State private var contentHeight: CGFloat = 0
+    /// "Show anyway": include events hidden by the meeting-first rules.
+    @State private var showHidden = false
     private let maxScrollHeight: CGFloat = 440
 
     var body: some View {
@@ -31,10 +33,11 @@ struct MenuBarContent: View {
             footer
         }
         .frame(width: 360)
+        .environment(\.eventFilterSettings, calendar.filters)
         .onChange(of: month) { _, m in calendar.setMenuAnchor(m) }
     }
 
-    private var events: [CalendarEvent] { calendar.visibleEvents }
+    private var events: [CalendarEvent] { showHidden ? calendar.visibleEvents : calendar.meetingEvents }
 
     private var dots: [Date: [String]] {
         MenuAgendaBuilder.dots(events: events, range: CalendarVisibleRangeBuilder.build(anchor: month))
@@ -68,8 +71,15 @@ struct MenuBarContent: View {
                     .foregroundStyle(.secondary).frame(maxWidth: .infinity).padding(.vertical, 12)
             }
             ForEach(groups) { AgendaDaySection(group: $0, now: now, showHeader: scopedDay == nil) }
+            HiddenEventsToggle(count: hiddenCount(now: now), showing: $showHidden)
         }
         .padding(12)
+    }
+
+    /// Hidden events that would otherwise appear in the agenda being shown.
+    private func hiddenCount(now: Date) -> Int {
+        MenuAgendaBuilder.build(events: calendar.meetingFeed.hidden, now: now, scopedDay: scopedDay, limit: .max)
+            .reduce(0) { $0 + $1.allDay.count + $1.timed.count }
     }
 
     private var footer: some View {
@@ -237,6 +247,9 @@ struct AgendaDaySection: View {
     let group: AgendaDayGroup
     let now: Date
     var showHeader = true
+    @Environment(\.eventFilterSettings) private var filters
+
+    private func dimmed(_ e: CalendarEvent) -> Bool { filters.map { EventFilter.isDimmed(e, settings: $0) } ?? false }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -249,7 +262,7 @@ struct AgendaDaySection: View {
                         Text(e.title).font(.caption2.weight(.medium)).lineLimit(1)
                             .padding(.horizontal, 6).padding(.vertical, 2)
                             .background(Color(hex: e.colorHex).opacity(0.22), in: Capsule())
-                            .opacity(e.isDeclined ? 0.5 : 1)
+                            .opacity(e.isDeclined || dimmed(e) ? 0.5 : 1)
                             .eventDetailOnClick(e, arrowEdge: .leading)
                             .contextMenu { MeetingSecondaryActions(event: e) }
                     }
@@ -287,6 +300,10 @@ private struct NowLine: View {
 struct AgendaRow: View {
     let event: CalendarEvent
     let now: Date
+    @Environment(\.eventFilterSettings) private var filters
+
+    private var tentativeDimmed: Bool { filters.map { EventFilter.isDimmed(event, settings: $0) } ?? false }
+    private var hideReason: EventHideReason? { filters.flatMap { EventFilter.hideReason(event, settings: $0) } }
 
     var body: some View {
         let ended = event.end <= now
@@ -309,7 +326,8 @@ struct AgendaRow: View {
             if !ended && !event.isDeclined { JoinButton(event: event, size: .small) }
         }
         .padding(.vertical, 2)
-        .opacity(ended || event.isDeclined ? 0.5 : 1)
+        .opacity(ended || event.isDeclined || tentativeDimmed ? 0.5 : 1)
+        .help(hideReason.map { "Hidden by your filters: \($0.label)" } ?? (tentativeDimmed ? "You replied Maybe" : ""))
         .eventDetailOnClick(event, arrowEdge: .leading)
         .contextMenu { MeetingSecondaryActions(event: event) }
     }

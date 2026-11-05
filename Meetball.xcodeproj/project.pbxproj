@@ -35,6 +35,9 @@
 		712FDBBADAB08C6D3077AAE1 /* MenuBarTitle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 02DCA36ADE6CF8428FC61CDF /* MenuBarTitle.swift */; };
 		3DB1DD35F74ABE3D819A4E69 /* EventDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */; };
 		C6A16C5CF655A5CE4563E7E1 /* UpcomingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */; };
+		0994B866D47027AA1091346B /* EventFilter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36AD2C0304CADAA2A4A9EB01 /* EventFilter.swift */; };
+		DE7313E46863234483DBBB69 /* EventFilterSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9374B7F8888D4EF294E7A557 /* EventFilterSettingsView.swift */; };
+		D91BCAA673BC62B6F4E5C0B6 /* EventFilterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -81,6 +84,9 @@
 		02DCA36ADE6CF8428FC61CDF /* MenuBarTitle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarTitle.swift; sourceTree = "<group>"; };
 		EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventDetailView.swift; sourceTree = "<group>"; };
 		21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpcomingView.swift; sourceTree = "<group>"; };
+		36AD2C0304CADAA2A4A9EB01 /* EventFilter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFilter.swift; sourceTree = "<group>"; };
+		9374B7F8888D4EF294E7A557 /* EventFilterSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFilterSettingsView.swift; sourceTree = "<group>"; };
+		A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EventFilterTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -125,6 +131,7 @@
 		7460F7FED0A4782D52B4599C /* Calendar */ = {
 			isa = PBXGroup;
 			children = (
+				36AD2C0304CADAA2A4A9EB01 /* EventFilter.swift */,
 				21626AD5273AF38CC0B4CC9E /* UpcomingView.swift */,
 				EB4C49828DF4F7F224ABC343 /* EventDetailView.swift */,
 				EEAC6760014CBEE5A0B25E62 /* AppleCalendarClient.swift */,
@@ -150,6 +157,7 @@
 		891429ABE2105F6DC4F6C044 /* Tests */ = {
 			isa = PBXGroup;
 			children = (
+				A62D6A1280DE8A390BB6C6B8 /* EventFilterTests.swift */,
 				07B7508A51C0355251E4C503 /* LogicTests.swift */,
 			);
 			path = Tests;
@@ -193,6 +201,7 @@
 		C25C2794FDDDB812687CDFD8 /* Settings */ = {
 			isa = PBXGroup;
 			children = (
+				9374B7F8888D4EF294E7A557 /* EventFilterSettingsView.swift */,
 				FDAAC87BB8E473BE5502D1A6 /* SettingsView.swift */,
 			);
 			path = Settings;
@@ -309,6 +318,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D91BCAA673BC62B6F4E5C0B6 /* EventFilterTests.swift in Sources */,
 				1409142A6A094F9C85FD16EF /* LogicTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -317,6 +327,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DE7313E46863234483DBBB69 /* EventFilterSettingsView.swift in Sources */,
+				0994B866D47027AA1091346B /* EventFilter.swift in Sources */,
 				3EDB5F91D8582A917DCE6907 /* AppleCalendarClient.swift in Sources */,
 				5901915B566A43F690C9C2F1 /* CalendarStore.swift in Sources */,
 				AACB4A5E4D093FD84B57C354 /* CalendarViews.swift in Sources */,

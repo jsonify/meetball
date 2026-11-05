@@ -5,11 +5,14 @@ import AppKit
 struct UpcomingView: View {
     @EnvironmentObject var store: CalendarStore
     var onNewEvent: () -> Void
+    /// "Show anyway": include events hidden by the meeting-first rules.
+    @State private var showHidden = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { ctx in
             let now = ctx.date
-            let events = store.visibleEvents
+            let feed = store.meetingFeed
+            let events = showHidden ? store.visibleEvents : feed.shown
             let hero = Self.nextToday(events, now: now)
             VStack(spacing: 0) {
                 header(now: now)
@@ -23,6 +26,7 @@ struct UpcomingView: View {
                             NoMoreMeetingsView(preview: Self.nextDayPreview(events, now: now), now: now)
                         }
                         WeekLoadStrip(loads: MeetingLoadBuilder.build(events: events, from: now, days: 7), now: now)
+                        HiddenEventsToggle(count: Self.hiddenUpcoming(feed.hidden, now: now), showing: $showHidden)
                     }
                     .padding(20)
                     .frame(maxWidth: 760)
@@ -30,6 +34,7 @@ struct UpcomingView: View {
                 }
             }
         }
+        .environment(\.eventFilterSettings, store.filters)
     }
 
     private func header(now: Date) -> some View {
@@ -71,6 +76,12 @@ struct UpcomingView: View {
     static func laterToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> [CalendarEvent] {
         events.filter { !$0.isBarEvent(calendar: calendar) && !$0.isDeclined && $0.end > now && calendar.isDate($0.start, inSameDayAs: now) }
             .sorted { $0.start < $1.start }
+    }
+
+    /// Hidden timed events in the next week that haven't ended (declined ones never show here anyway).
+    static func hiddenUpcoming(_ hidden: [CalendarEvent], now: Date, calendar: Calendar = .current) -> Int {
+        let horizon = calendar.date(byAdding: .day, value: 7, to: calendar.startOfDay(for: now)) ?? now
+        return hidden.filter { !$0.isBarEvent(calendar: calendar) && !$0.isDeclined && $0.end > now && $0.start < horizon }.count
     }
 
     /// The first later day (within what's loaded) that has meetings.
