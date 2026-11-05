@@ -1,5 +1,6 @@
 import Foundation
 import SwiftUI
+import AppKit
 
 /// 12- or 24-hour clock, or whatever the system uses (Settings › Appearance).
 public enum ClockStyle: String, CaseIterable, Identifiable, Sendable {
@@ -27,6 +28,27 @@ public enum LayoutDensity: String, CaseIterable, Identifiable, Sendable {
     public var rowPadding: CGFloat { self == .comfortable ? 2 : 0 }
 }
 
+/// Light (the cream SK-1 look), dark (the charcoal one), or whatever macOS uses (Settings › Appearance).
+public enum AppTheme: String, CaseIterable, Identifiable, Sendable {
+    case system, light, dark
+    public var id: String { rawValue }
+    public var title: String {
+        switch self {
+        case .system: return "System"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+    /// The appearance's name for `NSApp.appearance`: nil follows macOS.
+    public var appearanceName: NSAppearance.Name? {
+        switch self {
+        case .system: return nil
+        case .light: return .aqua
+        case .dark: return .darkAqua
+        }
+    }
+}
+
 /// App-wide display preferences. Views read them through `@AppStorage` with these keys; code that isn't a view reads
 /// them here.
 public enum AppPreferences {
@@ -34,6 +56,7 @@ public enum AppPreferences {
         /// 0 follows the system; 1 = Sunday … 7 = Saturday.
         public static let firstWeekday = "appearance.firstWeekday"
         public static let clockStyle = "appearance.clockStyle"
+        public static let theme = "appearance.theme"
         public static let density = "appearance.density"
         public static let highlightWeekends = "appearance.highlightWeekends"
         public static let hideDockIcon = "app.hideDockIcon"
@@ -48,6 +71,9 @@ public enum AppPreferences {
     public static func firstWeekday(_ d: UserDefaults = defaults) -> Int { d.integer(forKey: Key.firstWeekday) }
     public static func clockStyle(_ d: UserDefaults = defaults) -> ClockStyle {
         ClockStyle(rawValue: d.string(forKey: Key.clockStyle) ?? "") ?? .system
+    }
+    public static func theme(_ d: UserDefaults = defaults) -> AppTheme {
+        AppTheme(rawValue: d.string(forKey: Key.theme) ?? "") ?? .system
     }
     public static func density(_ d: UserDefaults = defaults) -> LayoutDensity {
         LayoutDensity(rawValue: d.string(forKey: Key.density) ?? "") ?? .comfortable

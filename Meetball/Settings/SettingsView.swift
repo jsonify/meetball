@@ -2,9 +2,10 @@ import SwiftUI
 import ServiceManagement
 import SK1UI
 
-/// The Settings window's tabs, in order. Settings search jumps between them.
+/// The Settings window's sections, in the sidebar's order (About is pinned under the rest). Settings search jumps
+/// between them.
 enum SettingsTab: String, CaseIterable, Identifiable {
-    case general, appearance, menuBar, events, accounts, alerts, joining, pro
+    case general, appearance, menuBar, events, accounts, alerts, joining, pro, about
     var id: String { rawValue }
     var title: String {
         switch self {
@@ -16,39 +17,57 @@ enum SettingsTab: String, CaseIterable, Identifiable {
         case .alerts: return "Alerts"
         case .joining: return "Joining"
         case .pro: return "Pro"
+        case .about: return "About"
         }
     }
     var symbol: String {
         switch self {
-        case .general: return "gearshape"
-        case .appearance: return "paintpalette"
+        case .general: return "gearshape.fill"
+        case .appearance: return "paintpalette.fill"
         case .menuBar: return "menubar.rectangle"
-        case .events: return "line.3.horizontal.decrease.circle"
-        case .accounts: return "person.crop.circle"
-        case .alerts: return "bell.badge"
-        case .joining: return "video"
-        case .pro: return "star"
+        case .events: return "line.3.horizontal.decrease.circle.fill"
+        case .accounts: return "person.crop.circle.fill"
+        case .alerts: return "bell.badge.fill"
+        case .joining: return "video.fill"
+        case .pro: return "star.fill"
+        case .about: return "info"
         }
     }
+    /// The sections in the sidebar's main tray; About sits in its own at the bottom.
+    static var navigation: [SettingsTab] { allCases.filter { $0 != .about } }
 }
 
+/// The Settings window, laid out as Skreener's: a sidebar (an LCD naming the section, a tray of keys for the
+/// sections, About pinned at the bottom), a groove, and the section's pane.
 struct SettingsView: View {
     @State private var tab: SettingsTab = .general
 
     var body: some View {
-        TabView(selection: $tab) {
-            GeneralSettings(tab: $tab).tabItem { label(.general) }.tag(SettingsTab.general)
-            AppearanceSettings().tabItem { label(.appearance) }.tag(SettingsTab.appearance)
-            MenuBarSettingsView().tabItem { label(.menuBar) }.tag(SettingsTab.menuBar)
-            EventFilterSettingsView().tabItem { label(.events) }.tag(SettingsTab.events)
-            AccountsSettings().tabItem { label(.accounts) }.tag(SettingsTab.accounts)
-            MeetingGuardianSettingsView().tabItem { label(.alerts) }.tag(SettingsTab.alerts)
-            JoinSettingsView().tabItem { label(.joining) }.tag(SettingsTab.joining)
-            SubscriptionSettings().tabItem { label(.pro) }.tag(SettingsTab.pro)
-        }.frame(width: 640, height: 580)
+        HStack(spacing: 0) {
+            SettingsSidebar(selection: $tab)
+            SKGroove(.vertical)
+            pane
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .id(tab)
+        }
+        .frame(width: 780, height: 600)
+        .sk1Chassis()
+        .navigationTitle("Meetball Settings")
     }
 
-    private func label(_ t: SettingsTab) -> some View { Label(t.title, systemImage: t.symbol) }
+    @ViewBuilder private var pane: some View {
+        switch tab {
+        case .general: GeneralSettings(tab: $tab)
+        case .appearance: AppearanceSettings()
+        case .menuBar: MenuBarSettingsView()
+        case .events: EventFilterSettingsView()
+        case .accounts: AccountsSettings()
+        case .alerts: MeetingGuardianSettingsView()
+        case .joining: JoinSettingsView()
+        case .pro: SubscriptionSettings()
+        case .about: AboutSettings()
+        }
+    }
 }
 
 struct GeneralSettings: View {
@@ -124,7 +143,15 @@ struct GeneralSettings: View {
                            stops: [("1 min", 60.0), ("2 min", 120.0), ("5 min", 300.0)], defaultValue: 120.0)
                 }
             }
-            SKGroup(caption: "About") {
+        }
+    }
+}
+
+/// Settings › About: which build is running, to copy into a bug report.
+struct AboutSettings: View {
+    var body: some View {
+        SK1SettingsPane {
+            SKGroup(caption: "Meetball", note: "Copy the version into a bug report so it's clear which build you're running.") {
                 SKRow(title: "Version", subtitle: AppVersion.current.detail) {
                     HStack(spacing: 8) {
                         Text(AppVersion.current.short).font(.system(.body, design: .monospaced)).textSelection(.enabled)
