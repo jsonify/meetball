@@ -21,9 +21,17 @@ Independent implementation; written from observed behavior and public APIs, not 
   Focus break-through (time-sensitive), screen-share suppression (heuristic), quiet hours, sleep/shutdown warning, per-calendar rules
 - Pro tier via StoreKit 2 (soft alerts are free; heads-up/hard/per-calendar rules are Pro)
 - Launch at login, refresh interval, per-account accent color
+- SK-1 look via [SK1Kit](https://github.com/jsonify/SK1Kit) 0.4+ (cream/charcoal chassis, sunken trays, raised keys,
+  olive LCD), laid out after Skreener: the popover is a launcher (an LCD strip that shows the next meeting or the key
+  under the pointer, big Join / Calendar / Refresh tiles, a tray of captioned keys with charcoal Settings and Quit);
+  the main window has captioned key trays (View, Go, New) over an LCD display (the meeting on now or next, and the
+  meetings left today); Settings use knobs and ◀ chip ▶ pickers; the heads-up card is an SK-1 plate with an LCD
+  countdown. The full-screen hard alert keeps its own dark overlay.
 
 ## Build
 Requires Xcode 16+ and XcodeGen.
+SK1Kit (0.4.0 or later) is a Swift package dependency (`packages:` in `project.yml`); Xcode resolves it on first build. To work on
+SK1Kit alongside Meetball, point `project.yml` at a local checkout (`path: ../SK1Kit`) and regenerate.
 ```
 xcodegen generate
 xcodebuild -project Meetball.xcodeproj -scheme Meetball build

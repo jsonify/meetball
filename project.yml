@@ -4,6 +4,10 @@ options:
   xcodeVersion: "16.4"
   deploymentTarget:
     macOS: "15.0"
+packages:
+  SK1Kit:
+    url: https://github.com/jsonify/SK1Kit.git
+    from: 0.4.0
 settings:
   base:
     SWIFT_VERSION: "5.0"
@@ -18,6 +22,11 @@ targets:
     type: application
     platform: macOS
     sources: [Meetball]
+    dependencies:
+      - package: SK1Kit
+        product: SK1Tokens
+      - package: SK1Kit
+        product: SK1UI
     entitlements:
       path: Meetball/Meetball.entitlements
       properties:

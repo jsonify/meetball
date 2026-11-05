@@ -1,5 +1,7 @@
 import SwiftUI
 import AppKit
+import SK1Tokens
+import SK1UI
 
 /// "Upcoming" dashboard: the next meeting front and centre, the rest of today, and the week's meeting load.
 struct UpcomingView: View {
@@ -16,7 +18,7 @@ struct UpcomingView: View {
             let hero = Self.nextToday(events, now: now)
             VStack(spacing: 0) {
                 header(now: now)
-                Divider()
+                SKGroove()
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         if let hero {
@@ -38,14 +40,22 @@ struct UpcomingView: View {
     }
 
     private func header(now: Date) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Upcoming").font(.title2.bold())
-                Text(now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.callout).foregroundStyle(.secondary)
+        VStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("Upcoming").font(.title2.bold())
+                    Text(now, format: .dateTime.weekday(.wide).month(.wide).day()).font(.callout).foregroundStyle(.secondary)
+                }
+                Spacer()
+                SKKeyTray(caption: "Sync") {
+                    Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }
+                        .buttonStyle(.sk1Key()).help("Refresh").accessibilityLabel("Refresh")
+                }
+                SKKeyTray(caption: "New") {
+                    Button(action: onNewEvent) { Label("Event", systemImage: "plus") }.buttonStyle(.sk1Key()).help("New event")
+                }
             }
-            Spacer()
-            Button { store.refresh() } label: { Image(systemName: "arrow.clockwise") }.help("Refresh")
-            Button(action: onNewEvent) { Label("New event", systemImage: "plus") }.buttonStyle(.borderedProminent)
+            MainStatusDisplay(title: "Upcoming", detail: now.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day()))
         }
         .padding(12)
     }
@@ -53,13 +63,14 @@ struct UpcomingView: View {
     @ViewBuilder private func restOfToday(_ events: [CalendarEvent], now: Date, excluding hero: CalendarEvent) -> some View {
         let rest = Self.laterToday(events, now: now).filter { $0.uid != hero.uid }
         if !rest.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Later today").font(.headline)
-                VStack(spacing: 2) {
-                    ForEach(rest, id: \.uid) { e in AgendaRow(event: e, now: now).padding(.horizontal, 8) }
+            VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
+                SKCaption("Later today", tone: .soft)
+                SKWell {
+                    VStack(spacing: 2) {
+                        ForEach(rest, id: \.uid) { e in AgendaRow(event: e, now: now, joinKey: .cream).padding(.horizontal, 8) }
+                    }
+                    .padding(.vertical, 6)
                 }
-                .padding(.vertical, 6)
-                .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
             }
         }
     }
@@ -106,55 +117,42 @@ private struct NextMeetingCard: View {
     private var tint: Color { Color(hex: event.colorHex) }
 
     var body: some View {
-        HStack(alignment: .top, spacing: 20) {
-            CountdownRing(progress: progress, label: ringLabel, caption: inProgress ? "left" : "to go", tint: inProgress ? .red : tint)
-                .frame(width: 110, height: 110)
-            VStack(alignment: .leading, spacing: 10) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(inProgress ? "Happening now" : "Next meeting")
-                        .font(.caption.weight(.semibold)).textCase(.uppercase)
-                        .foregroundStyle(inProgress ? Color.red : Color.secondary)
-                    Text(event.title).font(.title.bold()).lineLimit(2)
-                        .eventDetailOnClick(event, arrowEdge: .bottom)
-                        .help("Show details")
-                    Label("\(timeRange) · \(DurationFormatter.string(from: event.start, to: event.end))", systemImage: "clock")
-                        .font(.callout).foregroundStyle(.secondary)
-                    if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
-                        Label(loc, systemImage: "mappin.and.ellipse").font(.callout).foregroundStyle(.secondary).lineLimit(1)
+        SKWell(radius: SK1.Metrics.plateRadius) {
+            HStack(alignment: .top, spacing: 20) {
+                CountdownLCD(target: inProgress ? event.end : event.start, now: now, inProgress: inProgress)
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Circle().fill(tint).frame(width: 8, height: 8)
+                            SKCaption(inProgress ? "Happening now" : "Next meeting", tone: .soft)
+                        }
+                        Text(event.title).font(.title.bold()).lineLimit(2)
+                            .eventDetailOnClick(event, arrowEdge: .bottom)
+                            .help("Show details")
+                        Label("\(timeRange) · \(DurationFormatter.string(from: event.start, to: event.end))", systemImage: "clock")
+                            .font(.callout).foregroundStyle(.secondary)
+                        if let loc = event.location?.trimmingCharacters(in: .whitespacesAndNewlines), !loc.isEmpty {
+                            Label(loc, systemImage: "mappin.and.ellipse").font(.callout).foregroundStyle(.secondary).lineLimit(1)
+                        }
                     }
-                }
-                if !people.isEmpty { AvatarStack(people: people) }
-                HStack(spacing: 8) {
-                    if event.meetURL != nil { JoinButton(event: event, size: .large) }
-                    if let open = openInCalendar {
-                        Button(open.title, action: open.action).controlSize(.large)
+                    if !people.isEmpty { AvatarStack(people: people) }
+                    HStack(spacing: 8) {
+                        if event.meetURL != nil { JoinButton(event: event, size: .large, key: .orange) }
+                        if let open = openInCalendar {
+                            Button(open.title, action: open.action).buttonStyle(.sk1Key())
+                        }
                     }
+                    alertState
                 }
-                alertState
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
+            .padding(20)
         }
-        .padding(20)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(tint.opacity(0.25)))
         .contextMenu { MeetingSecondaryActions(event: event) }
     }
 
     private var timeRange: String {
         "\(event.start.formatted(date: .omitted, time: .shortened)) – \(event.end.formatted(date: .omitted, time: .shortened))"
-    }
-
-    /// Before the start the ring fills over the last hour; during the meeting it fills with elapsed time.
-    private var progress: Double {
-        if inProgress {
-            let total = event.end.timeIntervalSince(event.start)
-            return total > 0 ? min(1, now.timeIntervalSince(event.start) / total) : 1
-        }
-        return 1 - min(event.start.timeIntervalSince(now), 3600) / 3600
-    }
-
-    private var ringLabel: String {
-        TimeUntilFormatter.string(until: inProgress ? event.end : event.start, now: now)
     }
 
     private var people: [EventAttendee] {
@@ -183,7 +181,7 @@ private struct NextMeetingCard: View {
                 }.joined(separator: ", "))
             }
             if !event.isAllDay && !inProgress {
-                Button(muted ? "Unmute" : "Mute") { guardianStore.setMuted(!muted, for: event) }.buttonStyle(.link)
+                Button(muted ? "Unmute" : "Mute") { guardianStore.setMuted(!muted, for: event) }.buttonStyle(.sk1Key(size: .small))
             }
         }
         .font(.caption).foregroundStyle(.secondary)
@@ -199,27 +197,32 @@ private struct NextMeetingCard: View {
     }
 }
 
-private struct CountdownRing: View {
-    let progress: Double
-    let label: String
-    let caption: String
-    let tint: Color
+/// Time to the start (or, during the meeting, time left) in seven-segment digits on olive LCD glass,
+/// with a teal lamp while waiting and a blinking red one while the meeting is under way.
+private struct CountdownLCD: View {
+    let target: Date
+    let now: Date
+    let inProgress: Bool
 
     var body: some View {
-        ZStack {
-            Circle().stroke(Color.secondary.opacity(0.15), lineWidth: 8)
-            Circle().trim(from: 0, to: max(0.001, progress))
-                .stroke(tint, style: StrokeStyle(lineWidth: 8, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.easeInOut(duration: 0.4), value: progress)
-            VStack(spacing: 0) {
-                Text(label).font(.title2.bold().monospacedDigit()).minimumScaleFactor(0.6).lineLimit(1)
-                Text(caption).font(.caption).foregroundStyle(.secondary)
+        let c = SK1CountdownDigits.compact(target.timeIntervalSince(now))
+        let ink = Color(sk1Hex: SK1.lcdInk)
+        SKLCD {
+            VStack(spacing: 6) {
+                HStack(spacing: 5) {
+                    SKLamp(color: inProgress ? .danger : .success, lit: true, glow: 0, size: 5, blinking: inProgress)
+                    Text(inProgress ? "LEFT" : "TO GO").font(.system(size: 9.5, weight: .heavy)).tracking(1.1).foregroundStyle(ink)
+                    Spacer(minLength: 0)
+                }
+                Spacer(minLength: 0)
+                SKSevenSegment(c.digits, digitHeight: 34, spacing: 3)
+                Text(c.unit).font(.system(size: 9.5, weight: .heavy)).tracking(1.1).foregroundStyle(ink)
             }
-            .padding(12)
+            .padding(10)
         }
+        .frame(width: 130, height: 110)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(label) \(caption)")
+        .accessibilityLabel(Text((inProgress ? "Ends " : "Starts ") + RelativeTimeFormatter.string(for: target, relativeTo: now)))
     }
 }
 
@@ -276,25 +279,25 @@ private struct NoMoreMeetingsView: View {
                 }
             }
             if let preview {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(dayTitle(preview.day)).font(.headline)
-                    VStack(spacing: 2) {
-                        ForEach(preview.events.prefix(6), id: \.uid) { e in AgendaRow(event: e, now: now).padding(.horizontal, 8) }
-                        if preview.events.count > 6 {
-                            Text("+\(preview.events.count - 6) more").font(.caption).foregroundStyle(.secondary)
-                                .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
+                VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
+                    SKCaption(dayTitle(preview.day), tone: .soft)
+                    SKWell {
+                        VStack(spacing: 2) {
+                            ForEach(preview.events.prefix(6), id: \.uid) { e in AgendaRow(event: e, now: now, joinKey: .cream).padding(.horizontal, 8) }
+                            if preview.events.count > 6 {
+                                Text("+\(preview.events.count - 6) more").font(.caption).foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 8)
+                            }
                         }
+                        .padding(.vertical, 6)
                     }
-                    .padding(.vertical, 6)
-                    .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
                 }
             } else {
-                Text("Nothing scheduled in the next few days.").foregroundStyle(.secondary)
+                Text("Nothing scheduled in the next few days.").sk1Hint()
             }
         }
-        .padding(20)
+        .padding(.vertical, 4)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 16))
     }
 
     private func dayTitle(_ d: Date) -> String {
@@ -308,16 +311,16 @@ private struct WeekLoadStrip: View {
     let loads: [DayMeetingLoad]
     let now: Date
     @EnvironmentObject var store: CalendarStore
+    @Environment(\.colorScheme) private var scheme
     private let barHeight: CGFloat = 70
 
     var body: some View {
         let scale = max(6, loads.map(\.hours).max() ?? 0)
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("This week").font(.headline)
+                SKCaption("This week", tone: .soft)
                 Spacer()
-                Text(String(format: "%.1f h in meetings", loads.reduce(0) { $0 + $1.hours }))
-                    .font(.caption).foregroundStyle(.secondary)
+                SKChip(String(format: "%.1f H IN MEETINGS", loads.reduce(0) { $0 + $1.hours }))
             }
             HStack(alignment: .bottom, spacing: 8) {
                 ForEach(loads) { load in
@@ -335,7 +338,7 @@ private struct WeekLoadStrip: View {
             Text(load.hours == 0 ? "–" : String(format: load.hours < 10 ? "%.1fh" : "%.0fh", load.hours))
                 .font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
             ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 4).fill(Color.secondary.opacity(0.1))
+                RoundedRectangle(cornerRadius: 4).fill(Color(sk1Hex: SK1.palette(for: scheme).track))
                 RoundedRectangle(cornerRadius: 4).fill(color(for: load.hours))
                     .frame(height: max(load.hours > 0 ? 3 : 0, barHeight * min(1, load.hours / scale)))
             }
@@ -345,7 +348,7 @@ private struct WeekLoadStrip: View {
                 .font(.caption2.monospacedDigit())
                 .foregroundStyle(isToday ? Color.white : Color.secondary)
                 .frame(width: 20, height: 20)
-                .background(isToday ? Color.accentColor : .clear, in: Circle())
+                .background(isToday ? Color(sk1Hex: SK1.orange) : .clear, in: Circle())
         }
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
@@ -355,9 +358,9 @@ private struct WeekLoadStrip: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    /// Green under 3 h, orange under 5 h, red beyond.
+    /// The SK-1 lamp colours: teal under 3 h, amber under 5 h, red beyond.
     private func color(for hours: Double) -> Color {
-        hours < 3 ? .green.opacity(0.7) : hours < 5 ? .orange.opacity(0.8) : .red.opacity(0.8)
+        Color(sk1Hex: hours < 3 ? SK1.teal : hours < 5 ? SK1.amber : SK1.recRed)
     }
 
     private func open(_ day: Date) {

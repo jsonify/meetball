@@ -22,6 +22,45 @@ public struct TimeUntilFormatter {
     }
 }
 
+/// Countdown digits for a seven-segment LCD, at minute resolution (the popover refreshes every 15 s):
+/// "42" MIN under an hour, "1:05" HR under a day, then "3" DAYS.
+public enum SK1CountdownDigits {
+    public static func compact(_ interval: TimeInterval) -> (digits: String, unit: String) {
+        let mins = max(1, Int((interval / 60).rounded(.up)))
+        if mins < 60 { return ("\(mins)", "MIN") }
+        if mins < 24 * 60 { return (String(format: "%d:%02d", mins / 60, mins % 60), "HR") }
+        let days = mins / (24 * 60)
+        return ("\(days)", days == 1 ? "DAY" : "DAYS")
+    }
+}
+
+/// What the SK-1 LCDs say about the meeting in progress or the next one (popover strip, main window display).
+public enum MeetingStatusText {
+    /// The meeting the LCDs talk about: the one in progress, else the next within a week.
+    static func current(_ events: [CalendarEvent], now: Date) -> CalendarEvent? {
+        MenuAgendaBuilder.hero(events, now: now, horizon: 7 * 86400)
+    }
+
+    /// The popover strip's detail: "NOW · 20M LEFT", "NEXT IN 1H 5M", or "NO MEETINGS AHEAD"; `live` while one is on.
+    public static func strip(_ events: [CalendarEvent], now: Date) -> (detail: String, live: Bool) {
+        guard let e = current(events, now: now) else { return ("NO MEETINGS AHEAD", false) }
+        if e.start <= now { return ("NOW · \(TimeUntilFormatter.string(until: e.end, now: now).uppercased()) LEFT", true) }
+        return ("NEXT IN \(TimeUntilFormatter.string(until: e.start, now: now).uppercased())", false)
+    }
+
+    /// The main window display's line: "Standup · 20m left", "Standup · in 1h 5m", or "No meetings ahead".
+    public static func line(_ events: [CalendarEvent], now: Date) -> (message: String, live: Bool) {
+        guard let e = current(events, now: now) else { return ("No meetings ahead", false) }
+        if e.start <= now { return ("\(e.title) · \(TimeUntilFormatter.string(until: e.end, now: now)) left", true) }
+        return ("\(e.title) · in \(TimeUntilFormatter.string(until: e.start, now: now))", false)
+    }
+
+    /// Timed, not-declined meetings today that haven't ended.
+    public static func remainingToday(_ events: [CalendarEvent], now: Date, calendar: Calendar = .current) -> Int {
+        events.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now && calendar.isDate($0.start, inSameDayAs: now) }.count
+    }
+}
+
 public struct NewEventDateRange: Equatable {
     public var start: Date
     public var end: Date
