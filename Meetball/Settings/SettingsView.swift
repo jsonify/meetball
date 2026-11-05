@@ -119,9 +119,21 @@ struct GeneralSettings: View {
                 }
             }
             SKGroup(caption: "Sync") {
-                SKRow(title: "Refresh Google Calendar", subtitle: "How often Meetball checks Google Calendar for changes.") {
-                    SKKnob("Refresh Google Calendar", selection: $refresh,
+                SKRow(title: "Refresh calendars", subtitle: "How often Meetball checks Google Calendar and asks Calendar.app to sync its accounts.") {
+                    SKKnob("Refresh calendars", selection: $refresh,
                            stops: [("1 min", 60.0), ("2 min", 120.0), ("5 min", 300.0)], defaultValue: 120.0)
+                }
+            }
+            SKGroup(caption: "About") {
+                SKRow(title: "Version", subtitle: AppVersion.current.detail) {
+                    HStack(spacing: 8) {
+                        Text(AppVersion.current.short).font(.system(.body, design: .monospaced)).textSelection(.enabled)
+                        Button("Copy") {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(AppVersion.current.full, forType: .string)
+                        }
+                        .buttonStyle(.sk1Key(size: .small))
+                    }
                 }
             }
         }

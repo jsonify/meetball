@@ -31,11 +31,19 @@ if [ "$universal" = 1 ]; then
   arch_args=(-destination 'generic/platform=macOS' ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO)
 fi
 
+# Stamp the build so Settings › General and About Meetball say exactly which one is running: the build number is the
+# commit count, plus the short hash ("-dirty" when there are uncommitted changes) and the build time.
+build_number=$(git rev-list --count HEAD 2>/dev/null || echo 1)
+commit=$(git rev-parse --short HEAD 2>/dev/null || echo unknown)
+if ! git diff --quiet HEAD -- 2>/dev/null; then commit="$commit-dirty"; fi
+build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+version_args=(CURRENT_PROJECT_VERSION="$build_number" MEETBALL_COMMIT="$commit" MEETBALL_BUILD_DATE="$build_date")
+
 mkdir -p build
 log=build/dist.log
 echo "==> Building Release (log: $log)"
 if ! xcodebuild -project Meetball.xcodeproj -scheme Meetball -configuration Release \
-    ${arch_args[@]+"${arch_args[@]}"} \
+    ${arch_args[@]+"${arch_args[@]}"} "${version_args[@]}" \
     -allowProvisioningUpdates -derivedDataPath build/DerivedData build >"$log" 2>&1; then
   grep -E "error:|BUILD FAILED" "$log" | tail -20 >&2 || tail -20 "$log" >&2
   echo "Build failed. Full log: $log" >&2
@@ -45,7 +53,7 @@ fi
 app=dist/Meetball.app
 rm -rf dist && mkdir dist
 ditto build/DerivedData/Build/Products/Release/Meetball.app "$app"
-echo "==> Built $(pwd)/$app ($(lipo -archs "$app/Contents/MacOS/Meetball"))"
+echo "==> Built $(pwd)/$app (build $build_number, $commit, $(lipo -archs "$app/Contents/MacOS/Meetball"))"
 
 if [ "$install" = 1 ]; then
   pkill -x Meetball 2>/dev/null && sleep 1 || true
