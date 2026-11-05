@@ -14,6 +14,16 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(TimeUntilFormatter.string(until: now.addingTimeInterval(4800), now: now), "1h 20m")
     }
 
+    func testSK1CountdownDigits() {
+        XCTAssertTrue(SK1CountdownDigits.compact(-30) == ("1", "MIN"))
+        XCTAssertTrue(SK1CountdownDigits.compact(61) == ("2", "MIN"))
+        XCTAssertTrue(SK1CountdownDigits.compact(59 * 60) == ("59", "MIN"))
+        XCTAssertTrue(SK1CountdownDigits.compact(65 * 60) == ("1:05", "HR"))
+        XCTAssertTrue(SK1CountdownDigits.compact(24 * 3600 - 60) == ("23:59", "HR"))
+        XCTAssertTrue(SK1CountdownDigits.compact(24 * 3600) == ("1", "DAY"))
+        XCTAssertTrue(SK1CountdownDigits.compact(3 * 24 * 3600 + 5) == ("3", "DAYS"))
+    }
+
     func testMultiDayEventSplitsIntoSegments() {
         let d0 = cal.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 22))!
         let d1 = cal.date(from: DateComponents(year: 2026, month: 3, day: 12, hour: 2))!

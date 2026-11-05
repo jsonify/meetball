@@ -1,4 +1,6 @@
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
 /// Countdown text used by the alert overlays.
 public enum AlertCountdown {
@@ -27,7 +29,7 @@ private func timeRange(_ e: CalendarEvent) -> String {
 
 // MARK: - Heads-up card
 
-/// Non-intrusive card in the top-right corner: calendar colour accent, live countdown, Join / Snooze / Dismiss.
+/// Non-intrusive card in the top-right corner, on an SK-1 plate: calendar colour accent, LCD countdown, Join / Snooze / Dismiss.
 struct HeadsUpAlertCard: View {
     enum Mode { case upcoming, stillJoining }
 
@@ -52,17 +54,14 @@ struct HeadsUpAlertCard: View {
     private func card(now: Date) -> some View {
         HStack(spacing: 0) {
             Rectangle().fill(accent).frame(width: 5)
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 6) {
-                    Image(systemName: mode == .stillJoining ? "person.badge.clock" : "bell.badge.fill").foregroundStyle(accent)
-                    Text(header(now: now)).font(.caption.weight(.semibold)).monospacedDigit().foregroundStyle(.secondary)
-                    Spacer()
-                    Button(action: actions.dismiss) {
-                        Image(systemName: "xmark").font(.caption.weight(.bold)).frame(width: 18, height: 18)
-                    }
-                    .buttonStyle(.plain).foregroundStyle(.secondary)
-                    .keyboardShortcut(.cancelAction)
-                    .help("Dismiss (Esc)")
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    lcd(now: now)
+                    Button(action: actions.dismiss) { Image(systemName: "xmark") }
+                        .buttonStyle(.sk1Key(.round, size: .small))
+                        .keyboardShortcut(.cancelAction)
+                        .help("Dismiss (Esc)")
+                        .accessibilityLabel("Dismiss")
                 }
                 Text(event.title).font(.headline).lineLimit(2)
                 HStack(spacing: 8) {
@@ -73,7 +72,7 @@ struct HeadsUpAlertCard: View {
                 }
                 .font(.caption).foregroundStyle(.secondary)
                 HStack(spacing: 8) {
-                    JoinButton(event: event, action: actions.join).keyboardShortcut(.defaultAction)
+                    JoinButton(event: event, key: .orange, action: actions.join).keyboardShortcut(.defaultAction)
                     switch mode {
                     case .upcoming:
                         Menu("Snooze") {
@@ -82,19 +81,34 @@ struct HeadsUpAlertCard: View {
                             }
                         }
                         .menuStyle(.borderlessButton).fixedSize()
-                        Button("Dismiss", action: actions.dismiss)
+                        Button("Dismiss", action: actions.dismiss).buttonStyle(.sk1Key())
                     case .stillJoining:
-                        Button("I'm not joining", action: actions.notJoining)
+                        Button("I'm not joining", action: actions.notJoining).buttonStyle(.sk1Key())
                     }
                 }
-                .controlSize(.regular)
             }
             .padding(14)
         }
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(accent.opacity(0.35)))
+        .background(SKPlate { Color.clear })
+        .clipShape(RoundedRectangle(cornerRadius: SK1.Metrics.plateRadius, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 14, y: 6)
+    }
+
+    /// Seven-segment countdown before the start; after it, short text ("NOW", "3 MIN AGO") with a blinking red lamp.
+    private func lcd(now: Date) -> some View {
+        let clock = AlertCountdown.clock(until: event.start, now: now)
+        let upcoming = event.start > now
+        let caption: String
+        switch mode {
+        case .stillJoining: caption = "Still joining?"
+        case .upcoming: caption = AlertCountdown.caption(until: event.start, now: now)
+        }
+        return SK1CountdownLCD(caption: caption,
+                               digits: upcoming ? clock : nil,
+                               text: upcoming ? nil : clock,
+                               live: !upcoming,
+                               height: 36,
+                               accessibilityText: header(now: now))
     }
 
     private func header(now: Date) -> String {

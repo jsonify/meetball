@@ -1,6 +1,8 @@
 import SwiftUI
+import SK1Tokens
+import SK1UI
 
-/// Menu bar popover: mini month, hero card for the next meeting, agenda grouped by day with a "now" line.
+/// Menu bar popover (SK-1 look): mini month, hero card for the next meeting, agenda grouped by day with a "now" line.
 struct MenuBarContent: View {
     @EnvironmentObject var model: AppModel
     @EnvironmentObject var session: SessionManager
@@ -22,17 +24,18 @@ struct MenuBarContent: View {
             } else {
                 MiniMonthView(month: $month, selection: $scopedDay, dots: dots)
                     .padding(.horizontal, 12).padding(.top, 12).padding(.bottom, 8)
-                Divider()
+                SKGroove()
                 ScrollView {
                     agenda
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                 }
                 .frame(height: min(max(contentHeight, 60), maxScrollHeight))
             }
-            Divider()
+            SKGroove()
             footer
         }
         .frame(width: 360)
+        .sk1Chassis()
         .environment(\.eventFilterSettings, calendar.filters)
         .onChange(of: month) { _, m in calendar.setMenuAnchor(m) }
     }
@@ -47,8 +50,8 @@ struct MenuBarContent: View {
         VStack(spacing: 10) {
             Image(systemName: "calendar.badge.plus").font(.system(size: 28)).foregroundStyle(.secondary)
             Text("Connect a calendar").font(.headline)
-            Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.borderedProminent)
-            Button("Use Apple Calendar") { Task { await calendar.enableApple() } }
+            Button("Sign in with Google") { Task { await session.addAccount() } }.buttonStyle(.sk1Key(.orange))
+            Button("Use Apple Calendar") { Task { await calendar.enableApple() } }.buttonStyle(.sk1Key())
         }
         .frame(maxWidth: .infinity).padding(20)
     }
@@ -83,37 +86,42 @@ struct MenuBarContent: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 4) {
-            FooterIconButton(symbol: "macwindow", help: "Open Meetball (⌘O)") {
-                openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
-            }.keyboardShortcut("o")
-            FooterIconButton(symbol: "arrow.clockwise", help: "Refresh (⌘R)") { calendar.refresh() }.keyboardShortcut("r")
-            FooterIconButton(symbol: "gearshape", help: "Settings (⌘,)") {
-                openSettings(); NSApp.activate(ignoringOtherApps: true)
-            }.keyboardShortcut(",")
+        HStack(spacing: 8) {
+            SKKeyTray {
+                FooterKey(symbol: "macwindow", help: "Open Meetball (⌘O)") {
+                    openWindow(id: "main"); NSApp.activate(ignoringOtherApps: true)
+                }.keyboardShortcut("o")
+                FooterKey(symbol: "arrow.clockwise", help: "Refresh (⌘R)") { calendar.refresh() }.keyboardShortcut("r")
+                FooterKey(symbol: "gearshape", help: "Settings (⌘,)") {
+                    openSettings(); NSApp.activate(ignoringOtherApps: true)
+                }.keyboardShortcut(",")
+            }
             Spacer()
             if let k = join.hotKey {
-                Text("\(k.display) join").font(.caption2).foregroundStyle(.tertiary)
-                    .help("Press \(k.display) anywhere to join the nearest meeting")
+                HStack(spacing: 5) {
+                    SKCaption("Join", tone: .soft)
+                    SKChip(k.display)
+                }
+                .help("Press \(k.display) anywhere to join the nearest meeting")
             }
-            FooterIconButton(symbol: "power", help: "Quit Meetball (⌘Q)") { NSApp.terminate(nil) }.keyboardShortcut("q")
+            // The charcoal key: an action apart from the rest.
+            FooterKey(symbol: "power", help: "Quit Meetball (⌘Q)", variant: .charcoal) { NSApp.terminate(nil) }
+                .keyboardShortcut("q")
         }
-        .padding(.horizontal, 8).padding(.vertical, 6)
+        .padding(.horizontal, 10).padding(.vertical, 8)
     }
 }
 
-private struct FooterIconButton: View {
-    let symbol: String; let help: String; let action: () -> Void
-    @State private var hovering = false
+/// A symbol-only SK-1 key for the popover's footer.
+private struct FooterKey: View {
+    let symbol: String; let help: String
+    var variant: SK1KeyVariant = .cream
+    let action: () -> Void
     var body: some View {
-        Button(action: action) {
-            Image(systemName: symbol).font(.system(size: 13, weight: .medium))
-                .frame(width: 28, height: 24)
-                .background(hovering ? Color.primary.opacity(0.08) : .clear, in: RoundedRectangle(cornerRadius: 6))
-        }
-        .buttonStyle(.plain).foregroundStyle(.secondary)
-        .onHover { hovering = $0 }
-        .help(help)
+        Button(action: action) { Image(systemName: symbol) }
+            .buttonStyle(.sk1Key(variant))
+            .help(help)
+            .accessibilityLabel(Text(help))
     }
 }
 
@@ -134,10 +142,11 @@ struct MiniMonthView: View {
             HStack(spacing: 2) {
                 Text(month, format: .dateTime.month(.wide).year()).font(.headline)
                 Spacer()
-                navButton("chevron.left", help: "Previous month") { shift(-1) }
-                Button("Today") { month = Date(); selection = nil }
-                    .buttonStyle(.plain).font(.caption.weight(.medium)).foregroundStyle(.secondary).padding(.horizontal, 4)
-                navButton("chevron.right", help: "Next month") { shift(1) }
+                HStack(spacing: 4) {
+                    navButton("chevron.left", help: "Previous month") { shift(-1) }
+                    Button("Today") { month = Date(); selection = nil }.buttonStyle(.sk1Key(size: .small))
+                    navButton("chevron.right", help: "Next month") { shift(1) }
+                }
             }
             Grid(horizontalSpacing: 0, verticalSpacing: 2) {
                 GridRow {
@@ -174,8 +183,9 @@ struct MiniMonthView: View {
                     .foregroundStyle(isToday ? Color.white : (inMonth ? Color.primary : Color.secondary.opacity(0.6)))
                     .frame(width: 22, height: 22)
                     .background {
-                        if isToday { Circle().fill(Color.accentColor) }
-                        else if isSelected { Circle().fill(Color.accentColor.opacity(0.22)) }
+                        // Orange marks what is "on": today, and (fainter) the scoped day.
+                        if isToday { Circle().fill(Color(sk1Hex: SK1.orange)) }
+                        else if isSelected { Circle().fill(Color(sk1Hex: SK1.orange, opacity: 0.22)) }
                     }
                 HStack(spacing: 2) {
                     ForEach(dots[cal.startOfDay(for: day)] ?? [], id: \.self) { hex in
@@ -190,8 +200,8 @@ struct MiniMonthView: View {
     }
 
     private func navButton(_ symbol: String, help: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) { Image(systemName: symbol).font(.caption.weight(.semibold)).frame(width: 22, height: 22) }
-            .buttonStyle(.plain).foregroundStyle(.secondary).help(help)
+        Button(action: action) { Image(systemName: symbol) }
+            .buttonStyle(.sk1Key(.round, size: .small)).help(help).accessibilityLabel(Text(help))
     }
 
     private func shift(_ n: Int) {
@@ -199,41 +209,43 @@ struct MiniMonthView: View {
     }
 }
 
-/// The next / in-progress meeting: title, time, countdown and a big Join button.
+/// The next / in-progress meeting in a sunken tray: an LCD countdown, title, time, and the orange Join key.
 struct HeroMeetingCard: View {
     let event: CalendarEvent
     let now: Date
 
     var body: some View {
         let inProgress = event.start <= now
-        VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                Circle().fill(inProgress ? Color.red : Color(hex: event.colorHex)).frame(width: 7, height: 7)
-                Text(inProgress ? "Now · ends in \(TimeUntilFormatter.string(until: event.end, now: now))"
-                                : "Starts in \(TimeUntilFormatter.string(until: event.start, now: now))")
-                    .font(.caption.weight(.semibold)).foregroundStyle(inProgress ? Color.red : Color.secondary)
-                Spacer()
-            }
-            Text(event.title).font(.title3.bold()).lineLimit(2)
-            HStack(spacing: 10) {
-                Label(timeRange, systemImage: "clock")
-                if !event.attendees.isEmpty {
-                    Label("\(event.attendees.count)", systemImage: "person.2").help("\(event.attendees.count) attendees")
+        let target = inProgress ? event.end : event.start
+        let countdown = SK1CountdownDigits.compact(target.timeIntervalSince(now))
+        SKWell {
+            VStack(alignment: .leading, spacing: 8) {
+                SK1CountdownLCD(caption: inProgress ? "Now · ends in" : "Starts in",
+                                digits: countdown.digits, unit: countdown.unit, live: inProgress,
+                                accessibilityText: (inProgress ? "In progress, ends " : "Starts ")
+                                    + RelativeTimeFormatter.string(for: target, relativeTo: now))
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Circle().fill(Color(hex: event.colorHex)).frame(width: 7, height: 7)
+                    Text(event.title).font(.title3.bold()).lineLimit(2)
+                }
+                HStack(spacing: 10) {
+                    Label(timeRange, systemImage: "clock")
+                    if !event.attendees.isEmpty {
+                        Label("\(event.attendees.count)", systemImage: "person.2").help("\(event.attendees.count) attendees")
+                    }
+                }
+                .font(.caption).foregroundStyle(.secondary)
+                if let loc = event.location, !loc.isEmpty {
+                    Label(loc, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                }
+                if event.meetURL != nil {
+                    JoinButton(event: event, size: .large, fillsWidth: true, key: .orange)
+                } else {
+                    Text("No video link").sk1Hint()
                 }
             }
-            .font(.caption).foregroundStyle(.secondary)
-            if let loc = event.location, !loc.isEmpty {
-                Label(loc, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary).lineLimit(1)
-            }
-            if event.meetURL != nil {
-                JoinButton(event: event, size: .large, fillsWidth: true)
-            } else {
-                Text("No video link").font(.caption).foregroundStyle(.tertiary)
-            }
+            .padding(10)
         }
-        .padding(12)
-        .background(Color(hex: event.colorHex).opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Color(hex: event.colorHex).opacity(0.25)))
         .eventDetailOnClick(event, arrowEdge: .leading)
         .contextMenu { MeetingSecondaryActions(event: event) }
     }
@@ -254,7 +266,7 @@ struct AgendaDaySection: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             if showHeader {
-                Text(title).font(.caption.weight(.semibold)).foregroundStyle(.secondary).textCase(.uppercase)
+                SKCaption(title, tone: .soft)
             }
             if !group.allDay.isEmpty {
                 FlowWrap(spacing: 4) {
@@ -270,7 +282,7 @@ struct AgendaDaySection: View {
             }
             ForEach(Array(group.timed.enumerated()), id: \.element.uid) { i, e in
                 if group.nowLineIndex == i { NowLine(now: now) }
-                AgendaRow(event: e, now: now)
+                AgendaRow(event: e, now: now, joinKey: .cream)
             }
             if let n = group.nowLineIndex, n == group.timed.count, !group.timed.isEmpty { NowLine(now: now) }
         }
@@ -288,9 +300,10 @@ private struct NowLine: View {
     let now: Date
     var body: some View {
         HStack(spacing: 4) {
-            Circle().fill(Color.red).frame(width: 6, height: 6)
-            Rectangle().fill(Color.red).frame(height: 1)
-            Text(now.formatted(date: .omitted, time: .shortened)).font(.caption2.monospacedDigit()).foregroundStyle(.red)
+            let red = Color(sk1Hex: SK1.recRed)
+            Circle().fill(red).frame(width: 6, height: 6)
+            Rectangle().fill(red).frame(height: 1)
+            Text(now.formatted(date: .omitted, time: .shortened)).font(.caption2.monospacedDigit()).foregroundStyle(red)
         }
         .padding(.vertical, 2)
         .accessibilityLabel("Now")
@@ -300,6 +313,8 @@ private struct NowLine: View {
 struct AgendaRow: View {
     let event: CalendarEvent
     let now: Date
+    /// SK-1 key for the Join button (the popover); nil keeps the native button (main window).
+    var joinKey: SK1KeyVariant?
     @Environment(\.eventFilterSettings) private var filters
 
     private var tentativeDimmed: Bool { filters.map { EventFilter.isDimmed(event, settings: $0) } ?? false }
@@ -323,7 +338,7 @@ struct AgendaRow: View {
                 .font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
             Spacer(minLength: 4)
-            if !ended && !event.isDeclined { JoinButton(event: event, size: .small) }
+            if !ended && !event.isDeclined { JoinButton(event: event, size: .small, key: joinKey) }
         }
         .padding(.vertical, 2)
         .opacity(ended || event.isDeclined || tentativeDimmed ? 0.5 : 1)

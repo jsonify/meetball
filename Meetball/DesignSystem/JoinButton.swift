@@ -1,4 +1,5 @@
 import SwiftUI
+import SK1UI
 
 /// The one Join button used everywhere (menu bar, day list, time grid, alerts).
 /// Shows the service's colour + name, and opens the link according to the user's per-service preference.
@@ -8,30 +9,46 @@ struct JoinButton: View {
     let event: CalendarEvent
     var size: Size = .regular
     var fillsWidth = false
+    /// Draws the button as an SK-1 key (popover, heads-up card) instead of the native prominent button.
+    var key: SK1KeyVariant?
     /// Overrides the default open behaviour (alerts use this to also record "joined" and dismiss).
     var action: (() -> Void)?
 
     var body: some View {
         if let url = event.meetURL {
             let service = MeetingService.detect(url)
-            Button {
+            let button = Button {
                 if let action { action() } else { MeetingJoiner.join(url) }
             } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: service.symbol)
-                    Text(size == .small ? "Join" : (service == .other ? "Join" : "Join \(service.shortName)"))
+                if key != nil {
+                    Label(title(service), systemImage: service.symbol)
+                        .frame(maxWidth: fillsWidth ? .infinity : nil)
+                } else {
+                    HStack(spacing: 6) {
+                        Image(systemName: service.symbol)
+                        Text(title(service))
+                    }
+                    .font(font)
+                    .padding(.horizontal, size == .large ? 12 : 0)
+                    .padding(.vertical, size == .large ? 4 : 0)
+                    .frame(maxWidth: fillsWidth ? .infinity : nil)
                 }
-                .font(font)
-                .padding(.horizontal, size == .large ? 12 : 0)
-                .padding(.vertical, size == .large ? 4 : 0)
-                .frame(maxWidth: fillsWidth ? .infinity : nil)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(service.tint)
-            .controlSize(controlSize)
+            Group {
+                if let key {
+                    // SK-1 keys come in two sizes on the Mac; the large (56 pt) one is for iOS.
+                    button.buttonStyle(.sk1Key(key, size: size == .small ? .small : .regular))
+                } else {
+                    button.buttonStyle(.borderedProminent).tint(service.tint).controlSize(controlSize)
+                }
+            }
             .help("Join on \(service.displayName)")
             .contextMenu { MeetingSecondaryActions(event: event, includeJoin: false) }
         }
+    }
+
+    private func title(_ service: MeetingService) -> String {
+        size == .small ? "Join" : (service == .other ? "Join" : "Join \(service.shortName)")
     }
 
     private var font: Font {

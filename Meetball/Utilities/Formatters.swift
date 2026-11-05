@@ -22,6 +22,18 @@ public struct TimeUntilFormatter {
     }
 }
 
+/// Countdown digits for a seven-segment LCD, at minute resolution (the popover refreshes every 15 s):
+/// "42" MIN under an hour, "1:05" HR under a day, then "3" DAYS.
+public enum SK1CountdownDigits {
+    public static func compact(_ interval: TimeInterval) -> (digits: String, unit: String) {
+        let mins = max(1, Int((interval / 60).rounded(.up)))
+        if mins < 60 { return ("\(mins)", "MIN") }
+        if mins < 24 * 60 { return (String(format: "%d:%02d", mins / 60, mins % 60), "HR") }
+        let days = mins / (24 * 60)
+        return ("\(days)", days == 1 ? "DAY" : "DAYS")
+    }
+}
+
 public struct NewEventDateRange: Equatable {
     public var start: Date
     public var end: Date

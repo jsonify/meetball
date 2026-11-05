@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		10C9F5CD162515E79F49BA2B /* SK1Bridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0D2BBFF26F257BDDE2302A0 /* SK1Bridge.swift */; };
+		663D02E0D9728374123C316E /* SK1Tokens in Frameworks */ = {isa = PBXBuildFile; productRef = 1945594868575EE999DCCC62 /* SK1Tokens */; };
+		2D43927AFAB8F2E90132CC05 /* SK1UI in Frameworks */ = {isa = PBXBuildFile; productRef = 0AD9BFDA91312DFC6359634A /* SK1UI */; };
 		0573F7A63F360E72C820750C /* TimeGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72464D3D6CFFA8A104CA6BFF /* TimeGridView.swift */; };
 		5C4372656E52F71E4E98E625 /* TimeGridLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1E75BF501DE17E5E005D50D0 /* TimeGridLayout.swift */; };
 		6F0D646FFD81F9A79BFCA0DA /* MenuBarViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD098851D5D05244273C8B4E /* MenuBarViews.swift */; };
@@ -59,6 +62,7 @@
 		72464D3D6CFFA8A104CA6BFF /* TimeGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeGridView.swift; sourceTree = "<group>"; };
 		1E75BF501DE17E5E005D50D0 /* TimeGridLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeGridLayout.swift; sourceTree = "<group>"; };
 		CD098851D5D05244273C8B4E /* MenuBarViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarViews.swift; sourceTree = "<group>"; };
+		E0D2BBFF26F257BDDE2302A0 /* SK1Bridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SK1Bridge.swift; sourceTree = "<group>"; };
 		24D45F191F1EEF60C1EEB5AE /* JoinButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JoinButton.swift; sourceTree = "<group>"; };
 		CDCE8F29957132C3E431408A /* GlobalHotKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GlobalHotKey.swift; sourceTree = "<group>"; };
 		CD2DC0F2F97E7B08DA94C8A7 /* MeetingJoin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingJoin.swift; sourceTree = "<group>"; };
@@ -98,6 +102,18 @@
 		171A447A0837120E4D502060 /* AlertPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertPolicy.swift; sourceTree = "<group>"; };
 		F1A3C0341D3D29C34932CD71 /* AlertPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlertPolicyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		8BCB694459113062FEE5B99B /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				663D02E0D9728374123C316E /* SK1Tokens in Frameworks */,
+				2D43927AFAB8F2E90132CC05 /* SK1UI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
 		414803E5FF7504E226E72BA6 /* MeetingGuardian */ = {
@@ -209,6 +225,7 @@
 			children = (
 				63ED11C391E98AF43533B39D /* Components.swift */,
 				24D45F191F1EEF60C1EEB5AE /* JoinButton.swift */,
+				E0D2BBFF26F257BDDE2302A0 /* SK1Bridge.swift */,
 			);
 			path = DesignSystem;
 			sourceTree = "<group>";
@@ -259,6 +276,7 @@
 			buildConfigurationList = E167677CF3F6FD6AC90946DB /* Build configuration list for PBXNativeTarget "Meetball" */;
 			buildPhases = (
 				CB70B20B538D79EE8149E776 /* Sources */,
+				8BCB694459113062FEE5B99B /* Frameworks */,
 			);
 			buildRules = (
 			);
@@ -266,6 +284,8 @@
 			);
 			name = Meetball;
 			packageProductDependencies = (
+				1945594868575EE999DCCC62 /* SK1Tokens */,
+				0AD9BFDA91312DFC6359634A /* SK1UI */,
 			);
 			productName = Meetball;
 			productReference = 0218A00DA0BAF28D44521AD6 /* Meetball.app */;
@@ -317,6 +337,9 @@
 			);
 			mainGroup = 635D58F4560E5A93E7885FCC;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				45E861490107177E36871FFB /* XCRemoteSwiftPackageReference "SK1Kit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = FEC4BCF694990F2115DB82F8 /* Products */;
 			projectDirPath = "";
@@ -354,6 +377,7 @@
 				AACB4A5E4D093FD84B57C354 /* CalendarViews.swift in Sources */,
 				CDA279E21A11B65157D4A238 /* Components.swift in Sources */,
 				812CA44124881A0C8A7D01DE /* JoinButton.swift in Sources */,
+				10C9F5CD162515E79F49BA2B /* SK1Bridge.swift in Sources */,
 				9A0F4A098A27617056BC4BCD /* Formatters.swift in Sources */,
 				46EFA4E03CC4F68B505EA67F /* GlobalHotKey.swift in Sources */,
 				6ECA0C6AE73F75E2A0302112 /* MeetingJoin.swift in Sources */,
@@ -640,6 +664,30 @@
 			defaultConfigurationName = Debug;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		45E861490107177E36871FFB /* XCRemoteSwiftPackageReference "SK1Kit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/jsonify/SK1Kit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.3.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		1945594868575EE999DCCC62 /* SK1Tokens */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45E861490107177E36871FFB /* XCRemoteSwiftPackageReference "SK1Kit" */;
+			productName = SK1Tokens;
+		};
+		0AD9BFDA91312DFC6359634A /* SK1UI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 45E861490107177E36871FFB /* XCRemoteSwiftPackageReference "SK1Kit" */;
+			productName = SK1UI;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 8F117615CEFEBB51C50EAEEA /* Project object */;
 }

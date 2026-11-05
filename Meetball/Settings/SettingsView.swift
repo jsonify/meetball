@@ -1,16 +1,18 @@
 import SwiftUI
 import ServiceManagement
+import SK1UI
 
 struct SettingsView: View {
     var body: some View {
         TabView {
             GeneralSettings().tabItem { Label("General", systemImage: "gearshape") }
             MenuBarSettingsView().tabItem { Label("Menu Bar", systemImage: "menubar.rectangle") }
-            EventFilterSettingsView().tabItem { Label("Events", systemImage: "line.3.horizontal.decrease.circle") }
-            AccountsSettings().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
-            MeetingGuardianSettingsView().tabItem { Label("Alerts", systemImage: "bell.badge") }
+            // Tabs not yet built from SK-1 groups keep their grouped Form, shown on the chassis.
+            EventFilterSettingsView().sk1FormChassis().tabItem { Label("Events", systemImage: "line.3.horizontal.decrease.circle") }
+            AccountsSettings().sk1Chassis().tabItem { Label("Accounts", systemImage: "person.crop.circle") }
+            MeetingGuardianSettingsView().sk1FormChassis().tabItem { Label("Alerts", systemImage: "bell.badge") }
             JoinSettingsView().tabItem { Label("Joining", systemImage: "video") }
-            SubscriptionSettings().tabItem { Label("Pro", systemImage: "star") }
+            SubscriptionSettings().sk1FormChassis().tabItem { Label("Pro", systemImage: "star") }
         }.frame(width: 620, height: 560)
     }
 }
@@ -19,20 +21,24 @@ struct GeneralSettings: View {
     @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
     @AppStorage("refreshIntervalSeconds") private var refresh: Double = 120
     var body: some View {
-        Form {
-            Section("App") {
-                Toggle("Launch at Login", isOn: $launchAtLogin).onChange(of: launchAtLogin) { _, on in
-                    do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { launchAtLogin.toggle() }
+        SK1SettingsPane {
+            SKGroup(caption: "App") {
+                SKRow(title: "Launch at login", subtitle: "Open Meetball automatically when you sign in to your Mac.") {
+                    Toggle("Launch at login", isOn: $launchAtLogin).toggleStyle(.sk1Switch)
+                        .onChange(of: launchAtLogin) { _, on in
+                            do { if on { try SMAppService.mainApp.register() } else { try SMAppService.mainApp.unregister() } } catch { launchAtLogin.toggle() }
+                        }
                 }
-                Text("Choose whether Meetball should launch automatically when you sign in to your Mac.").font(.caption).foregroundStyle(.secondary)
             }
-            Section("Sync") {
-                Picker("Refresh Google Calendar", selection: $refresh) {
-                    Text("Every minute").tag(60.0); Text("Every 2 minutes").tag(120.0); Text("Every 5 minutes").tag(300.0)
+            SKGroup(caption: "Sync") {
+                SKRow(title: "Refresh Google Calendar", subtitle: "How often Meetball checks Google Calendar for changes.") {
+                    Picker("Refresh Google Calendar", selection: $refresh) {
+                        Text("Every minute").tag(60.0); Text("Every 2 minutes").tag(120.0); Text("Every 5 minutes").tag(300.0)
+                    }
+                    .labelsHidden().fixedSize()
                 }
-                Text("Control how Meetball refreshes Google Calendar changes.").font(.caption).foregroundStyle(.secondary)
             }
-        }.formStyle(.grouped)
+        }
     }
 }
 
@@ -84,32 +90,36 @@ struct JoinSettingsView: View {
     private let prefs = JoinPreferences()
 
     var body: some View {
-        Form {
-            Section("Shortcut") {
-                LabeledContent("Join nearest meeting") { HotKeyRecorder() }
-                if join.registrationFailed {
-                    Text("That shortcut is already used by another app. Pick a different one.").font(.caption).foregroundStyle(.red)
+        SK1SettingsPane {
+            SKGroup(caption: "Shortcut",
+                    note: "Works from anywhere. Joins the meeting in progress, or the next one starting within the look-ahead window.") {
+                SKRow(title: "Join nearest meeting",
+                      subtitle: join.registrationFailed ? "That shortcut is already used by another app. Pick a different one." : nil) {
+                    HStack(spacing: 8) {
+                        if join.registrationFailed { SKLamp(color: .danger, lit: true, label: "Shortcut unavailable") }
+                        HotKeyRecorder()
+                    }
                 }
-                Stepper("Look ahead \(join.windowMinutes) min for meetings that haven't started", value: $join.windowMinutes, in: 1...60)
-                Text("Works from anywhere. Joins the meeting in progress, or the next one starting within the look-ahead window.")
-                    .font(.caption).foregroundStyle(.secondary)
+                SKRow(title: "Look ahead", subtitle: "For meetings that haven't started yet.") {
+                    Stepper("\(join.windowMinutes) min", value: $join.windowMinutes, in: 1...60).fixedSize()
+                }
             }
-            Section("Open meeting links in") {
+            SKGroup(caption: "Open meeting links in") {
                 ForEach(MeetingService.allCases) { service in
-                    Picker(selection: binding(for: service)) {
-                        if service.hasNativeApp { Text("\(service.shortName) app (falls back to browser)").tag(JoinOpenMode.nativeApp.raw) }
-                        Text("Default browser").tag(JoinOpenMode.defaultBrowser.raw)
-                        if !browsers.isEmpty {
-                            Divider()
-                            ForEach(browsers) { b in Text(b.name).tag(JoinOpenMode.browser(bundleID: b.bundleID).raw) }
+                    SKRow(title: service.displayName) {
+                        Picker(service.displayName, selection: binding(for: service)) {
+                            if service.hasNativeApp { Text("\(service.shortName) app (falls back to browser)").tag(JoinOpenMode.nativeApp.raw) }
+                            Text("Default browser").tag(JoinOpenMode.defaultBrowser.raw)
+                            if !browsers.isEmpty {
+                                Divider()
+                                ForEach(browsers) { b in Text(b.name).tag(JoinOpenMode.browser(bundleID: b.bundleID).raw) }
+                            }
                         }
-                    } label: {
-                        Label { Text(service.displayName) } icon: { Image(systemName: service.symbol).foregroundStyle(service.tint) }
+                        .labelsHidden().fixedSize()
                     }
                 }
             }
         }
-        .formStyle(.grouped)
         .onAppear {
             browsers = MeetingJoiner.installedBrowsers()
             for s in MeetingService.allCases { modes[s] = prefs.mode(for: s).raw }
@@ -134,39 +144,49 @@ struct MenuBarSettingsView: View {
     private var showsTitle: Bool { format == .titleCountdown || format == .titleStartTime }
 
     var body: some View {
-        Form {
-            Section("Title") {
-                Picker("Show", selection: $formatRaw) {
-                    ForEach(MenuBarTitleFormat.allCases) { f in
-                        Text(f.example.isEmpty ? f.title : "\(f.title)  (\(f.example))").tag(f.rawValue)
+        SK1SettingsPane {
+            SKGroup(caption: "Title",
+                    note: "While a meeting is in progress the item shows \"now\" and the time left.") {
+                SKRow(title: "Show") {
+                    Picker("Show", selection: $formatRaw) {
+                        ForEach(MenuBarTitleFormat.allCases) { f in
+                            Text(f.example.isEmpty ? f.title : "\(f.title)  (\(f.example))").tag(f.rawValue)
+                        }
                     }
+                    .labelsHidden().fixedSize()
                 }
-                LabeledContent("Longest title") {
+                SKRow(title: "Longest title",
+                      subtitle: "Longer titles are cut with \u{2026} so the item never crowds out other menu bar icons.") {
                     HStack {
                         Slider(value: Binding(get: { Double(maxTitleLength) }, set: { maxTitleLength = Int($0.rounded()) }),
                                in: Double(MenuBarTitleSettings.titleLengthRange.lowerBound)...Double(MenuBarTitleSettings.titleLengthRange.upperBound),
                                step: 1)
-                        Text("\(maxTitleLength) characters").monospacedDigit().frame(width: 100, alignment: .trailing)
+                            .frame(width: 140)
+                        SKChip("\(maxTitleLength) chars", minWidth: 70)
                     }
                 }
                 .disabled(!showsTitle)
-                Text("Longer titles are cut with \u{2026} so the item never crowds out other menu bar icons.")
-                    .font(.caption).foregroundStyle(.secondary)
-                Picker("Show text", selection: $hideBeyondHours) {
-                    Text("Always").tag(0)
-                    ForEach([1, 2, 4, 8, 12], id: \.self) { h in Text("When a meeting starts within \(h) hour\(h == 1 ? "" : "s")").tag(h) }
+                SKRow(title: "Show text") {
+                    Picker("Show text", selection: $hideBeyondHours) {
+                        Text("Always").tag(0)
+                        ForEach([1, 2, 4, 8, 12], id: \.self) { h in Text("When a meeting starts within \(h) hour\(h == 1 ? "" : "s")").tag(h) }
+                    }
+                    .labelsHidden().fixedSize()
                 }
-                Text("While a meeting is in progress the item shows \"now\" and the time left.").font(.caption).foregroundStyle(.secondary)
             }
-            Section("Icon") {
-                Toggle("Use the meeting's service icon (Meet, Zoom, Teams, Webex) when it has a join link", isOn: $showServiceIcon)
-                Toggle("Pulse the icon when a meeting starts in under 5 minutes", isOn: $pulseWhenSoon)
-                Text("The icon turns orange when a meeting is less than 5 minutes away.").font(.caption).foregroundStyle(.secondary)
+            SKGroup(caption: "Icon", note: "The icon turns orange when a meeting is less than 5 minutes away.") {
+                SKRow(title: "Use the meeting's service icon", subtitle: "Meet, Zoom, Teams or Webex, when the meeting has a join link.") {
+                    Toggle("Use the meeting's service icon", isOn: $showServiceIcon).toggleStyle(.sk1Switch)
+                }
+                SKRow(title: "Pulse when a meeting is near", subtitle: "Blinks the icon when a meeting starts in under 5 minutes.") {
+                    Toggle("Pulse when a meeting is near", isOn: $pulseWhenSoon).toggleStyle(.sk1Switch)
+                }
             }
-            Section("Popover") {
-                Toggle("Show week numbers in the mini calendar", isOn: $showWeekNumbers)
+            SKGroup(caption: "Popover") {
+                SKRow(title: "Show week numbers in the mini calendar") {
+                    Toggle("Show week numbers in the mini calendar", isOn: $showWeekNumbers).toggleStyle(.sk1Switch)
+                }
             }
         }
-        .formStyle(.grouped)
     }
 }
