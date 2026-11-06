@@ -94,8 +94,37 @@ final class ReminderPlannerTests: XCTestCase {
         d.removePersistentDomain(forName: "ReminderPlannerTests")
         XCTAssertEqual(PhoneSettings.load(d), PhoneSettings())
         var s = PhoneSettings()
-        s.leadMinutes = 5; s.alertAtStart = true; s.hiddenCalendars = ["x"]
+        s.leadMinutes = 5; s.alertAtStart = true; s.hiddenCalendars = ["x"]; s.silencedCalendars = ["y"]
+        s.alertOnEvents = ["future": now.addingTimeInterval(3600)]
+        s.mutedEvents = ["past": now.addingTimeInterval(-60)]
         s.save(d)
-        XCTAssertEqual(PhoneSettings.load(d), s)
+        var loaded = PhoneSettings.load(d, now: now)
+        XCTAssertEqual(loaded.mutedEvents, [:], "ended meetings are pruned")
+        loaded.mutedEvents = s.mutedEvents
+        XCTAssertEqual(loaded, s)
+    }
+
+    func testSilencedCalendarSkipsAlertsUnlessTurnedOn() {
+        var s = PhoneSettings()
+        s.alertAtStart = true
+        let family = "Apple · iCloud|family"
+        s.silencedCalendars = [family]
+        let soccer = ev("soccer", "Soccer", in: 60, calendar: "family")
+        let recital = ev("recital", "Recital", in: 90, calendar: "family")
+        let standup = ev("standup", in: 120)
+        let events = [soccer, recital, standup]
+        XCTAssertEqual(Set(ReminderPlanner.plan(events, settings: s, now: now).map(\.event.uid)), [standup.uid])
+        XCTAssertEqual(ReminderPlanner.meetings(events, settings: s, now: now).count, 3, "still shown")
+        XCTAssertFalse(ReminderPlanner.echoes(events, settings: s, now: now).contains { $0.event.uid == soccer.uid })
+
+        s.setAlerts(true, for: recital)
+        XCTAssertEqual(Set(ReminderPlanner.plan(events, settings: s, now: now).map(\.event.uid)), [recital.uid, standup.uid])
+
+        s.setAlerts(false, for: standup)
+        XCTAssertFalse(s.alerts(for: standup), "a meeting on a loud calendar can be muted on its own")
+        XCTAssertEqual(Set(ReminderPlanner.plan(events, settings: s, now: now).map(\.event.uid)), [recital.uid])
+
+        s.setAlerts(false, for: recital)
+        XCTAssertTrue(s.alertOnEvents.isEmpty && s.mutedEvents.keys.sorted() == [standup.uid])
     }
 }

@@ -25,13 +25,40 @@ struct PhoneSettings: Codable, Equatable {
     /// The Today tab (the MB-1 display and agenda). Off by default: the app opens on the Day grid, which has the next
     /// meeting on top.
     var showTodayTab: Bool = false
+    /// Calendar keys whose meetings stay visible but never alert (a family calendar, say).
+    var silencedCalendars: Set<String> = []
+    /// Meetings on a silenced calendar that alert anyway, keyed by event uid, valued by the meeting's end.
+    var alertOnEvents: [String: Date] = [:]
+    /// Meetings on any other calendar whose alerts were turned off, keyed by event uid, valued by the meeting's end.
+    var mutedEvents: [String: Date] = [:]
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
 
-    static func load(_ d: UserDefaults = .standard) -> PhoneSettings {
-        guard let data = d.data(forKey: storageKey), let s = try? JSONDecoder().decode(Self.self, from: data) else { return .init() }
+    static func load(_ d: UserDefaults = .standard, now: Date = Date()) -> PhoneSettings {
+        guard let data = d.data(forKey: storageKey), var s = try? JSONDecoder().decode(Self.self, from: data) else { return .init() }
+        s.alertOnEvents = s.alertOnEvents.filter { $0.value > now }
+        s.mutedEvents = s.mutedEvents.filter { $0.value > now }
         return s
+    }
+
+    /// Whether `e` alerts: its own choice first, then its calendar's.
+    func alerts(for e: CalendarEvent) -> Bool {
+        if mutedEvents[e.uid] != nil { return false }
+        return !silencedCalendars.contains(e.calendarKey) || alertOnEvents[e.uid] != nil
+    }
+
+    func isSilenced(_ e: CalendarEvent) -> Bool { silencedCalendars.contains(e.calendarKey) }
+
+    /// Turns alerts for just `e` on or off, overriding its calendar.
+    mutating func setAlerts(_ on: Bool, for e: CalendarEvent) {
+        if isSilenced(e) {
+            mutedEvents[e.uid] = nil
+            alertOnEvents[e.uid] = on ? e.end : nil
+        } else {
+            alertOnEvents[e.uid] = nil
+            mutedEvents[e.uid] = on ? nil : e.end
+        }
     }
 
     func save(_ d: UserDefaults = .standard) {
@@ -56,7 +83,10 @@ extension PhoneSettings {
                   preFlight: try c.decodeIfPresent(Bool.self, forKey: .preFlight) ?? d.preFlight,
                   echoMode: try c.decodeIfPresent(Bool.self, forKey: .echoMode) ?? d.echoMode,
                   echoToReminders: try c.decodeIfPresent(Bool.self, forKey: .echoToReminders) ?? d.echoToReminders,
-                  showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab)
+                  showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab,
+                  silencedCalendars: try c.decodeIfPresent(Set<String>.self, forKey: .silencedCalendars) ?? d.silencedCalendars,
+                  alertOnEvents: try c.decodeIfPresent([String: Date].self, forKey: .alertOnEvents) ?? d.alertOnEvents,
+                  mutedEvents: try c.decodeIfPresent([String: Date].self, forKey: .mutedEvents) ?? d.mutedEvents)
     }
 }
 
@@ -105,9 +135,15 @@ enum ReminderPlanner {
     }
 
     /// The reminders for `events`. `moved` holds the uids of meetings that were rescheduled, so their reminder says so.
+    /// `meetings` without those whose alerts are off (a silenced calendar, or muted one by one).
+    static func alerting(_ events: [CalendarEvent], settings: PhoneSettings, now: Date,
+                         horizon: TimeInterval = horizon) -> [CalendarEvent] {
+        meetings(events, settings: settings, now: now, horizon: horizon).filter(settings.alerts(for:))
+    }
+
     static func plan(_ events: [CalendarEvent], settings: PhoneSettings, moved: Set<String> = [], now: Date) -> [PlannedReminder] {
         var out: [PlannedReminder] = []
-        for e in meetings(events, settings: settings, now: now) where e.start > now {
+        for e in alerting(events, settings: settings, now: now) where e.start > now {
             let lead = e.start.addingTimeInterval(-Double(settings.leadMinutes) * 60)
             if lead > now {
                 out.append(PlannedReminder(kind: .lead, event: e, fireDate: lead, title: e.title,
@@ -133,7 +169,7 @@ enum ReminderPlanner {
     /// reminders, which come first when iOS's limit on pending alerts is reached.
     static func echoes(_ events: [CalendarEvent], settings: PhoneSettings, now: Date, room: Int = maxPending) -> [PlannedReminder] {
         guard settings.echoMode, room > 0 else { return [] }
-        let out = meetings(events, settings: settings, now: now)
+        let out = alerting(events, settings: settings, now: now)
             .filter { $0.end > now && $0.end.timeIntervalSince($0.start) >= Echo.minMeetingLength }
             .map { PlannedReminder(kind: .echo, event: $0, fireDate: $0.end, title: "\($0.title) just ended", body: echoBody) }
         return Array(out.sorted { $0.fireDate < $1.fireDate }.prefix(room))

@@ -162,7 +162,7 @@ struct PhoneSettingsView: View {
             } else {
                 ForEach(store.upcoming.prefix(10)) { e in
                     SKRow(title: e.title, subtitle: subtitle(e)) {
-                        SKChip(reminders[e.uid].map { $0.fireDate.shortTime } ?? "—")
+                        SKChip(reminders[e.uid].map { $0.fireDate.shortTime } ?? (store.settings.alerts(for: e) ? "—" : "Silent"))
                             .accessibilityLabel(reminders[e.uid].map { "Alert at \($0.fireDate.shortTime)" } ?? "No alert")
                     }
                 }
@@ -194,13 +194,30 @@ struct PhoneSettingsView: View {
     // MARK: Calendars
 
     private var calendarsGroup: some View {
-        SKGroup(caption: "Calendars", note: "Meetings on calendars that are off get no alerts.") {
+        SKGroup(caption: "Calendars",
+                note: "Switch a calendar off to hide it. Press its bell to keep it visible but silence its alerts (a family calendar, say); you can still turn alerts on for one of its meetings from the meeting itself.") {
             ForEach(store.calendars, id: \.key) { cal in
                 SKRow(title: cal.summary, subtitle: cal.accountEmail.replacingOccurrences(of: AppleCalendarClient.sourcePrefix, with: "")) {
-                    Toggle(cal.summary, isOn: visible(cal)).labelsHidden().toggleStyle(.sk1Switch)
+                    HStack(spacing: 10) {
+                        let shown = !store.settings.hiddenCalendars.contains(cal.key)
+                        let silenced = store.settings.silencedCalendars.contains(cal.key)
+                        Button { toggleSilenced(cal) } label: {
+                            Image(systemName: silenced ? "bell.slash.fill" : "bell")
+                        }
+                        .buttonStyle(.sk1Key(isOn: silenced, size: .small))
+                        .disabled(!shown)
+                        .opacity(shown ? 1 : 0.4)
+                        .accessibilityLabel(silenced ? "Turn on alerts for \(cal.summary)" : "Silence alerts for \(cal.summary)")
+                        Toggle(cal.summary, isOn: visible(cal)).labelsHidden().toggleStyle(.sk1Switch)
+                    }
                 }
             }
         }
+    }
+
+    private func toggleSilenced(_ cal: GCalendar) {
+        if store.settings.silencedCalendars.contains(cal.key) { store.settings.silencedCalendars.remove(cal.key) }
+        else { store.settings.silencedCalendars.insert(cal.key) }
     }
 
     private func visible(_ cal: GCalendar) -> Binding<Bool> {

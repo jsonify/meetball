@@ -125,7 +125,8 @@ final class PhoneStore: ObservableObject {
                 setCards(ChangeCard.merged(changeCards, changes.map { ChangeCard($0, now: now) }, now: now))
                 if settings.celebrateCancellations, let party = Celebration(changes) { celebrate(party) }
             }
-            if settings.notifyChanges, let alert = ReminderPlanner.changeAlert(changes, now: now) {
+            // A silenced calendar stays quiet about changes too (the in-app cards above still show them).
+            if settings.notifyChanges, let alert = ReminderPlanner.changeAlert(changes.filter { settings.alerts(for: $0.event) }, now: now) {
                 await PhoneNotifications.postChange(title: alert.title, body: alert.body)
                 recentChanges = Array(([RecentChange(title: alert.title, body: alert.body, at: now)] + recentChanges).prefix(10))
                 if let data = try? JSONEncoder().encode(recentChanges) { defaults.set(data, forKey: Key.recent) }
@@ -141,7 +142,7 @@ final class PhoneStore: ObservableObject {
         let echoes = ReminderPlanner.echoes(events, settings: settings, now: now, room: ReminderPlanner.maxPending - scheduled.count)
         await PhoneNotifications.apply(scheduled + echoes)
         LiveActivityController.updateWidgets(upcoming: upcoming, now: now)
-        await LiveActivityController.reconcile(upcoming: upcoming, enabled: settings.liveActivity, now: now)
+        await LiveActivityController.reconcile(upcoming: upcoming.filter(settings.alerts(for:)), enabled: settings.liveActivity, now: now)
         lastRefresh = now
     }
 

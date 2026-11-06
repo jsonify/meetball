@@ -28,6 +28,7 @@ struct EventDetailSheet: View {
                     PhoneJoinButton(event: event, variant: .orange, size: .large, fillsWidth: true)
                 }
                 whenGroup
+                if !event.isAllDay && event.end > Date() { alertsGroup }
                 if let loc = event.location, !loc.isEmpty { whereGroup(loc) }
                 if !event.participants.isEmpty { peopleGroup }
                 if let notes = event.notes.map(EventNotesFormatter.plainText), !notes.isEmpty { notesGroup(notes) }
@@ -144,6 +145,21 @@ struct EventDetailSheet: View {
             }
             if event.recurrence.isRecurring {
                 SKRow(title: "Repeats", subtitle: recurrenceText) { Image(systemName: "repeat").foregroundStyle(.secondary) }
+            }
+        }
+    }
+
+    /// This meeting's alerts, which can differ from its calendar's: on for one meeting of a silenced calendar, or off
+    /// for one meeting of any other.
+    private var alertsGroup: some View {
+        let silenced = store.settings.isSilenced(event)
+        return SKGroup(caption: "Alerts") {
+            SKRow(title: "Alert me",
+                  subtitle: silenced ? "Alerts are off for this calendar; this turns them on for just this meeting."
+                                     : "Turn off to skip the reminders for just this meeting.") {
+                Toggle("Alert me", isOn: Binding(get: { store.settings.alerts(for: event) },
+                                                 set: { store.settings.setAlerts($0, for: event) }))
+                    .labelsHidden().toggleStyle(.sk1Switch)
             }
         }
     }
