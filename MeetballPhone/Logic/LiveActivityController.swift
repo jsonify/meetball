@@ -10,7 +10,7 @@ import WidgetKit
 /// meeting moves its timer, a cancelled one ends it).
 @MainActor
 enum LiveActivityController {
-    static let leadTime: TimeInterval = 60 * 60
+    nonisolated static let leadTime: TimeInterval = 60 * 60
 
     /// The meeting the activity should show at `now`: on now or starting within `leadTime`.
     nonisolated static func meeting(from upcoming: [CalendarEvent], now: Date) -> CalendarEvent? {
