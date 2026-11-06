@@ -1,6 +1,8 @@
 import Foundation
 import SwiftUI
+#if canImport(AppKit)
 import AppKit
+#endif
 
 /// 12- or 24-hour clock, or whatever the system uses (Settings › Appearance).
 public enum ClockStyle: String, CaseIterable, Identifiable, Sendable {
@@ -39,6 +41,7 @@ public enum AppTheme: String, CaseIterable, Identifiable, Sendable {
         case .dark: return "Dark"
         }
     }
+    #if os(macOS)
     /// The appearance's name for `NSApp.appearance`: nil follows macOS.
     public var appearanceName: NSAppearance.Name? {
         switch self {
@@ -47,6 +50,7 @@ public enum AppTheme: String, CaseIterable, Identifiable, Sendable {
         case .dark: return .darkAqua
         }
     }
+    #endif
 }
 
 /// App-wide display preferences. Views read them through `@AppStorage` with these keys; code that isn't a view reads

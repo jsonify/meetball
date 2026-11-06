@@ -33,6 +33,10 @@ jobs:
           brew install xcodegen
           xcodegen --version
           xcodegen generate
+      # Info.plist and entitlements are generated from project.yml but tracked; a mismatch would leave every Mac
+      # checkout dirty after `xcodegen generate`.
+      - name: Generated files match project.yml
+        run: git diff --exit-code -- '*.plist' '*.entitlements'
       - name: Resolve packages (SK1Kit)
         run: xcodebuild -project Meetball.xcodeproj -resolvePackageDependencies
       - name: Schemes
@@ -73,6 +77,63 @@ jobs:
             ${{ runner.temp }}/MeetballTests.xcresult
           if-no-files-found: ignore
 
+  # The iPhone notifier (MeetballPhone): built for a device unsigned, then its tests run on a simulator.
+  ios:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    env:
+      SIGNING: CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER=
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select newest Xcode
+        run: |
+          NEWEST=$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)
+          sudo xcode-select -s "$NEWEST"
+          xcodebuild -version
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+      - name: Resolve packages (SK1Kit)
+        run: xcodebuild -project Meetball.xcodeproj -resolvePackageDependencies
+      - name: Build for iPhone
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project Meetball.xcodeproj -scheme MeetballPhone -configuration Debug \
+            -destination 'generic/platform=iOS' -derivedDataPath build/DerivedData CODE_SIGNING_ALLOWED=NO \
+            build 2>&1 | tee "$RUNNER_TEMP/ios-build.log" | grep -E "error:|warning:|BUILD (SUCCEEDED|FAILED)" || true
+          grep -q "BUILD SUCCEEDED" "$RUNNER_TEMP/ios-build.log"
+      - name: Pick an iPhone simulator
+        shell: bash
+        run: |
+          SIM=$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devs = json.load(sys.stdin)["devices"]
+          sims = sorted((rt, d["udid"]) for rt, ds in devs.items() if ".iOS-" in rt for d in ds if d["name"].startswith("iPhone"))
+          print(sims[-1][1] if sims else "")')
+          test -n "$SIM" || { echo "::error::No iPhone simulator available"; xcrun simctl list runtimes; exit 1; }
+          echo "SIM=$SIM" >> "$GITHUB_ENV"
+          xcrun simctl list devices | grep "$SIM"
+      - name: Test on simulator
+        shell: bash
+        run: |
+          set -o pipefail
+          xcodebuild -project Meetball.xcodeproj -scheme MeetballPhoneTests -destination "id=$SIM" \
+            -derivedDataPath build/DerivedData -resultBundlePath "$RUNNER_TEMP/MeetballPhoneTests.xcresult" $SIGNING \
+            test 2>&1 | tee "$RUNNER_TEMP/ios-test.log" | grep -E "error:|Test Case .* failed|Executed|TEST (SUCCEEDED|FAILED)" || true
+          grep -q "TEST SUCCEEDED" "$RUNNER_TEMP/ios-test.log"
+      - name: Upload logs and test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meetball-ios-ci-logs
+          path: |
+            ${{ runner.temp }}/ios-build.log
+            ${{ runner.temp }}/ios-test.log
+            ${{ runner.temp }}/MeetballPhoneTests.xcresult
+          if-no-files-found: ignore
+
   # Nothing native left next to the SK-1 look (Scripts/sk1-audit.sh, from SK1Kit).
   sk1-audit:
     runs-on: ubuntu-latest
@@ -80,4 +141,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: sk1-audit
-        run: Scripts/sk1-audit.sh Meetball
+        run: Scripts/sk1-audit.sh Meetball MeetballPhone
