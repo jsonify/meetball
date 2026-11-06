@@ -13,12 +13,12 @@ enum LiveActivityController {
     static let leadTime: TimeInterval = 60 * 60
 
     /// The meeting the activity should show at `now`: on now or starting within `leadTime`.
-    static func meeting(from upcoming: [CalendarEvent], now: Date) -> CalendarEvent? {
+    nonisolated static func meeting(from upcoming: [CalendarEvent], now: Date) -> CalendarEvent? {
         guard let e = upcoming.filter({ $0.end > now }).min(by: { $0.start < $1.start }) else { return nil }
         return e.start.timeIntervalSince(now) <= leadTime ? e : nil
     }
 
-    static func state(_ e: CalendarEvent) -> MeetingActivityAttributes.ContentState {
+    nonisolated static func state(_ e: CalendarEvent) -> MeetingActivityAttributes.ContentState {
         .init(title: e.title, start: e.start, end: e.end, colorHex: e.colorHex, joinURL: e.meetURL)
     }
 
