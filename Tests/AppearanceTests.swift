@@ -36,6 +36,22 @@ final class QuickAddParserTests: XCTestCase {
         XCTAssertEqual(r.end, at(2030, 11, 8, 15, 45))
     }
 
+    func testSpelledOutAndApproximateLengths() {
+        func length(_ s: String) -> TimeInterval { let r = parse(s); return r.end.timeIntervalSince(r.start) }
+        let r = parse("let's check the pre-flight card for about three minutes")
+        XCTAssertEqual(r.title, "let's check the pre-flight card")
+        XCTAssertEqual(r.end.timeIntervalSince(r.start), 3 * 60)
+        XCTAssertEqual(length("Sync tomorrow 2pm for forty-five minutes"), 45 * 60)
+        XCTAssertEqual(length("Sync tomorrow 2pm for an hour"), 3600)
+        XCTAssertEqual(length("Sync tomorrow 2pm for two hours"), 2 * 3600)
+        XCTAssertEqual(length("Sync tomorrow 2pm for half an hour"), 30 * 60)
+        XCTAssertEqual(length("Sync tomorrow 2pm for an hour and a half"), 90 * 60)
+        XCTAssertEqual(length("Sync tomorrow 2pm for around 20 min"), 20 * 60)
+        XCTAssertEqual(parse("Sync tomorrow 2pm for about five mins").title, "Sync")
+        // Words that aren't a length stay in the title.
+        XCTAssertEqual(parse("Read a book tomorrow 2pm").title, "Read a book")
+    }
+
     func testRangeSharesMeridiem() {
         let r = parse("Planning next monday 3-4pm")
         XCTAssertEqual(r.title, "Planning")
