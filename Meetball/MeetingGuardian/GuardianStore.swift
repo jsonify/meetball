@@ -72,13 +72,15 @@ public struct GuardianSettings: Codable, Equatable {
     var changeCard = true
     /// Minutes after the start that auto-join opens a meeting nobody joined yet (#24); 0 = at the start.
     var autoJoinDelayMinutes = 1
+    /// Recurring meetings auto-join unless their series is turned off (#53).
+    var autoJoinRecurring = false
 
     init() {}
 
     enum CodingKeys: String, CodingKey {
         case style, leadMinutes, alsoAtFiveMinutes, playSound, breakThroughFocus, skipWhileScreenSharing, stillJoiningPrompt,
              repeatIfNotJoined, warnBeforeSleep, limitToActiveHours, activeStartHour, activeEndHour, soundName,
-             notifyChanges, celebrateCancellations, changeCard, autoJoinDelayMinutes
+             notifyChanges, celebrateCancellations, changeCard, autoJoinDelayMinutes, autoJoinRecurring
     }
 
     /// Missing keys keep their defaults, so adding a setting never resets the saved ones.
@@ -102,6 +104,7 @@ public struct GuardianSettings: Codable, Equatable {
         celebrateCancellations = try v(.celebrateCancellations, celebrateCancellations)
         changeCard = try v(.changeCard, changeCard)
         autoJoinDelayMinutes = try v(.autoJoinDelayMinutes, autoJoinDelayMinutes)
+        autoJoinRecurring = try v(.autoJoinRecurring, autoJoinRecurring)
     }
 }
 
@@ -132,6 +135,8 @@ public final class MeetingGuardianStore: ObservableObject {
     @Published public private(set) var autoJoinEvents: [String: Date] = [:] { didSet { save() } }
     /// Recurring series set to auto-join, keyed by `AutoJoin.seriesKey`.
     @Published public private(set) var autoJoinSeries: Set<String> = [] { didSet { save() } }
+    /// Recurring series turned off while "Auto-join recurring meetings" is on (#53), keyed by `AutoJoin.seriesKey`.
+    @Published public private(set) var autoJoinSeriesOff: Set<String> = [] { didSet { save() } }
     private let defaults: UserDefaults
     private var loading = false
 
@@ -153,6 +158,9 @@ public final class MeetingGuardianStore: ObservableObject {
         if let d = defaults.data(forKey: "guardian.autoJoinSeries"), let s = try? JSONDecoder().decode(Set<String>.self, from: d) {
             autoJoinSeries = s
         }
+        if let d = defaults.data(forKey: "guardian.autoJoinSeriesOff"), let s = try? JSONDecoder().decode(Set<String>.self, from: d) {
+            autoJoinSeriesOff = s
+        }
     }
     func save() {
         guard !loading else { return }
@@ -162,27 +170,38 @@ public final class MeetingGuardianStore: ObservableObject {
         if let d = try? JSONEncoder().encode(mutedEvents) { defaults.set(d, forKey: "guardian.muted") }
         if let d = try? JSONEncoder().encode(autoJoinEvents) { defaults.set(d, forKey: "guardian.autoJoin") }
         if let d = try? JSONEncoder().encode(autoJoinSeries) { defaults.set(d, forKey: "guardian.autoJoinSeries") }
+        if let d = try? JSONEncoder().encode(autoJoinSeriesOff) { defaults.set(d, forKey: "guardian.autoJoinSeriesOff") }
     }
 
-    /// Whether auto-join is on for `e`, and for just this meeting or its whole series.
+    /// Whether auto-join is on for `e`, and for just this meeting or its whole series. With "Auto-join recurring
+    /// meetings" on (#53), every recurring meeting counts as on for its series unless that series was turned off.
     public func autoJoinScope(for e: CalendarEvent) -> AutoJoinScope? {
-        if let key = AutoJoin.seriesKey(e), autoJoinSeries.contains(key) { return .series }
-        return autoJoinEvents[e.uid] != nil ? .occurrence : nil
+        if autoJoinEvents[e.uid] != nil { return .occurrence }
+        guard let key = AutoJoin.seriesKey(e) else { return nil }
+        if autoJoinSeries.contains(key) { return .series }
+        return settings.autoJoinRecurring && !autoJoinSeriesOff.contains(key) ? .series : nil
     }
     public func isAutoJoin(_ e: CalendarEvent) -> Bool { autoJoinScope(for: e) != nil }
-    /// nil turns auto-join off for this meeting and (if set) its series.
+    /// True when `e` auto-joins only because recurring meetings auto-join by default.
+    public func isAutoJoinByDefault(_ e: CalendarEvent) -> Bool {
+        guard autoJoinScope(for: e) == .series, let key = AutoJoin.seriesKey(e) else { return false }
+        return !autoJoinSeries.contains(key)
+    }
+    /// nil turns auto-join off for this meeting and (if set) its series. Choosing just this one turns the rest of
+    /// its series off too, even when recurring meetings auto-join by default.
     public func setAutoJoin(_ scope: AutoJoinScope?, for e: CalendarEvent) {
         let series = AutoJoin.seriesKey(e)
         switch scope {
         case .occurrence?:
-            if let series { autoJoinSeries.remove(series) }
+            if let series { autoJoinSeries.remove(series); autoJoinSeriesOff.insert(series) }
             autoJoinEvents[e.uid] = e.end
         case .series?:
             guard let series else { autoJoinEvents[e.uid] = e.end; return }
             autoJoinEvents[e.uid] = nil
+            autoJoinSeriesOff.remove(series)
             autoJoinSeries.insert(series)
         case nil:
-            if let series { autoJoinSeries.remove(series) }
+            if let series { autoJoinSeries.remove(series); autoJoinSeriesOff.insert(series) }
             autoJoinEvents[e.uid] = nil
         }
     }
