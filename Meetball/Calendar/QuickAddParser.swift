@@ -18,7 +18,8 @@ public struct QuickAddResult: Equatable {
 ///   "12/3" (month and day in the order the locale writes them)
 /// - times: "3pm", "3:30 pm", "15:00", "noon", "midnight", "at 9"; a bare hour from 1 to 7 is taken as the afternoon
 /// - ranges: "12:30-1:30", "3-4pm", "from 3 to 4:30pm", "9am–10am"
-/// - durations: "for 45 min", "for 1.5 hours", "for 2h"
+/// - durations: "for 45 min", "for 1.5 hours", "for 2h", "for about three minutes", "an hour", "half an hour",
+///   "an hour and a half"
 /// - attendees: any email address; "+meet" adds a Google Meet link
 /// What's left, minus joining words at either end, is the title. With no time it starts at the next half hour (or
 /// 9:00 on a later day), 30 minutes long, like the New Event form.
@@ -88,8 +89,16 @@ public enum QuickAddParser {
             startTime = clock(m[1], "", nil, bareIsAfternoon: true)
         }
         var duration: TimeInterval?
-        if let m = take(#"(?i)\s(?:for\s)?(\d+(?:\.\d+)?)\s?(minutes|minute|mins|min|m|hours|hour|hrs|hr|h)\b"#, from: &s),
-           let n = Double(m[1]) {
+        let about = #"(?:(?:about|around|roughly|approximately|approx\.?|~)\s?)?"#
+        if take(#"(?i)\s(?:for\s)?"# + about + #"(?:an?|one)\s(?:hour|hr)\sand\sa\shalf\b"#, from: &s) != nil {
+            duration = 90 * 60
+        } else if take(#"(?i)\s(?:for\s)?"# + about + #"(?:a\s)?half\s(?:an\s)?(?:hour|hr)\b"#, from: &s) != nil {
+            duration = 30 * 60
+        } else if let m = take(#"(?i)\s(?:for\s)?"# + about + #"(\d+(?:\.\d+)?)\s?(minutes|minute|mins|min|m|hours|hour|hrs|hr|h)\b"#, from: &s),
+                  let n = Double(m[1]) {
+            duration = n * (m[2].lowercased().hasPrefix("m") ? 60 : 3600)
+        } else if let m = take(#"(?i)\s(?:for\s)?"# + about + #"("# + numberWordPattern + #")\s(minutes|minute|mins|min|hours|hour|hrs|hr)\b"#, from: &s),
+                  let n = numberWord(m[1]) {
             duration = n * (m[2].lowercased().hasPrefix("m") ? 60 : 3600)
         }
 
@@ -118,6 +127,21 @@ public enum QuickAddParser {
 
     static let weekdayPattern = "sunday|sun|monday|mon|tuesday|tues|tue|wednesday|wed|thursday|thurs|thur|thu|friday|fri|saturday|sat"
     static let monthPattern = "january|jan|february|feb|march|mar|april|apr|may|june|jun|july|jul|august|aug|september|sept|sep|october|oct|november|nov|december|dec"
+
+    /// Spelled-out lengths: "three minutes", "forty-five min", "an hour", "two hours". Longer forms come first so
+    /// "forty-five" isn't read as "forty".
+    static let numberWords: [(String, Double)] = [
+        ("forty-five", 45), ("forty five", 45), ("ninety", 90), ("sixty", 60), ("fifty", 50), ("forty", 40),
+        ("thirty", 30), ("twenty", 20), ("fifteen", 15), ("twelve", 12), ("eleven", 11), ("ten", 10), ("nine", 9),
+        ("eight", 8), ("seven", 7), ("six", 6), ("five", 5), ("four", 4), ("three", 3), ("two", 2), ("one", 1),
+        ("an", 1), ("a", 1),
+    ]
+    static let numberWordPattern = numberWords.map { $0.0.replacingOccurrences(of: " ", with: #"\s"#) }.joined(separator: "|")
+
+    static func numberWord(_ s: String) -> Double? {
+        let w = s.lowercased().split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        return numberWords.first { $0.0 == w }?.1
+    }
 
     /// 1 = Sunday … 7 = Saturday.
     static func weekday(_ s: String) -> Int? {

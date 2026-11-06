@@ -77,7 +77,7 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   them, and the rest of today and tomorrow.
 - **Week**: an LED meeting-load meter for the next seven days (tap a day to show only it) and each day's meetings.
 - **Month**: dots per day, trips and on-call stretches as ribbons, and the chosen day's meetings. Swipe to change month.
-- **Quick add** (the + key): one line of plain English, read back on an LCD as you type, saved to a calendar you pick.
+- **Quick add** (the + key): one line of plain English, read back on an LCD as you type, saved to a calendar you pick. Lengths can be spelled out ("for about three minutes", "an hour and a half").
 - **Confetti** when a meeting is cancelled (shown the next time you open Meetball if it was found in the background).
 - **Settings**: everything from the notifier below, the theme (System/Light/Dark) and the fun switches.
 
