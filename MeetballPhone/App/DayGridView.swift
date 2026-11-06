@@ -176,7 +176,8 @@ struct DayGridView: View {
 }
 
 enum DayGridMetrics {
-    static let gutterWidth: CGFloat = 50
+    /// Wide enough for the now tag's "10:21 PM" on one line.
+    static let gutterWidth: CGFloat = 60
     static let defaultHourHeight: Double = 56
     static let minHourHeight: Double = 36
     static let maxHourHeight: Double = 120
@@ -441,6 +442,8 @@ struct DayGridHourScale: View {
             if showsNow {
                 Text(now.shortTime)
                     .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                    .lineLimit(1)
+                    .fixedSize()
                     .foregroundStyle(Color(sk1Hex: SK1.charcoalInk))
                     .padding(.horizontal, 4).padding(.vertical, 2)
                     .background(Color(sk1Hex: SK1.recRed), in: RoundedRectangle(cornerRadius: 3))
