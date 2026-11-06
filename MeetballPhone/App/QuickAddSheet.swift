@@ -31,6 +31,12 @@ struct QuickAddSheet: View {
 
     static let workDestination = "meetball.work-invite"
 
+    /// `start` opens the composer at that time (a tap on an empty slot of the day grid) instead of the next free one;
+    /// typing a time still takes over.
+    init(start: Date? = nil) {
+        _startOverride = State(initialValue: start)
+    }
+
     private var parsed: QuickAddResult { QuickAddParser.parse(text) }
 
     var body: some View {

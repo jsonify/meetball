@@ -6,11 +6,12 @@ import SK1UI
 /// cancellation confetti over everything.
 struct PhoneRootView: View {
     enum Tab: String, CaseIterable, Identifiable {
-        case today, week, month, settings
+        case today, day, week, month, settings
         var id: String { rawValue }
         var title: String {
             switch self {
             case .today: return "Today"
+            case .day: return "Day"
             case .week: return "Week"
             case .month: return "Month"
             case .settings: return "Settings"
@@ -19,6 +20,7 @@ struct PhoneRootView: View {
         var symbol: String {
             switch self {
             case .today: return "sun.max"
+            case .day: return "calendar.day.timeline.left"
             case .week: return "chart.bar"
             case .month: return "calendar"
             case .settings: return "slider.horizontal.3"
@@ -29,29 +31,39 @@ struct PhoneRootView: View {
     @EnvironmentObject private var store: PhoneStore
     @SceneStorage("tab") private var tab: Tab = .today
     @State private var detail: CalendarEvent?
-    @State private var quickAdd = false
+    /// The composer, open; `start` when a slot on the day grid picked the time.
+    @State private var compose: ComposeRequest?
     @State private var readout = false
     @State private var moment: CalendarEvent?
     @State private var dismissedMoments: Set<String> = []
 
     var body: some View {
-        ScrollView {
-            screen
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                .padding(.bottom, 24)
-                .frame(maxWidth: 600)
-                .frame(maxWidth: .infinity)
+        Group {
+            if tab == .day {
+                // The time grid scrolls itself, under its pinned dates and all-day strip.
+                DayGridView(open: { detail = $0 }, add: { compose = ComposeRequest(start: $0) })
+                    .frame(maxWidth: 700)
+                    .frame(maxWidth: .infinity)
+            } else {
+                ScrollView {
+                    screen
+                        .padding(.horizontal, 16)
+                        .padding(.top, 8)
+                        .padding(.bottom, 24)
+                        .frame(maxWidth: 600)
+                        .frame(maxWidth: .infinity)
+                }
+                .refreshable { await store.refresh(fresh: true) }
+                .scrollDismissesKeyboard(.interactively)
+            }
         }
-        .refreshable { await store.refresh(fresh: true) }
-        .scrollDismissesKeyboard(.interactively)
         .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
         .sk1Chassis()
         .sheet(item: $detail) { e in
             EventDetailSheet(event: e).environmentObject(store)
         }
-        .sheet(isPresented: $quickAdd) {
-            QuickAddSheet().environmentObject(store)
+        .sheet(item: $compose) { request in
+            QuickAddSheet(start: request.start).environmentObject(store)
         }
         .overlay {
             if let party = store.celebration {
@@ -65,7 +77,7 @@ struct PhoneRootView: View {
             DayReadoutSheet().environmentObject(store)
         }
         .onReceive(NotificationCenter.default.publisher(for: .meetballShake)) { _ in
-            if detail == nil && !quickAdd && moment == nil { readout = true }
+            if detail == nil && compose == nil && moment == nil { readout = true }
         }
         .fullScreenCover(item: $moment) { e in
             CountdownMomentView(event: e) {
@@ -92,7 +104,7 @@ struct PhoneRootView: View {
         if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
         guard !Task.isCancelled, e.start > Date(), moment == nil else { return }
         detail = nil
-        quickAdd = false
+        compose = nil
         readout = false
         moment = e
     }
@@ -100,9 +112,10 @@ struct PhoneRootView: View {
     @ViewBuilder
     private var screen: some View {
         let open: (CalendarEvent) -> Void = { detail = $0 }
-        let add: () -> Void = { quickAdd = true }
+        let add: () -> Void = { compose = ComposeRequest(start: nil) }
         switch tab {
         case .today: TodayView(open: open, quickAdd: add)
+        case .day: EmptyView()   // drawn outside the scroll view, in body
         case .week: WeekView(open: open, quickAdd: add)
         case .month: MonthView(open: open, quickAdd: add)
         case .settings: PhoneSettingsView()
@@ -124,6 +137,12 @@ struct PhoneRootView: View {
         .sk1Chassis()
         .sensoryFeedback(.selection, trigger: tab)
     }
+}
+
+/// A request to open the composer, at `start` when one was picked on the day grid.
+struct ComposeRequest: Identifiable {
+    let id = UUID()
+    var start: Date?
 }
 
 /// Confetti over the whole screen and an LCD card saying the meeting is off, as on the Mac. Tap to dismiss; it goes by
