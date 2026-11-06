@@ -42,6 +42,8 @@ struct PhoneRootView: View {
     @State private var dismissedEchoes: Set<String> = []
     @State private var moment: CalendarEvent?
     @State private var dismissedMoments: Set<String> = []
+    /// A day picked on the Month tab, for the Day grid to open on.
+    @State private var dayJump: Date?
 
     /// The tab showing: Today falls back to Day while it's switched off in Settings.
     private var tab: Tab {
@@ -55,9 +57,15 @@ struct PhoneRootView: View {
         Group {
             if tab == .day {
                 // The time grid scrolls itself, under its pinned dates and all-day strip.
-                DayGridView(open: { detail = $0 }, add: { compose = ComposeRequest(start: $0) })
+                DayGridView(open: { detail = $0 }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
                     .frame(maxWidth: 700)
                     .frame(maxWidth: .infinity)
+            } else if tab == .month {
+                // Months scroll on and on under the pinned header and weekday row.
+                MonthView { day in
+                    dayJump = day
+                    tab = .day
+                }
             } else {
                 ScrollView {
                     screen
@@ -199,7 +207,7 @@ struct PhoneRootView: View {
         case .today: TodayView(open: open, quickAdd: add)
         case .day: EmptyView()   // drawn outside the scroll view, in body
         case .week: WeekView(open: open, quickAdd: add)
-        case .month: MonthView(open: open, quickAdd: add)
+        case .month: EmptyView()   // drawn outside the scroll view, in body
         case .settings: PhoneSettingsView()
         }
     }
