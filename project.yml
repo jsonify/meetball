@@ -105,6 +105,7 @@ targets:
       - Meetball/Calendar/TimeGridLayout.swift
       - Meetball/Calendar/MiniMonthRibbons.swift
       - Meetball/Calendar/QuickAddParser.swift
+      - Meetball/Calendar/MeetingComposer.swift
       - Meetball/Utilities/AppPreferences.swift
       - Meetball/Utilities/Formatters.swift
       - Meetball/Utilities/MeetingService.swift

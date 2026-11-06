@@ -155,6 +155,12 @@ final class PhoneStore: ObservableObject {
         await refresh()
     }
 
+    /// An unsaved event for Apple's event editor (Invite people), with the store the editor must save it in.
+    func draftEvent(title: String, start: Date, end: Date, calendar: GCalendar?) -> (event: EKEvent, store: EKEventStore)? {
+        guard let e = client.draftEvent(title: title, start: start, end: end, calendarID: calendar?.id) else { return nil }
+        return (e, client.eventStore)
+    }
+
     /// The calendar quick add picks first: the Calendar app's default for new events when Meetball can write to it.
     var defaultCalendarForNewEvents: GCalendar? {
         let id = client.defaultCalendarID

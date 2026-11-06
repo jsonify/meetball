@@ -276,13 +276,21 @@ struct MiniMonthView: View {
         let isToday = cal.isDateInToday(day)
         let isSelected = selection.map { cal.isDate($0, inSameDayAs: day) } ?? false
         let inMonth = cal.isDate(day, equalTo: month, toGranularity: .month)
+        let dayDots = dots[cal.startOfDay(for: day)] ?? []
+        // Built apart from the view: as one expression with it, Release builds timed out type-checking it.
+        let numberColor: Color = isToday ? .white : (inMonth ? .primary : Color.secondary.opacity(0.6))
+        let weekendTint: Color = highlightWeekends && cal.isDateInWeekend(day) ? Color.secondary.opacity(0.07) : .clear
+        var label = isToday ? "Today, " : ""
+        label += day.formatted(.dateTime.weekday(.wide).month(.wide).day())
+        if let callout { label += ", \(callout.callout?.label ?? ""): \(callout.event.title)" }
+        if !dayDots.isEmpty { label += ", has events" }
         return Button {
             selection = isSelected ? nil : cal.startOfDay(for: day)
         } label: {
             VStack(spacing: 2) {
                 Text("\(cal.component(.day, from: day))")
                     .font(.system(size: 11, weight: isToday ? .bold : .regular).monospacedDigit())
-                    .foregroundStyle(isToday ? Color.white : (inMonth ? Color.primary : Color.secondary.opacity(0.6)))
+                    .foregroundStyle(numberColor)
                     .frame(width: Self.numberSize, height: Self.numberSize)
                     .background {
                         // Orange marks what is "on": today, and (fainter) the scoped day.
@@ -293,19 +301,17 @@ struct MiniMonthView: View {
                     .background { if let callout { calloutBand(callout, column: column) } }
                 if lanes > 0 { Color.clear.frame(height: CGFloat(lanes) * Self.laneHeight - 2) }
                 HStack(spacing: 2) {
-                    ForEach(dots[cal.startOfDay(for: day)] ?? [], id: \.self) { hex in
+                    ForEach(dayDots, id: \.self) { hex in
                         Circle().fill(Color(hex: hex)).frame(width: 4, height: 4)
                     }
                 }.frame(height: 4)
             }
             .frame(maxWidth: .infinity)
-            .background(highlightWeekends && cal.isDateInWeekend(day) ? Color.secondary.opacity(0.07) : .clear)
+            .background(weekendTint)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel((isToday ? "Today, " : "") + day.formatted(.dateTime.weekday(.wide).month(.wide).day())
-                            + (callout.map { ", \($0.callout?.label ?? ""): \($0.event.title)" } ?? "")
-                            + ((dots[cal.startOfDay(for: day)] ?? []).isEmpty ? "" : ", has events"))
+        .accessibilityLabel(label)
         .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
