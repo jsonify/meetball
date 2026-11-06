@@ -64,7 +64,24 @@ final class AppleCalendarClient {
                                  organizerIsSelf: e.organizer?.isCurrentUser ?? people.isEmpty,
                                  seriesID: e.hasRecurrenceRules ? e.calendarItemIdentifier : nil,
                                  recurrence: Self.recurrence(e),
-                                 timeZoneID: e.timeZone?.identifier)
+                                 timeZoneID: e.timeZone?.identifier,
+                                 externalID: e.calendarItemExternalIdentifier,
+                                 organizerEmail: e.organizer.flatMap { Self.attendee($0).email },
+                                 occurrenceDate: e.hasRecurrenceRules ? e.occurrenceDate : nil)
+        }
+    }
+
+    /// The stored EventKit event behind `event`, when its calendar can be changed (for Apple's event editor). Nil for
+    /// read-only calendars such as a subscribed work feed.
+    func editableEvent(for event: CalendarEvent) -> EKEvent? {
+        guard isAuthorized, let ek = store.calendar(withIdentifier: event.calendarID), ek.allowsContentModifications,
+              let at = event.id.lastIndex(of: "@") else { return nil }
+        let base = String(event.id[..<at])
+        let stamp = Int(event.id[event.id.index(after: at)...])
+        let pred = store.predicateForEvents(withStart: event.start.addingTimeInterval(-60),
+                                            end: event.end.addingTimeInterval(60), calendars: [ek])
+        return store.events(matching: pred).first {
+            $0.eventIdentifier == base && (stamp == nil || $0.startDate.map { Int($0.timeIntervalSince1970) } == stamp)
         }
     }
 

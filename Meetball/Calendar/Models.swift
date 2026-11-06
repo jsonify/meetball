@@ -43,6 +43,13 @@ public struct CalendarEvent: Identifiable, Hashable {
     public var recurrence: EventRecurrence = .none
     /// The time zone the event was set in (Google `start.timeZone`, EventKit `timeZone`); nil for floating events.
     public var timeZoneID: String? = nil
+    /// The source's own id for the event: the iCalendar UID (EventKit `calendarItemExternalIdentifier`). Google's feeds
+    /// write `<eventId>@google.com`, which is how a read-only work feed's events find their Google edit page.
+    public var externalID: String? = nil
+    /// The organizer's email, when the source gives one.
+    public var organizerEmail: String? = nil
+    /// A recurring occurrence's original start (EventKit `occurrenceDate`), which still names the instance after it moved.
+    public var occurrenceDate: Date? = nil
     public var uid: String { "\(accountEmail)|\(calendarID)|\(id)" }
     public var calendarKey: String { "\(accountEmail)|\(calendarID)" }
 

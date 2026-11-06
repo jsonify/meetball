@@ -381,7 +381,8 @@ private extension Double {
 }
 
 /// Apple's event editor, filled in with the composer's meeting: it can add invitees and a location on calendars that
-/// support them (iCloud, Exchange, CalDAV). `onFinish(true)` when it saved.
+/// support them (iCloud, Exchange, CalDAV). Also edits a stored event from the event screen. `onFinish(true)` when it
+/// saved (or deleted the stored event).
 struct EventEditor: UIViewControllerRepresentable {
     let event: EKEvent
     let eventStore: EKEventStore
@@ -403,7 +404,7 @@ struct EventEditor: UIViewControllerRepresentable {
         let onFinish: (Bool) -> Void
         init(onFinish: @escaping (Bool) -> Void) { self.onFinish = onFinish }
         func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
-            onFinish(action == .saved)
+            onFinish(action == .saved || action == .deleted)
         }
     }
 }
