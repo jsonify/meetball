@@ -2,86 +2,122 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-/// A month on a plate: each day with its meetings as coloured dots, trips and on-call stretches as ribbons across the
-/// days (as in the Mac's mini month), and the chosen day's meetings below.
+/// Months on plates, one after another down a continuous scroll: each day with its meetings as coloured dots, trips
+/// and on-call stretches as ribbons across the days (as in the Mac's mini month). The header follows the month at the
+/// top of the scroll; ◀ and ▶ scroll a month back or on. Tapping a day opens it on the Day grid.
 struct MonthView: View {
     @EnvironmentObject private var store: PhoneStore
-    var open: (CalendarEvent) -> Void
-    var quickAdd: () -> Void
-    @State private var month = Date()
-    @State private var selected = Calendar.app.startOfDay(for: Date())
+    /// Opens a day on the Day grid.
+    var pick: (Date) -> Void
+    /// The month at the top of the scroll (its first day).
+    @State private var visible: Date?
+    @State private var paged = 0
+
+    /// How far the scroll reaches either side of this month.
+    static let monthsBack = 24
+    static let monthsAhead = 60
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { tl in
             content(now: tl.date)
         }
+        .sensoryFeedback(.selection, trigger: paged)
     }
 
     private func content(now: Date) -> some View {
+        let cal = Calendar.app
+        let thisMonth = Self.monthStart(now)
+        let months = Self.months(around: thisMonth)
+        let shown = visible ?? thisMonth
+        return VStack(spacing: 10) {
+            PhoneScreenHeader(title: shown.formatted(.dateTime.month(.wide)), detail: shown.formatted(.dateTime.year())) {
+                HStack(spacing: 6) {
+                    Button { shift(-1, from: shown, in: months) } label: { Image(systemName: "chevron.left") }
+                        .buttonStyle(.sk1Key()).accessibilityLabel("Previous month")
+                    Button("Today") { go(to: thisMonth) }
+                        .buttonStyle(.sk1Key())
+                    Button { shift(1, from: shown, in: months) } label: { Image(systemName: "chevron.right") }
+                        .buttonStyle(.sk1Key()).accessibilityLabel("Next month")
+                }
+            }
+            .padding(.horizontal, 16)
+            HStack(spacing: 0) {
+                ForEach(Array(PhoneAgenda.weekdaySymbols(calendar: cal).enumerated()), id: \.offset) { _, s in
+                    SKCaption(s, tone: .soft).frame(maxWidth: .infinity)
+                }
+            }
+            .padding(.horizontal, 26)
+            .accessibilityHidden(true)
+            ScrollView {
+                LazyVStack(spacing: SK1.Metrics.groupSpacing) {
+                    ForEach(months, id: \.self) { m in
+                        MonthBlock(month: m, now: now, showsYear: !cal.isDate(m, equalTo: now, toGranularity: .year),
+                                   pick: pick)
+                            .id(m)
+                    }
+                }
+                .scrollTargetLayout()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 24)
+            }
+            .scrollPosition(id: $visible, anchor: .top)
+            .refreshable { await store.refresh(fresh: true) }
+            .onAppear { if visible == nil { visible = thisMonth } }
+        }
+        .padding(.top, 8)
+        .frame(maxWidth: 600)
+        .frame(maxWidth: .infinity)
+    }
+
+    private func shift(_ n: Int, from shown: Date, in months: [Date]) {
+        guard let m = Calendar.app.date(byAdding: .month, value: n, to: shown), months.contains(m) else { return }
+        go(to: m)
+    }
+
+    private func go(to month: Date) {
+        withAnimation(.easeInOut(duration: 0.3)) { visible = month }
+        paged += 1
+    }
+
+    static func monthStart(_ d: Date, calendar: Calendar = .app) -> Date {
+        calendar.dateInterval(of: .month, for: d)?.start ?? calendar.startOfDay(for: d)
+    }
+
+    /// First days of the months the scroll holds, oldest first.
+    static func months(around month: Date, calendar: Calendar = .app) -> [Date] {
+        (-monthsBack...monthsAhead).compactMap { calendar.date(byAdding: .month, value: $0, to: month) }
+    }
+}
+
+/// One month in the scroll: its name, then its weeks in a well. Days outside the month are left blank, since the
+/// months either side show them.
+struct MonthBlock: View {
+    @EnvironmentObject private var store: PhoneStore
+    let month: Date
+    let now: Date
+    let showsYear: Bool
+    let pick: (Date) -> Void
+
+    var body: some View {
         let cal = Calendar.app
         let range = CalendarVisibleRangeBuilder.build(anchor: month, calendar: cal)
         let events = store.events(in: range)
         let ribbons = MiniMonthRibbonBuilder.build(events: events, range: range, calendar: cal)
         let ribbonUIDs = MiniMonthRibbonBuilder.uids(ribbons)
         let dots = MenuAgendaBuilder.dots(events: events.filter { !ribbonUIDs.contains($0.uid) }, range: range, calendar: cal)
-        let dayGroups = MenuAgendaBuilder.build(events: events, now: now, scopedDay: selected, calendar: cal)
-        return VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
-            PhoneScreenHeader(title: month.formatted(.dateTime.month(.wide)), detail: month.formatted(.dateTime.year())) {
-                HStack(spacing: 6) {
-                    Button { shift(-1) } label: { Image(systemName: "chevron.left") }
-                        .buttonStyle(.sk1Key()).accessibilityLabel("Previous month")
-                    Button("Today") {
-                        month = now
-                        selected = cal.startOfDay(for: now)
-                    }
-                    .buttonStyle(.sk1Key())
-                    Button { shift(1) } label: { Image(systemName: "chevron.right") }
-                        .buttonStyle(.sk1Key()).accessibilityLabel("Next month")
-                }
-            }
+        let title = showsYear ? month.formatted(.dateTime.month(.wide).year()) : month.formatted(.dateTime.month(.wide))
+        VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
+            SKCaption(title, tone: cal.isDate(month, equalTo: now, toGranularity: .month) ? .ink : .soft)
+                .accessibilityAddTraits(.isHeader)
             SKWell {
                 VStack(spacing: 4) {
-                    HStack(spacing: 0) {
-                        ForEach(Array(PhoneAgenda.weekdaySymbols(calendar: cal).enumerated()), id: \.offset) { _, s in
-                            SKCaption(s, tone: .soft).frame(maxWidth: .infinity)
-                        }
-                    }
                     ForEach(PhoneAgenda.monthWeeks(anchor: month, calendar: cal), id: \.first) { week in
-                        MonthWeekRow(week: week, month: month, now: now, selected: selected,
-                                     ribbons: week.first.flatMap { ribbons[$0] } ?? [], dots: dots) { day in
-                            selected = day
-                        }
+                        MonthWeekRow(week: week, month: month, now: now,
+                                     ribbons: week.first.flatMap { ribbons[$0] } ?? [], dots: dots, pick: pick)
                     }
                 }
                 .padding(10)
             }
-            .gesture(DragGesture(minimumDistance: 30).onEnded { v in
-                if abs(v.translation.width) > abs(v.translation.height) { shift(v.translation.width < 0 ? 1 : -1) }
-            })
-            if let g = dayGroups.first {
-                PhoneDaySection(group: g, now: now, open: open)
-            } else {
-                VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
-                    SKCaption(PhoneAgenda.dayTitle(selected, now: now), tone: .soft)
-                    SKWell {
-                        HStack {
-                            Text("Nothing on this day.").font(.callout).foregroundStyle(.secondary)
-                            Spacer()
-                            Button("Add", action: quickAdd).buttonStyle(.sk1Key(size: .small))
-                        }
-                        .padding(12)
-                    }
-                }
-            }
-        }
-    }
-
-    private func shift(_ n: Int) {
-        let cal = Calendar.app
-        guard let m = cal.date(byAdding: .month, value: n, to: month) else { return }
-        month = m
-        if !cal.isDate(selected, equalTo: m, toGranularity: .month), let first = cal.dateInterval(of: .month, for: m)?.start {
-            selected = cal.isDate(Date(), equalTo: m, toGranularity: .month) ? cal.startOfDay(for: Date()) : first
         }
     }
 }
@@ -91,7 +127,6 @@ struct MonthWeekRow: View {
     let week: [Date]
     let month: Date
     let now: Date
-    let selected: Date
     let ribbons: [MiniMonthRibbon]
     let dots: [Date: [String]]
     let pick: (Date) -> Void
@@ -101,29 +136,42 @@ struct MonthWeekRow: View {
         VStack(spacing: 2) {
             HStack(spacing: 0) {
                 ForEach(week, id: \.self) { day in
-                    Button { pick(day) } label: { dayCell(day, cal: cal) }
-                        .buttonStyle(.plain)
-                        .frame(maxWidth: .infinity)
-                }
-            }
-            if !ribbons.isEmpty {
-                GeometryReader { geo in
-                    let col = geo.size.width / 7
-                    ForEach(ribbons) { r in
-                        ribbon(r)
-                            .frame(width: col * CGFloat(r.endColumn - r.startColumn + 1) - 4, height: 12)
-                            .offset(x: col * CGFloat(r.startColumn) + 2, y: CGFloat(r.lane) * 14)
+                    if cal.isDate(day, equalTo: month, toGranularity: .month) {
+                        Button { pick(day) } label: { dayCell(day, cal: cal) }
+                            .buttonStyle(.plain)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityHint("Opens the day")
+                    } else {
+                        Color.clear.frame(maxWidth: .infinity, minHeight: 46).accessibilityHidden(true)
                     }
                 }
-                .frame(height: CGFloat((ribbons.map(\.lane).max() ?? 0) + 1) * 14)
+            }
+            let inMonth = week.indices.filter { cal.isDate(week[$0], equalTo: month, toGranularity: .month) }
+            let shown = clipped(to: (inMonth.first ?? 0)...(inMonth.last ?? 6))
+            if !shown.isEmpty {
+                GeometryReader { geo in
+                    let col = geo.size.width / 7
+                    ForEach(shown, id: \.ribbon.id) { c in
+                        ribbon(c.ribbon)
+                            .frame(width: col * CGFloat(c.columns.count) - 4, height: 12)
+                            .offset(x: col * CGFloat(c.columns.lowerBound) + 2, y: CGFloat(c.ribbon.lane) * 14)
+                    }
+                }
+                .frame(height: CGFloat((shown.map(\.ribbon.lane).max() ?? 0) + 1) * 14)
             }
         }
     }
 
+    /// The ribbons cut to the month's own days in this week (the months either side draw the rest).
+    private func clipped(to days: ClosedRange<Int>) -> [(ribbon: MiniMonthRibbon, columns: ClosedRange<Int>)] {
+        ribbons.compactMap { r in
+            let lo = max(r.startColumn, days.lowerBound), hi = min(r.endColumn, days.upperBound)
+            return lo <= hi ? (r, lo...hi) : nil
+        }
+    }
+
     private func dayCell(_ day: Date, cal: Calendar) -> some View {
-        let inMonth = cal.isDate(day, equalTo: month, toGranularity: .month)
         let isToday = cal.isDate(day, inSameDayAs: now)
-        let isSelected = cal.isDate(day, inSameDayAs: selected)
         let colors = dots[cal.startOfDay(for: day)] ?? []
         return VStack(spacing: 3) {
             Text("\(cal.component(.day, from: day))")
@@ -131,11 +179,7 @@ struct MonthWeekRow: View {
                 .foregroundStyle(isToday ? Color(sk1Hex: SK1.charcoalInk) : .primary)
                 .frame(width: 32, height: 32)
                 .background {
-                    if isToday {
-                        Circle().fill(Color(sk1Hex: SK1.orange))
-                    } else if isSelected {
-                        Circle().strokeBorder(Color(sk1Hex: SK1.orange), lineWidth: 1.5)
-                    }
+                    if isToday { Circle().fill(Color(sk1Hex: SK1.orange)) }
                 }
             HStack(spacing: 2) {
                 ForEach(Array(colors.enumerated()), id: \.offset) { _, hex in
@@ -144,11 +188,9 @@ struct MonthWeekRow: View {
             }
             .frame(height: 5)
         }
-        .opacity(inMonth ? 1 : 0.35)
         .frame(maxWidth: .infinity, minHeight: 46)
         .contentShape(Rectangle())
         .accessibilityLabel(Text(day.formatted(.dateTime.weekday(.wide).month(.wide).day()) + (colors.isEmpty ? "" : ", has meetings")))
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 
     private func ribbon(_ r: MiniMonthRibbon) -> some View {

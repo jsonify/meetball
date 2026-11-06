@@ -11,6 +11,8 @@ struct DayGridView: View {
     @EnvironmentObject private var store: PhoneStore
     var open: (CalendarEvent) -> Void
     var add: (Date?) -> Void
+    /// A day to open on (picked on the Month tab); taken and cleared on arrival.
+    var jump: Binding<Date?> = .constant(nil)
 
     @SceneStorage("grid.span") private var span = 1
     @AppStorage("phone.grid.hourHeight") private var hourHeight: Double = DayGridMetrics.defaultHourHeight
@@ -28,6 +30,12 @@ struct DayGridView: View {
             content(now: tl.date)
         }
         .onChange(of: span) { _, _ in pencil = nil; scrollRequest += 1 }
+        .onChange(of: jump.wrappedValue, initial: true) { _, day in
+            guard let day else { return }
+            anchor = Calendar.app.startOfDay(for: day)
+            pencil = nil
+            jump.wrappedValue = nil
+        }
         .sensoryFeedback(.selection, trigger: paged)
     }
 
