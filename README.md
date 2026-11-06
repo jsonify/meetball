@@ -11,6 +11,12 @@ Independent implementation; written from observed behavior and public APIs, not 
 - Day / Week / Month views (⌘1/⌘2/⌘3, remembered): time grid with hour gutter, now-line, overlap column packing,
   all-day row (meetings that run past midnight stay on the grid, split across both days), drag to create, auto-scroll to now/working hours; keyboard ←/→ prev/next, T today, J/K next/previous day
 - Month grid with multi-day event bars (lane-packed), per-day list, per-calendar visibility
+- Work calendars: mark calendars as work with the briefcase beside them in the sidebar (or right-click › Mark as Work
+  Calendar), then flip **Work only** (sidebar switch, the menu bar's Work key, or ⇧⌘O) to show just those everywhere:
+  calendar views, menu bar, Upcoming, Meeting Guardian alerts and auto-join
+- Auto-join: from a meeting's details, open it automatically shortly after the start if you haven't joined (this one, or
+  every one in a recurring series). Settings › Join › Recurring meetings makes every recurring meeting auto-join by
+  default; turn a series off from its details
 - Create events (attendees, Google Meet link, focus blocks) and delete events
 - Menu-bar extra: next-meeting countdown, mini month with event dots (click a day to scope the agenda), hero card for the
   next/in-progress meeting, agenda grouped by day with a "now" line, all-day chips, declined events dimmed

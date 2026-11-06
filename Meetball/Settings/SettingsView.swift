@@ -257,7 +257,10 @@ struct JoinSettingsView: View {
                 }
             }
             SKGroup(caption: "Auto-join",
-                    note: "Turn auto-join on for a meeting from its details (click it in the menu bar or the calendar). If you haven't joined through Meetball by then, it opens the meeting for you, the way the links below say.") {
+                    note: "Turn auto-join on or off for a meeting from its details (click it in the menu bar or the calendar). If you haven't joined through Meetball by then, it opens the meeting for you, the way the links below say.") {
+                SKRow(title: "Recurring meetings", subtitle: "Every recurring meeting with a link auto-joins unless you turn its series off in its details.") {
+                    Toggle("Auto-join recurring meetings", isOn: $guardianStore.settings.autoJoinRecurring).toggleStyle(.sk1Switch)
+                }
                 SKRow(title: "Join", subtitle: "Meetings more than 5 minutes past this point are left alone, for example after your Mac wakes up.") {
                     SKPicker(selection: $guardianStore.settings.autoJoinDelayMinutes,
                              options: AutoJoin.delayOptions.map { SKPicker<Int>.Option($0, $0 == 0 ? "At the start" : "\($0) min after the start") })

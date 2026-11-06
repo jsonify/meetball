@@ -149,7 +149,9 @@ struct EventDetailPopover: View {
                 SKSegmented(selection: selection, options: options).frame(width: recurring ? 190 : 110)
             }
             if guardianStore.isAutoJoin(event) {
-                Text("Opens at \(AutoJoin.joinTime(event, delayMinutes: delay).shortTime) if you haven't joined yet.").sk1Hint()
+                Text("Opens at \(AutoJoin.joinTime(event, delayMinutes: delay).shortTime) if you haven't joined yet."
+                     + (guardianStore.isAutoJoinByDefault(event) ? " Recurring meetings auto-join by default (Settings › Join)." : ""))
+                    .sk1Hint()
             }
         }
         .accessibilityElement(children: .contain)

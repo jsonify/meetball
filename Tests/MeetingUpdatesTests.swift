@@ -247,9 +247,37 @@ final class AutoJoinTests: XCTestCase {
         XCTAssertEqual(reloaded.autoJoinScope(for: one), .occurrence)
     }
 
+    @MainActor func testRecurringMeetingsAutoJoinByDefault() {
+        let store = MeetingGuardianStore(defaults: UserDefaults(suiteName: "AutoJoinTests-\(UUID().uuidString)")!)
+        let one = ev("a", start: start)
+        let weekly = ev("w1", start: start, series: "S1")
+        let nextWeek = ev("w2", start: start.addingTimeInterval(7 * 86400), series: "S1")
+        let daily = ev("d1", start: start, series: "S2")
+        XCTAssertFalse(store.isAutoJoin(weekly), "off until the setting is on")
+        store.settings.autoJoinRecurring = true
+        XCTAssertEqual(store.autoJoinScope(for: weekly), .series)
+        XCTAssertTrue(store.isAutoJoinByDefault(weekly))
+        XCTAssertFalse(store.isAutoJoin(one), "one-off meetings stay opt-in")
+        // Turning a series off sticks, for every occurrence.
+        store.setAutoJoin(nil, for: weekly)
+        XCTAssertFalse(store.isAutoJoin(nextWeek))
+        XCTAssertTrue(store.isAutoJoin(daily))
+        // "This one" leaves the rest of the series off.
+        store.setAutoJoin(.occurrence, for: daily)
+        XCTAssertEqual(store.autoJoinScope(for: daily), .occurrence)
+        XCTAssertFalse(store.isAutoJoin(ev("d2", start: start.addingTimeInterval(86400), series: "S2")))
+        // "Every one" turns it back on, explicitly, so it survives the setting going off.
+        store.setAutoJoin(.series, for: nextWeek)
+        XCTAssertFalse(store.isAutoJoinByDefault(weekly))
+        store.settings.autoJoinRecurring = false
+        XCTAssertTrue(store.isAutoJoin(weekly))
+        XCTAssertFalse(store.isAutoJoin(ev("x1", start: start, series: "S3")))
+    }
+
     func testOldSettingsDecodeWithAutoJoinDefaults() throws {
         let s = try JSONDecoder().decode(GuardianSettings.self, from: Data(#"{"style":"soft"}"#.utf8))
         XCTAssertEqual(s.autoJoinDelayMinutes, 1)
+        XCTAssertFalse(s.autoJoinRecurring)
         XCTAssertTrue(s.notifyChanges)
         XCTAssertTrue(s.celebrateCancellations)
     }

@@ -160,6 +160,13 @@ struct MenuBarContent: View {
                            onHover: hover(showHidden ? "Hide filtered events" : "Show filtered events", "\(hidden) HIDDEN")) {
                 showHidden.toggle()
             }
+            if !calendar.workCalendarKeys.isEmpty {
+                SKCaptionedKey("Work", systemImage: "briefcase", lamp: calendar.isWorkOnly,
+                               onHover: hover(calendar.isWorkOnly ? "Show all calendars" : "Show work calendars only", "⇧⌘O")) {
+                    calendar.toggleWorkOnly()
+                }
+                .keyboardShortcut("o", modifiers: [.command, .shift])
+            }
             SKCaptionedKey("Settings", systemImage: "gearshape", variant: .charcoal, onHover: hover("Settings", "⌘,")) {
                 openSettings(); NSApp.activate(ignoringOtherApps: true)
             }
