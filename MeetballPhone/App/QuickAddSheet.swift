@@ -25,6 +25,8 @@ struct QuickAddSheet: View {
     @State private var startOverride: Date?
     @State private var lengthOverride: Int?
     @State private var handoff: Handoff?
+    /// Set when Apple's editor saved: the composer closes once the editor has gone, not alongside it.
+    @State private var finishAfterHandoff = false
     @State private var error: String?
     @State private var saved = 0
     @State private var nudged = 0
@@ -80,12 +82,16 @@ struct QuickAddSheet: View {
             if a.start != b.start || a.hasDate != b.hasDate || a.hasTime != b.hasTime { startOverride = nil }
             if a.end.timeIntervalSince(a.start) != b.end.timeIntervalSince(b.start) { lengthOverride = nil }
         }
-        .sheet(item: $handoff) { h in
+        .sheet(item: $handoff, onDismiss: {
+            guard finishAfterHandoff else { return }
+            finishAfterHandoff = false
+            finish()
+        }) { h in
             switch h.kind {
             case .editor(let event, let eventStore):
                 EventEditor(event: event, eventStore: eventStore) { saved in
+                    if saved { finishAfterHandoff = true; Task { await store.refresh() } }
                     handoff = nil
-                    if saved { Task { await store.refresh() }; finish() }
                 }
                 .ignoresSafeArea()
             }

@@ -14,6 +14,8 @@ struct EventDetailSheet: View {
     /// The stored event when its calendar can be changed here; nil for a read-only feed such as the work calendar.
     @State private var editable: (event: EKEvent, store: EKEventStore)?
     @State private var editing = false
+    /// Set when Apple's editor saved or deleted: this screen closes once the editor has gone, not alongside it.
+    @State private var closeAfterEdit = false
     @State private var brief: PreFlightBrief?
     @State private var recording = false
 
@@ -58,12 +60,13 @@ struct EventDetailSheet: View {
         .sheet(isPresented: $recording) {
             EchoSheet(event: event).environmentObject(store)
         }
-        .sheet(isPresented: $editing) {
+        // Closing both sheets in one go leaves the editor up but marked closed, so its ✕ and ✓ stop working: the editor
+        // goes first, then this screen (it shows the old details; the calendars reload from the change).
+        .sheet(isPresented: $editing, onDismiss: { if closeAfterEdit { dismiss() } }) {
             if let editable {
                 EventEditor(event: editable.event, eventStore: editable.store) { changed in
+                    closeAfterEdit = changed
                     editing = false
-                    // The screen shows the old details; the calendars reload from the change.
-                    if changed { dismiss() }
                 }
                 .ignoresSafeArea()
             }
