@@ -58,6 +58,13 @@ struct PhoneRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: store.celebration)
+        .onOpenURL { url in
+            switch MeetballLink.parse(url) {
+            case .join(let meeting): PhoneJoin.open(meeting)
+            case .today: tab = .today
+            case nil: break
+            }
+        }
     }
 
     @ViewBuilder

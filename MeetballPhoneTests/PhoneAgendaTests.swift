@@ -84,6 +84,7 @@ final class PhoneAgendaTests: XCTestCase {
         XCTAssertFalse(s.notifyChanges)
         XCTAssertEqual(s.hiddenCalendars, ["a|b"])
         XCTAssertTrue(s.celebrateCancellations)
+        XCTAssertTrue(s.liveActivity)
         var round = s
         round.celebrateCancellations = false
         XCTAssertEqual(try JSONDecoder().decode(PhoneSettings.self, from: JSONEncoder().encode(round)), round)

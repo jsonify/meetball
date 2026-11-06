@@ -81,6 +81,14 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **Confetti** when a meeting is cancelled (shown the next time you open Meetball if it was found in the background).
 - **Settings**: everything from the notifier below, the theme (System/Light/Dark) and the fun switches.
 
+- **Widgets** (MeetballWidgets extension): the next meeting on an MB-1 LCD for the Home Screen (small, medium) and the
+  Lock Screen (rectangular, circular, inline). Tapping joins a meeting that's on or starts within 10 minutes. The app
+  saves the next two days to the App Group `group.app.meetball.MeetballPhone` after each refresh; the widgets read that.
+- **Live Activity**: in the hour before a meeting, a countdown on the Lock Screen and in the Dynamic Island, counting up
+  once it starts, with a Join button. iOS only lets it start while Meetball is open, so open Meetball in that hour;
+  background refreshes then keep it right (a moved meeting moves it, a cancelled one ends it). Switch it off in
+  Settings › Alerts.
+
 ### Alerts and CarPlay
 Meetball reminds you before meetings and tells you when one moves, gets a new link, or is cancelled.
 
@@ -100,7 +108,9 @@ and the old reminder can still fire. Opening Meetball, or pulling down to refres
 2. Connect the iPhone with a cable (after the first run it also works over Wi-Fi) and tap **Trust** on the phone.
 3. In Xcode pick the **MeetballPhone** scheme and your iPhone as the destination. Under the target's *Signing &
    Capabilities*, the team is already TS339TNM5P with automatic signing; Xcode registers the phone and creates the
-   `app.meetball.MeetballPhone` App ID with the Time Sensitive Notifications capability. If it says the bundle ID is
+   `app.meetball.MeetballPhone` App ID with the Time Sensitive Notifications capability. Do the same for the
+   **MeetballWidgets** target (`app.meetball.MeetballPhone.Widgets`); Xcode also registers the App Group
+   `group.app.meetball.MeetballPhone` for both. If it says the bundle ID is
    taken, change `PRODUCT_BUNDLE_IDENTIFIER` for `MeetballPhone` in `project.yml` and regenerate.
 4. Press ⌘R. The first time, iOS asks you to turn on **Developer Mode** (Settings › Privacy & Security › Developer
    Mode, then restart the phone) and Xcode may need a minute to prepare the device. Run again afterwards.
