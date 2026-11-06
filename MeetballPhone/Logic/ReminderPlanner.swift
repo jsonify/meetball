@@ -16,6 +16,9 @@ struct PhoneSettings: Codable, Equatable {
     var liveActivity: Bool = true
     /// A full-screen countdown with haptics in the last minute before a meeting, while Meetball is open.
     var countdownMoment: Bool = true
+    /// The Today tab (the MB-1 display and agenda). Off by default: the app opens on the Day grid, which has the next
+    /// meeting on top.
+    var showTodayTab: Bool = false
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -43,7 +46,8 @@ extension PhoneSettings {
                   celebrateCancellations: try c.decodeIfPresent(Bool.self, forKey: .celebrateCancellations)
                     ?? d.celebrateCancellations,
                   liveActivity: try c.decodeIfPresent(Bool.self, forKey: .liveActivity) ?? d.liveActivity,
-                  countdownMoment: try c.decodeIfPresent(Bool.self, forKey: .countdownMoment) ?? d.countdownMoment)
+                  countdownMoment: try c.decodeIfPresent(Bool.self, forKey: .countdownMoment) ?? d.countdownMoment,
+                  showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab)
     }
 }
 
