@@ -37,6 +37,12 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Echo records a short voice note after a meeting, only while you're recording.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Echo adds your after-meeting notes to Reminders as follow-ups.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Echo turns your voice note into text on your iPhone, so it can become a follow-up reminder.</string>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
 	<key>UIBackgroundModes</key>

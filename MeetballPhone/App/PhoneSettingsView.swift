@@ -17,6 +17,7 @@ struct PhoneSettingsView: View {
             if store.calendarAccess != .granted { accessCard }
             statusGroup
             alertsGroup
+            prepGroup
             funGroup
             appearanceGroup
             upcomingGroup
@@ -28,6 +29,27 @@ struct PhoneSettingsView: View {
 
     private var version: String {
         (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? ""
+    }
+
+    // MARK: Pre-flight and Echo
+
+    private var prepGroup: some View {
+        SKGroup(caption: "Before and after",
+                note: "Echo listens only while you record, and transcribes on the iPhone itself. Notes stay in Meetball (the work calendar can't be written to) and, if you like, in Reminders.") {
+            SKRow(title: "Pre-flight card", subtitle: "Five minutes before a meeting: who's in it, the last meeting with them and your note from it, and the invite's links.") {
+                Toggle("Pre-flight card", isOn: $store.settings.preFlight).labelsHidden().toggleStyle(.sk1Switch)
+            }
+            SKRow(title: "Echo", subtitle: "When a meeting ends, one tap records a 20-second voice note for your follow-ups.") {
+                Toggle("Echo", isOn: $store.settings.echoMode).labelsHidden().toggleStyle(.sk1Switch)
+            }
+            SKRow(title: "Add to Reminders", subtitle: "Each Echo note also becomes a reminder, due the next working morning.") {
+                Toggle("Add to Reminders", isOn: $store.settings.echoToReminders).labelsHidden().toggleStyle(.sk1Switch)
+                    .disabled(!store.settings.echoMode)
+            }
+            if !store.echoNotes.isEmpty {
+                SKRow(title: "Echo notes", subtitle: "\(store.echoNotes.count) saved. Each one shows on its meeting.") { EmptyView() }
+            }
+        }
     }
 
     // MARK: Fun

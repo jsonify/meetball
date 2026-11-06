@@ -62,6 +62,15 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         if response.actionIdentifier == PhoneNotifications.joinAction,
            let link = info[PhoneNotifications.joinURLKey] as? String, let url = URL(string: link) {
             DispatchQueue.main.async { UIApplication.shared.open(url) }
+        } else if response.notification.request.content.categoryIdentifier == PhoneNotifications.echoCategory,
+                  response.actionIdentifier != UNNotificationDismissActionIdentifier,
+                  let uid = info[PhoneNotifications.echoUIDKey] as? String,
+                  let start = info[PhoneNotifications.echoStartKey] as? Double,
+                  let end = info[PhoneNotifications.echoEndKey] as? Double {
+            // Tapping the Echo nudge (or Record a note) opens the recorder for that meeting.
+            let request = EchoRequest(uid: uid, start: Date(timeIntervalSince1970: start), end: Date(timeIntervalSince1970: end),
+                                      title: info[PhoneNotifications.echoTitleKey] as? String ?? "Meeting")
+            Task { @MainActor in PhoneStore.shared.openEcho(request) }
         }
         completionHandler()
     }

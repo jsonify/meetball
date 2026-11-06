@@ -16,6 +16,12 @@ struct PhoneSettings: Codable, Equatable {
     var liveActivity: Bool = true
     /// A full-screen countdown with haptics in the last minute before a meeting, while Meetball is open.
     var countdownMoment: Bool = true
+    /// The pre-flight card five minutes before a meeting: who's in it, the last meeting with them, the invite's links.
+    var preFlight: Bool = true
+    /// Echo: when a meeting ends, offer a 20-second voice note (and a notification to tap if Meetball isn't open).
+    var echoMode: Bool = true
+    /// Echo notes are also added to Reminders as follow-ups.
+    var echoToReminders: Bool = true
     /// The Today tab (the MB-1 display and agenda). Off by default: the app opens on the Day grid, which has the next
     /// meeting on top.
     var showTodayTab: Bool = false
@@ -47,13 +53,16 @@ extension PhoneSettings {
                     ?? d.celebrateCancellations,
                   liveActivity: try c.decodeIfPresent(Bool.self, forKey: .liveActivity) ?? d.liveActivity,
                   countdownMoment: try c.decodeIfPresent(Bool.self, forKey: .countdownMoment) ?? d.countdownMoment,
+                  preFlight: try c.decodeIfPresent(Bool.self, forKey: .preFlight) ?? d.preFlight,
+                  echoMode: try c.decodeIfPresent(Bool.self, forKey: .echoMode) ?? d.echoMode,
+                  echoToReminders: try c.decodeIfPresent(Bool.self, forKey: .echoToReminders) ?? d.echoToReminders,
                   showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab)
     }
 }
 
 /// One local notification to schedule ahead of a meeting.
 struct PlannedReminder: Equatable, Identifiable {
-    enum Kind: String { case lead, start }
+    enum Kind: String { case lead, start, echo }
 
     var kind: Kind
     var event: CalendarEvent
@@ -109,6 +118,7 @@ enum ReminderPlanner {
                                            body: body(e, kind: .start, settings: settings, moved: moved.contains(e.uid))))
             }
         }
+
         return Array(out.sorted { $0.fireDate < $1.fireDate }.prefix(maxPending))
     }
 
@@ -118,6 +128,18 @@ enum ReminderPlanner {
         let when = kind == .lead ? "Starts in \(minutes(settings.leadMinutes))" : "Starting now"
         return moved ? "Moved to \(e.start.shortTime) · \(when)" : "\(when) · \(e.start.shortTime)"
     }
+
+    /// Echo: a nudge as each meeting ends to leave a voice note (tapping it opens the recorder). Scheduled with the
+    /// reminders, which come first when iOS's limit on pending alerts is reached.
+    static func echoes(_ events: [CalendarEvent], settings: PhoneSettings, now: Date, room: Int = maxPending) -> [PlannedReminder] {
+        guard settings.echoMode, room > 0 else { return [] }
+        let out = meetings(events, settings: settings, now: now)
+            .filter { $0.end > now && $0.end.timeIntervalSince($0.start) >= Echo.minMeetingLength }
+            .map { PlannedReminder(kind: .echo, event: $0, fireDate: $0.end, title: "\($0.title) just ended", body: echoBody) }
+        return Array(out.sorted { $0.fireDate < $1.fireDate }.prefix(room))
+    }
+
+    static let echoBody = "How did it go? Tap to leave a 20-second voice note for your follow-ups."
 
     static func minutes(_ n: Int) -> String { n == 1 ? "1 min" : "\(n) min" }
 

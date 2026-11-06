@@ -34,6 +34,12 @@ struct PhoneRootView: View {
     /// The composer, open; `start` when a slot on the day grid picked the time.
     @State private var compose: ComposeRequest?
     @State private var readout = false
+    /// The pre-flight card showing, and the meetings it already came up for.
+    @State private var preFlight: CalendarEvent?
+    @State private var shownPreFlights: Set<String> = []
+    /// The Echo recorder, open for this meeting, and the meetings whose Echo banner was waved off.
+    @State private var echo: CalendarEvent?
+    @State private var dismissedEchoes: Set<String> = []
     @State private var moment: CalendarEvent?
     @State private var dismissedMoments: Set<String> = []
 
@@ -65,7 +71,12 @@ struct PhoneRootView: View {
                 .scrollDismissesKeyboard(.interactively)
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { tabBar }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            VStack(spacing: 0) {
+                echoBanner
+                tabBar
+            }
+        }
         .sk1Chassis()
         .sheet(item: $detail) { e in
             EventDetailSheet(event: e).environmentObject(store)
@@ -94,6 +105,18 @@ struct PhoneRootView: View {
             }
         }
         .task(id: "\(store.revision)|\(store.settings.countdownMoment)") { await waitForMoment() }
+        .sheet(item: $preFlight) { e in
+            PreFlightSheet(event: e).environmentObject(store)
+        }
+        .task(id: "\(store.revision)|\(store.settings.preFlight)") { await waitForPreFlight() }
+        .sheet(item: $echo) { e in
+            EchoSheet(event: e).environmentObject(store)
+        }
+        .onChange(of: store.echoRequest, initial: true) { _, request in
+            guard let request else { return }
+            store.echoRequest = nil
+            openEcho(store.event(for: request))
+        }
         .onOpenURL { url in
             switch MeetballLink.parse(url) {
             case .join(let meeting): PhoneJoin.open(meeting)
@@ -114,7 +137,58 @@ struct PhoneRootView: View {
         detail = nil
         compose = nil
         readout = false
+        preFlight = nil
         moment = e
+    }
+
+    /// Sleeps until five minutes before each meeting, then shows its pre-flight card, unless something else is open
+    /// (restarted by every refresh, so a moved meeting moves it). Opening Meetball inside the five minutes shows it
+    /// straight away.
+    private func waitForPreFlight() async {
+        guard store.settings.preFlight else { return }
+        while !Task.isCancelled {
+            let upcoming = store.upcoming.filter { !shownPreFlights.contains($0.uid) }
+            guard let e = PreFlight.next(upcoming, now: Date()) else { return }
+            let wait = e.start.timeIntervalSinceNow - PreFlight.lead
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled else { return }
+            shownPreFlights.insert(e.uid)
+            guard e.start > Date(), detail == nil, compose == nil, moment == nil, echo == nil, preFlight == nil else { continue }
+            readout = false
+            preFlight = e
+        }
+    }
+
+    /// The Echo recorder for `e`, over whatever else is open.
+    private func openEcho(_ e: CalendarEvent) {
+        let busy = detail != nil || compose != nil || readout || preFlight != nil || moment != nil
+        detail = nil
+        compose = nil
+        readout = false
+        preFlight = nil
+        moment = nil
+        dismissedEchoes.insert(e.uid)
+        guard busy else { echo = e; return }
+        // A sheet can't open while another is still going away.
+        Task {
+            try? await Task.sleep(for: .milliseconds(650))
+            echo = e
+        }
+    }
+
+    /// For half an hour after a meeting ends: its Echo key, above the tab bar.
+    @ViewBuilder
+    private var echoBanner: some View {
+        if store.settings.echoMode {
+            TimelineView(.periodic(from: .now, by: 30)) { tl in
+                let now = tl.date
+                let today = store.events(from: now, days: 1) + store.events(from: now.addingTimeInterval(-Echo.offerWindow), days: 1)
+                if let e = Echo.justEnded(today, notes: store.echoNotes, dismissed: dismissedEchoes, now: now) {
+                    EchoBanner(event: e, record: { openEcho(e) }, dismiss: { withAnimation { _ = dismissedEchoes.insert(e.uid) } })
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+            }
+        }
     }
 
     @ViewBuilder
