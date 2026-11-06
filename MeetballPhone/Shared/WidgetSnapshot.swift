@@ -41,6 +41,14 @@ struct WidgetSnapshot: Codable, Equatable {
         return live ?? meetings.filter { $0.start > now }.min { $0.start < $1.start }
     }
 
+    /// The meeting a Join button should open: the latest-started one on now with a link, else the next with a link
+    /// starting within `window` (the Mac's join shortcut rule).
+    func joinable(at now: Date, window: TimeInterval = 10 * 60) -> WidgetMeeting? {
+        let linked = meetings.filter { $0.joinURL != nil && $0.end > now }
+        if let live = linked.filter({ $0.start <= now }).max(by: { $0.start < $1.start }) { return live }
+        return linked.filter { $0.start > now && $0.start.timeIntervalSince(now) <= window }.min { $0.start < $1.start }
+    }
+
     /// Meetings after `meeting` (or after `now` when nil) that haven't ended.
     func later(than meeting: WidgetMeeting?, now: Date, limit: Int) -> [WidgetMeeting] {
         Array(meetings.filter { $0.end > now && $0.id != meeting?.id && $0.start >= (meeting?.start ?? now) }
