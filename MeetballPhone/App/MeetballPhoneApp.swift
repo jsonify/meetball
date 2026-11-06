@@ -2,22 +2,27 @@ import SwiftUI
 import UIKit
 import UserNotifications
 
-/// Meetball for iPhone: a meeting notifier. It reads Apple Calendar and schedules Time Sensitive reminders before each
-/// meeting, so Siri can announce them in CarPlay, and alerts when a meeting moves, gets a new link, or is cancelled.
+/// Meetball for iPhone: the Mac app's calendar in your pocket (Today, Week, Month, quick add) with its SK-1 look and
+/// its fun, plus the notifier: Time Sensitive reminders before each meeting, which Siri can announce in CarPlay, and
+/// alerts when a meeting moves, gets a new link, or is cancelled.
 @main
 struct MeetballPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var appDelegate
     @StateObject private var store = PhoneStore.shared
     @Environment(\.scenePhase) private var phase
+    @AppStorage(AppPreferences.Key.theme) private var themeRaw = AppTheme.system.rawValue
 
     var body: some Scene {
         WindowGroup {
-            PhoneHomeView()
+            PhoneRootView()
                 .environmentObject(store)
+                .preferredColorScheme(colorScheme)
                 .task { await store.start() }
                 .onChange(of: phase) { _, newPhase in
                     switch newPhase {
-                    case .active: Task { await store.refresh(fresh: true) }
+                    case .active:
+                        store.showPendingCelebration()
+                        Task { await store.refresh(fresh: true) }
                     case .background: store.scheduleBackgroundRefresh()
                     default: break
                     }
@@ -25,6 +30,15 @@ struct MeetballPhoneApp: App {
         }
         .backgroundTask(.appRefresh(PhoneStore.refreshTaskID)) {
             await PhoneStore.shared.backgroundRefresh()
+        }
+    }
+
+    /// Settings › Appearance › Theme; nil follows the iPhone.
+    private var colorScheme: ColorScheme? {
+        switch AppTheme(rawValue: themeRaw) ?? .system {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
         }
     }
 }

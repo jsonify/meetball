@@ -66,12 +66,23 @@ secrets) on every push and pull request, and runs `Scripts/sk1-audit.sh` on Linu
 purpose ends its line with `// sk1-audit: ignore (reason)`). `.claude/skills/adopt-sk1kit` is SK1Kit's adoption skill
 for Claude Code sessions. Both come from SK1Kit: refresh them with its `Scripts/install-adoption-kit.sh <this repo>`.
 
-## iPhone notifier (MeetballPhone)
-A small personal iPhone app (not for the App Store) that reminds you before meetings and tells you when one moves, gets a
-new join link, or is cancelled. It reads the calendars in the iPhone's Calendar app through EventKit (a work Google
-calendar added via iCloud included), using the Mac app's `AppleCalendarClient` and `MeetingChangeDetector`. One SK-1
-screen: the next meeting on an LCD, whether alerts can reach the car, the alert lead time (1/5/10/15 min, optional alert
-at start), what's coming up, recent changes, and per-calendar switches.
+## Meetball for iPhone (MeetballPhone)
+A personal iPhone version of Meetball (not for the App Store) with the Mac app's SK-1 look and its fun. It reads the
+calendars in the iPhone's Calendar app through EventKit (a work Google calendar added via iCloud included), sharing the
+Mac app's calendar client, change detector, layout builders, quick-add parser, countdown LCD, "Starts in" urgency
+styling and confetti (the shared files are listed under `MeetballPhone` in `project.yml` and must stay AppKit-free).
+
+- **Today**: the MB-1 display (next meeting, meetings left today), the "Starts in" card that turns orange, glows and
+  blinks as the meeting nears, with a big Join key, cards for moved/re-linked/cancelled meetings until you dismiss
+  them, and the rest of today and tomorrow.
+- **Week**: an LED meeting-load meter for the next seven days (tap a day to show only it) and each day's meetings.
+- **Month**: dots per day, trips and on-call stretches as ribbons, and the chosen day's meetings. Swipe to change month.
+- **Quick add** (the + key): one line of plain English, read back on an LCD as you type, saved to a calendar you pick.
+- **Confetti** when a meeting is cancelled (shown the next time you open Meetball if it was found in the background).
+- **Settings**: everything from the notifier below, the theme (System/Light/Dark) and the fun switches.
+
+### Alerts and CarPlay
+Meetball reminds you before meetings and tells you when one moves, gets a new link, or is cancelled.
 
 **How alerts reach CarPlay.** Every alert is a Time Sensitive local notification. CarPlay only draws banners for apps
 Apple has approved for CarPlay, which a calendar isn't, so in the car Siri *reads* Meetball's alerts (Announce

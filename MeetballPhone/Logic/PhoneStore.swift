@@ -1,6 +1,7 @@
 import BackgroundTasks
 import EventKit
 import Foundation
+import UIKit
 import UserNotifications
 
 /// Reads Apple Calendar, schedules meeting reminders, and alerts on changes.
@@ -25,6 +26,14 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var lastRefresh: Date?
     @Published private(set) var lastBackgroundRefresh: Date?
     @Published private(set) var notificationSettings: UNNotificationSettings?
+    /// Bumped by every refresh, so the calendar screens load their events again.
+    @Published private(set) var revision = 0
+    /// Moved, re-linked and cancelled meetings, shown on Today until dismissed.
+    @Published private(set) var changeCards: [ChangeCard] = []
+    /// Confetti on screen now.
+    @Published var celebration: Celebration?
+    /// Calendars quick add can write to.
+    @Published private(set) var writableCalendars: [GCalendar] = []
     @Published var settings: PhoneSettings {
         didSet {
             guard settings != oldValue else { return }
@@ -36,17 +45,22 @@ final class PhoneStore: ObservableObject {
     private let client = AppleCalendarClient()
     private var started = false
     private var debounce: Task<Void, Never>?
+    /// Events per range for the calendar screens, cleared by each refresh.
+    private var rangeCache: [String: [CalendarEvent]] = [:]
     private let defaults = UserDefaults.standard
     private enum Key {
         static let moved = "phone.moved"
         static let recent = "phone.recentChanges"
         static let lastBackground = "phone.lastBackgroundRefresh"
+        static let cards = "phone.changeCards"
+        static let pendingCelebration = "phone.pendingCelebration"
     }
 
     private init() {
         settings = PhoneSettings.load()
         recentChanges = (defaults.data(forKey: Key.recent)).flatMap { try? JSONDecoder().decode([RecentChange].self, from: $0) } ?? []
         lastBackgroundRefresh = defaults.object(forKey: Key.lastBackground) as? Date
+        changeCards = defaults.data(forKey: Key.cards).flatMap { try? JSONDecoder().decode([ChangeCard].self, from: $0) } ?? []
         updateAccess()
     }
 
@@ -79,6 +93,10 @@ final class PhoneStore: ObservableObject {
 
         let all = client.calendars().sorted { ($0.accountEmail, $0.summary) < ($1.accountEmail, $1.summary) }
         calendars = all
+        let writable = client.writableCalendarIDs()
+        writableCalendars = all.filter { writable.contains($0.id) && !settings.hiddenCalendars.contains($0.key) }
+        rangeCache.removeAll()
+        revision &+= 1
         let visible = all.filter { !settings.hiddenCalendars.contains($0.key) }
         let range = DateInterval(start: now.addingTimeInterval(-2 * 3600), end: now.addingTimeInterval(ReminderPlanner.horizon + 2 * 3600))
         let events = visible.flatMap { client.events(for: $0, range: range) }
@@ -88,6 +106,10 @@ final class PhoneStore: ObservableObject {
         if let previous = StoredEventSnapshot.load()?.snapshot(now: now) {
             let changes = MeetingChangeDetector.diff(old: previous, new: snapshot, now: now)
             moved = ReminderPlanner.movedUIDs(moved, changes: changes, now: now)
+            if !changes.isEmpty {
+                setCards(ChangeCard.merged(changeCards, changes.map { ChangeCard($0, now: now) }, now: now))
+                if settings.celebrateCancellations, let party = Celebration(changes) { celebrate(party) }
+            }
             if settings.notifyChanges, let alert = ReminderPlanner.changeAlert(changes, now: now) {
                 await PhoneNotifications.postChange(title: alert.title, body: alert.body)
                 recentChanges = Array(([RecentChange(title: alert.title, body: alert.body, at: now)] + recentChanges).prefix(10))
@@ -103,6 +125,71 @@ final class PhoneStore: ObservableObject {
         scheduled = ReminderPlanner.plan(events, settings: settings, moved: Set(moved.keys), now: now)
         await PhoneNotifications.apply(scheduled)
         lastRefresh = now
+    }
+
+    /// The visible calendars' events overlapping `range`, a meeting on two calendars kept once. Cached until the next
+    /// refresh, so the screens can ask on every redraw.
+    func events(in range: DateInterval) -> [CalendarEvent] {
+        let key = "\(revision)|\(range.start.timeIntervalSince1970)|\(range.end.timeIntervalSince1970)"
+        if let hit = rangeCache[key] { return hit }
+        guard client.isAuthorized else { return [] }
+        let visible = calendars.filter { !settings.hiddenCalendars.contains($0.key) }
+        let loaded = PhoneAgenda.dedupe(visible.flatMap { client.events(for: $0, range: range) })
+        if rangeCache.count > 32 { rangeCache.removeAll() }
+        rangeCache[key] = loaded
+        return loaded
+    }
+
+    /// Events from the start of `day` for `days` days.
+    func events(from day: Date, days: Int) -> [CalendarEvent] {
+        let start = Calendar.app.startOfDay(for: day)
+        let end = Calendar.app.date(byAdding: .day, value: days, to: start) ?? start.addingTimeInterval(Double(days) * 86400)
+        return events(in: DateInterval(start: start, end: end))
+    }
+
+    /// Quick add: saves the event to `calendar` and refreshes.
+    func addEvent(title: String, start: Date, end: Date, calendar: GCalendar) async throws {
+        try client.addEvent(title: title, start: start, end: end, calendarID: calendar.id)
+        await refresh()
+    }
+
+    /// The calendar quick add picks first: the Calendar app's default for new events when Meetball can write to it.
+    var defaultCalendarForNewEvents: GCalendar? {
+        let id = client.defaultCalendarID
+        return writableCalendars.first { $0.id == id } ?? writableCalendars.first
+    }
+
+    func dismissCard(_ card: ChangeCard) {
+        setCards(changeCards.filter { $0.id != card.id })
+    }
+
+    func dismissAllCards() { setCards([]) }
+
+    private func setCards(_ cards: [ChangeCard]) {
+        changeCards = cards
+        if let data = try? JSONEncoder().encode(cards) { defaults.set(data, forKey: Key.cards) }
+    }
+
+    /// Confetti now if Meetball is on screen, else the next time it is (a cancellation found by a background check).
+    private func celebrate(_ party: Celebration) {
+        if UIApplication.shared.applicationState == .active {
+            celebration = party
+        } else if let data = try? JSONEncoder().encode(party) {
+            defaults.set(data, forKey: Key.pendingCelebration)
+        }
+    }
+
+    /// Shows confetti saved while Meetball was in the background.
+    func showPendingCelebration() {
+        guard let data = defaults.data(forKey: Key.pendingCelebration) else { return }
+        defaults.removeObject(forKey: Key.pendingCelebration)
+        guard settings.celebrateCancellations, let party = try? JSONDecoder().decode(Celebration.self, from: data) else { return }
+        celebration = party
+    }
+
+    /// A sample of the cancellation confetti (Settings).
+    func previewCelebration() {
+        celebration = Celebration(title: "Design review", extra: 0)
     }
 
     /// Run by iOS in the background (`.backgroundTask(.appRefresh)`).

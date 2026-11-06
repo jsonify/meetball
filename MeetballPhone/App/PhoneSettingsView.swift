@@ -4,42 +4,53 @@ import UserNotifications
 import SK1Tokens
 import SK1UI
 
-/// The one screen: the next meeting on an LCD, whether alerts can reach CarPlay, alert settings, what's coming up,
-/// recent changes, and which calendars to watch.
-struct PhoneHomeView: View {
+/// Settings: whether alerts can reach CarPlay, alert timing, the alert schedule, recent changes, which calendars to
+/// watch, the theme and the fun.
+struct PhoneSettingsView: View {
     @EnvironmentObject private var store: PhoneStore
     @Environment(\.openURL) private var openURL
+    @AppStorage(AppPreferences.Key.theme) private var themeRaw = AppTheme.system.rawValue
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                TimelineView(.periodic(from: .now, by: 30)) { tl in nextDisplay(now: tl.date) }
-                if store.calendarAccess != .granted { accessCard }
-                statusGroup
-                alertsGroup
-                upcomingGroup
-                if !store.recentChanges.isEmpty { changesGroup }
-                calendarsGroup
-                keys
-            }
-            .padding(16)
+        VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+            PhoneScreenHeader(title: "Settings", detail: "Meetball \(version)") { EmptyView() }
+            if store.calendarAccess != .granted { accessCard }
+            statusGroup
+            alertsGroup
+            funGroup
+            appearanceGroup
+            upcomingGroup
+            if !store.recentChanges.isEmpty { changesGroup }
+            calendarsGroup
+            keys
         }
-        .refreshable { await store.refresh(fresh: true) }
-        .sk1Chassis()
     }
 
-    // MARK: Next meeting
+    private var version: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? ""
+    }
 
-    private func nextDisplay(now: Date) -> some View {
-        let next = store.upcoming.first { $0.end > now }
-        let live = next.map { $0.start <= now } ?? false
-        // Minutes to go, while they fit the three digits.
-        let minutes = live ? nil : next.map { max(0, Int(($0.start.timeIntervalSince(now) / 60).rounded(.up))) }.flatMap { $0 < 1000 ? $0 : nil }
-        return SKDisplay(title: live ? "Now" : "Next",
-                         detail: next.map { live ? "until \($0.end.shortTime)" : $0.start.shortTime } ?? "",
-                         message: next?.title ?? "No meetings in the next 48 hours",
-                         number: minutes, unit: minutes == nil ? nil : "MIN",
-                         live: live, height: 56)
+    // MARK: Fun
+
+    private var funGroup: some View {
+        SKGroup(caption: "Fun") {
+            SKRow(title: "Celebrate cancellations", subtitle: "Confetti and a happy buzz when a meeting is called off.") {
+                Toggle("Celebrate cancellations", isOn: $store.settings.celebrateCancellations).labelsHidden().toggleStyle(.sk1Switch)
+            }
+            SKRow(title: "Try it") {
+                Button("Confetti") { store.previewCelebration() }.buttonStyle(.sk1Key(size: .small))
+            }
+        }
+    }
+
+    // MARK: Appearance
+
+    private var appearanceGroup: some View {
+        SKGroup(caption: "Appearance") {
+            SKRow(title: "Theme", subtitle: "Light is the cream SK-1 look, Dark the charcoal one. System follows the iPhone.") {
+                SKSegmented(selection: $themeRaw, options: AppTheme.allCases.map { SKSegmented<String>.Option($0.rawValue, $0.title) })
+            }
+        }
     }
 
     private var accessCard: some View {
@@ -111,7 +122,7 @@ struct PhoneHomeView: View {
 
     private var upcomingGroup: some View {
         let reminders = Dictionary(store.scheduled.filter { $0.kind == .lead }.map { ($0.event.uid, $0) }, uniquingKeysWith: { a, _ in a })
-        return SKGroup(caption: "Coming up",
+        return SKGroup(caption: "Alert schedule",
                        note: store.lastRefresh.map { "Checked \($0.shortTime). \(store.scheduled.count) alerts scheduled." }) {
             if store.upcoming.isEmpty {
                 SKRow(title: "Nothing in the next 48 hours") { EmptyView() }
