@@ -77,3 +77,19 @@ final class EventFilterTests: XCTestCase {
         XCTAssertEqual(UpcomingView.hiddenUpcoming(hidden, now: now), 1)
     }
 }
+
+/// Work calendars and "Work only" (#52).
+final class CalendarVisibilityTests: XCTestCase {
+    func testWorkOnly() {
+        let hidden: Set = ["me|old"], work: Set = ["me|work"]
+        func shown(_ k: String, workOnly: Bool, work: Set<String> = work) -> Bool {
+            CalendarVisibility.isShown(k, hidden: hidden, work: work, workOnly: workOnly)
+        }
+        XCTAssertTrue(shown("me|home", workOnly: false))
+        XCTAssertFalse(shown("me|home", workOnly: true))
+        XCTAssertTrue(shown("me|work", workOnly: true))
+        XCTAssertFalse(shown("me|old", workOnly: false), "hidden stays hidden")
+        XCTAssertFalse(shown("me|old", workOnly: true, work: ["me|old"]), "hidden wins over work")
+        XCTAssertTrue(shown("me|home", workOnly: true, work: []), "no work calendars marked: show everything")
+    }
+}

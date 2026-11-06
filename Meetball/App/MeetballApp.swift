@@ -127,6 +127,9 @@ struct MeetballApp: App {
                 }
                 Divider()  // sk1-audit: ignore (a menu item separator)
                 Button("Refresh Calendars") { model.calendar.refresh(.user) }.keyboardShortcut("r", modifiers: .command)
+                Button(model.calendar.isWorkOnly ? "Show All Calendars" : "Show Work Calendars Only") { model.calendar.toggleWorkOnly() }
+                    .keyboardShortcut("o", modifiers: [.command, .shift])
+                    .disabled(model.calendar.workCalendarKeys.isEmpty)
                 Divider()  // sk1-audit: ignore (a menu item separator)
             }
             CommandGroup(replacing: .newItem) {

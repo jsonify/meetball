@@ -242,15 +242,24 @@ struct CalendarSidebarView: View {
                 }
             }
             SidebarStatusSection()
+            if !store.calendars.isEmpty { workOnlySection }
             ForEach(sectionTitles, id: \.self) { title in
                 Section {
                     ForEach(store.calendars.filter { $0.accountEmail == title }) { cal in
-                        Toggle(isOn: Binding(get: { !store.hiddenCalendarKeys.contains(cal.key) }, set: { _ in store.toggle(cal) })) {
-                            HStack { Circle().fill(Color(hex: cal.colorHex)).frame(width: 9, height: 9).accessibilityHidden(true)
-                                Text(cal.summary).lineLimit(1) }
+                        HStack(spacing: 4) {
+                            Toggle(isOn: Binding(get: { !store.hiddenCalendarKeys.contains(cal.key) }, set: { _ in store.toggle(cal) })) {
+                                HStack { Circle().fill(Color(hex: cal.colorHex)).frame(width: 9, height: 9).accessibilityHidden(true)
+                                    Text(cal.summary).lineLimit(1) }
+                            }
+                            .toggleStyle(.sk1Square)
+                            .help(store.hiddenCalendarKeys.contains(cal.key) ? "Show \(cal.summary)" : "Hide \(cal.summary)")
+                            .opacity(store.isShown(cal.key) || store.hiddenCalendarKeys.contains(cal.key) ? 1 : 0.45)
+                            Spacer(minLength: 0)
+                            workButton(cal)
                         }
-                        .toggleStyle(.sk1Square)
-                        .help(store.hiddenCalendarKeys.contains(cal.key) ? "Show \(cal.summary)" : "Hide \(cal.summary)")
+                        .contextMenu {
+                            Button(store.isWork(cal) ? "Unmark as Work Calendar" : "Mark as Work Calendar") { store.toggleWork(cal) }
+                        }
                     }
                 } header: {
                     SKCaption(title, tone: .soft)
@@ -258,6 +267,34 @@ struct CalendarSidebarView: View {
             }
         }
         .motionAwareAnimation(value: store.calendars)
+    }
+
+    /// "Work only" (#52): show just the calendars marked with the briefcase.
+    private var workOnlySection: some View {
+        Section {
+            Toggle(isOn: Binding(get: { store.isWorkOnly }, set: { _ in store.toggleWorkOnly() })) {
+                Label("Work only", systemImage: "briefcase")
+            }
+            .toggleStyle(.sk1Switch)
+            .disabled(store.workCalendarKeys.isEmpty)
+            .help(store.workCalendarKeys.isEmpty ? "Mark work calendars with the briefcase beside them first"
+                                                 : "Show only work calendars (⇧⌘O)")
+            if store.workCalendarKeys.isEmpty {
+                Text("Click the briefcase beside a calendar to mark it as work.").font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func workButton(_ cal: GCalendar) -> some View {
+        let work = store.isWork(cal)
+        return Button { store.toggleWork(cal) } label: {
+            Image(systemName: work ? "briefcase.fill" : "briefcase")
+                .font(.caption)
+                .foregroundStyle(work ? Color(sk1Hex: SK1.orange) : Color.secondary.opacity(0.5))
+        }
+        .buttonStyle(.plain)
+        .help(work ? "Work calendar. Click to unmark." : "Mark \(cal.summary) as a work calendar")
+        .accessibilityLabel(work ? "Unmark \(cal.summary) as work" : "Mark \(cal.summary) as work")
     }
 }
 

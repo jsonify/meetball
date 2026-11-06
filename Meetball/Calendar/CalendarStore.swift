@@ -38,6 +38,12 @@ public final class CalendarStore: ObservableObject {
     @Published public private(set) var events: [CalendarEvent] = []
     @Published public private(set) var loadState: CalendarSidebarLoadState = .idle
     @Published public var hiddenCalendarKeys: Set<String>
+    /// Calendars marked as work (#52); "Work only" shows just these.
+    @Published public private(set) var workCalendarKeys: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "workCalendars") ?? [])
+    /// Show only work calendars everywhere (menu bar, Upcoming, calendar views, alerts and auto-join).
+    @Published public var workOnly: Bool = UserDefaults.standard.bool(forKey: "workOnly") {
+        didSet { if oldValue != workOnly { UserDefaults.standard.set(workOnly, forKey: "workOnly") } }
+    }
     @Published public var anchor = Date()
     @Published public var selectedDay = Calendar.app.startOfDay(for: Date())
     @Published public var actionError: String?
@@ -132,9 +138,15 @@ public final class CalendarStore: ObservableObject {
         }
     }
 
+    /// "Work only" is in effect: it's on and at least one calendar is marked as work.
+    var isWorkOnly: Bool { workOnly && !workCalendarKeys.isEmpty }
+    /// A calendar is shown when it isn't hidden and, with "Work only" on, it's a work calendar.
+    func isShown(_ calendarKey: String) -> Bool {
+        CalendarVisibility.isShown(calendarKey, hidden: hiddenCalendarKeys, work: workCalendarKeys, workOnly: workOnly)
+    }
     /// Loaded events on calendars that are currently visible.
-    var visibleEvents: [CalendarEvent] { events.filter { !hiddenCalendarKeys.contains($0.calendarKey) } }
-    var visibleCalendars: [GCalendar] { calendars.filter { !hiddenCalendarKeys.contains($0.key) } }
+    var visibleEvents: [CalendarEvent] { events.filter { isShown($0.calendarKey) } }
+    var visibleCalendars: [GCalendar] { calendars.filter { isShown($0.key) } }
     /// Visible events split by the meeting-first rules.
     var meetingFeed: EventFilterResult { EventFilter.apply(visibleEvents, settings: filters) }
     /// Events the menu bar title, join shortcut and Meeting Guardian act on.
@@ -249,7 +261,7 @@ public final class CalendarStore: ObservableObject {
         }
         let found = MeetingChangeDetector.diff(old: previous, new: current, now: now, ignoring: locallyRemoved)
         let changes = found
-            .filter { !hiddenCalendarKeys.contains($0.event.calendarKey) && EventFilter.hideReason($0.event, settings: filters) == nil }
+            .filter { isShown($0.event.calendarKey) && EventFilter.hideReason($0.event, settings: filters) == nil }
         changeLog.notice("Compared \(previous.events.count) → \(current.events.count) events on \(previous.calendars.intersection(current.calendars).count) shared calendars: \(found.count) changes, \(changes.count) after filters")
         for c in found {
             changeLog.notice("\(MeetingChangeText.title(c), privacy: .private) at \(c.event.start) on \(c.event.calendarKey, privacy: .private)")
@@ -263,6 +275,22 @@ public final class CalendarStore: ObservableObject {
         if hiddenCalendarKeys.contains(cal.key) { hiddenCalendarKeys.remove(cal.key) } else { hiddenCalendarKeys.insert(cal.key) }
         UserDefaults.standard.set(Array(hiddenCalendarKeys), forKey: "hiddenCalendars")
         refresh()
+    }
+
+    func isWork(_ cal: GCalendar) -> Bool { workCalendarKeys.contains(cal.key) }
+
+    /// Marks or unmarks a calendar as work (#52). Unmarking the last one leaves "Work only" with nothing to show, so it turns off.
+    func toggleWork(_ cal: GCalendar) {
+        if workCalendarKeys.contains(cal.key) { workCalendarKeys.remove(cal.key) } else { workCalendarKeys.insert(cal.key) }
+        UserDefaults.standard.set(Array(workCalendarKeys), forKey: "workCalendars")
+        if workCalendarKeys.isEmpty { workOnly = false }
+    }
+
+    /// Switches between work calendars only and everything (⌘⇧O, the sidebar, the menu bar's Work key).
+    func toggleWorkOnly() {
+        guard !workCalendarKeys.isEmpty else { return }
+        workOnly.toggle()
+        Toast.show(workOnly ? "Showing work calendars only" : "Showing all calendars", systemImage: "briefcase")
     }
 
     func create(_ draft: NewEventDraft) async -> Bool {
@@ -327,5 +355,13 @@ public final class CalendarStore: ObservableObject {
     /// Upcoming, non-all-day events that haven't ended, across visible calendars.
     func upcoming(limit: Int = 8, now: Date = Date()) -> [CalendarEvent] {
         Array(meetingEvents.filter { !$0.isAllDay && !$0.isDeclined && $0.end > now }.prefix(limit))
+    }
+}
+
+/// Which calendars are shown, given hidden calendars and "Work only" (#52).
+public enum CalendarVisibility {
+    public static func isShown(_ key: String, hidden: Set<String>, work: Set<String>, workOnly: Bool) -> Bool {
+        guard !hidden.contains(key) else { return false }
+        return !workOnly || work.isEmpty || work.contains(key)
     }
 }
