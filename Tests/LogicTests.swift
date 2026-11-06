@@ -29,6 +29,19 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(MeetingStatusText.remainingToday([on, next, ended, tomorrow], now: now), 2)
     }
 
+    func testOvernightMeetingStaysOnTheTimeGrid() {
+        let app = Calendar.app
+        let day = app.startOfDay(for: Date())
+        let s = app.date(bySettingHour: 23, minute: 43, second: 0, of: day)!
+        let late = ev("late", s, s.addingTimeInterval(30 * 60))
+        XCTAssertFalse(late.isBarEvent(calendar: app))
+        let derived = CalendarDerivedEventsBuilder.build(events: [late], range: DateInterval(start: day, duration: 2 * 86400), calendar: app)
+        XCTAssertEqual(derived.segmentsByDay[day]?.first?.segmentStart, s)
+        XCTAssertEqual(derived.segmentsByDay[app.date(byAdding: .day, value: 1, to: day)!]?.count, 1)
+        XCTAssertTrue(ev("long", s, s.addingTimeInterval(86400)).isBarEvent(calendar: app))
+        XCTAssertTrue(ev("allday", day, day.addingTimeInterval(86400), allDay: true).isBarEvent(calendar: app))
+    }
+
     func testSK1CountdownDigits() {
         XCTAssertTrue(SK1CountdownDigits.compact(-30) == ("1", "MIN"))
         XCTAssertTrue(SK1CountdownDigits.compact(61) == ("2", "MIN"))

@@ -36,6 +36,9 @@ struct SK1CountdownLCD: View {
                         SKSevenSegment(digits, digitHeight: max(10, height - 20), spacing: 3)
                         if let unit { Text(unit).font(.system(size: 9, weight: .heavy)).foregroundStyle(ink) }
                     }
+                    // The reading never gives way: without its unit "1:00" reads as a clock time, not an hour.
+                    .fixedSize()
+                    .layoutPriority(1)
                 } else if let text {
                     Text(text.uppercased())
                         .font(.sk1(SK1.TypeScale.lcdMono)).tracking(SK1.TypeScale.lcdMono.kern)
