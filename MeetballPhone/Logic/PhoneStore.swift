@@ -4,6 +4,15 @@ import Foundation
 import UIKit
 import UserNotifications
 
+/// A tapped Echo nudge: which meeting to record a note for.
+struct EchoRequest: Identifiable, Equatable {
+    var uid: String
+    var start: Date
+    var end: Date
+    var title: String
+    var id: String { uid }
+}
+
 /// Reads Apple Calendar, schedules meeting reminders, and alerts on changes.
 ///
 /// iOS doesn't let an app watch the calendar all the time, so Meetball checks for changes whenever it gets to run:
@@ -32,6 +41,10 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var changeCards: [ChangeCard] = []
     /// Confetti on screen now.
     @Published var celebration: Celebration?
+    /// Echo notes left after meetings, newest first.
+    @Published private(set) var echoNotes: [EchoNote] = []
+    /// The meeting to open the Echo recorder for (the Echo nudge was tapped).
+    @Published var echoRequest: EchoRequest?
     /// Calendars quick add can write to.
     @Published private(set) var writableCalendars: [GCalendar] = []
     @Published var settings: PhoneSettings {
@@ -54,6 +67,7 @@ final class PhoneStore: ObservableObject {
         static let lastBackground = "phone.lastBackgroundRefresh"
         static let cards = "phone.changeCards"
         static let pendingCelebration = "phone.pendingCelebration"
+        static let echoNotes = "phone.echoNotes"
     }
 
     private init() {
@@ -61,6 +75,7 @@ final class PhoneStore: ObservableObject {
         recentChanges = (defaults.data(forKey: Key.recent)).flatMap { try? JSONDecoder().decode([RecentChange].self, from: $0) } ?? []
         lastBackgroundRefresh = defaults.object(forKey: Key.lastBackground) as? Date
         changeCards = defaults.data(forKey: Key.cards).flatMap { try? JSONDecoder().decode([ChangeCard].self, from: $0) } ?? []
+        echoNotes = defaults.data(forKey: Key.echoNotes).flatMap { try? JSONDecoder().decode([EchoNote].self, from: $0) } ?? []
         updateAccess()
     }
 
@@ -123,7 +138,8 @@ final class PhoneStore: ObservableObject {
 
         upcoming = ReminderPlanner.meetings(events, settings: settings, now: now)
         scheduled = ReminderPlanner.plan(events, settings: settings, moved: Set(moved.keys), now: now)
-        await PhoneNotifications.apply(scheduled)
+        let echoes = ReminderPlanner.echoes(events, settings: settings, now: now, room: ReminderPlanner.maxPending - scheduled.count)
+        await PhoneNotifications.apply(scheduled + echoes)
         LiveActivityController.updateWidgets(upcoming: upcoming, now: now)
         await LiveActivityController.reconcile(upcoming: upcoming, enabled: settings.liveActivity, now: now)
         lastRefresh = now
@@ -172,6 +188,58 @@ final class PhoneStore: ObservableObject {
     var defaultCalendarForNewEvents: GCalendar? {
         let id = client.defaultCalendarID
         return writableCalendars.first { $0.id == id } ?? writableCalendars.first
+    }
+
+    // MARK: Pre-flight and Echo
+
+    /// The pre-flight brief for `event`: its people and links, and the last meeting like it in the past 90 days.
+    func preFlight(for event: CalendarEvent) -> PreFlightBrief {
+        PreFlight.brief(for: event, history: events(in: PreFlight.historyRange(for: event)))
+    }
+
+    /// The Echo notes left for `event`, newest first.
+    func echoNotes(for event: CalendarEvent) -> [EchoNote] { Echo.notes(for: event, in: echoNotes) }
+
+    /// Saves an Echo note for `event` and, when Settings says so, adds it to Reminders. Returns why Reminders
+    /// failed, if it did; the note is kept in Meetball either way.
+    @discardableResult
+    func saveEcho(_ text: String, for event: CalendarEvent, now: Date = Date()) async -> String? {
+        var note = Echo.note(for: event, text: text, now: now)
+        guard !note.text.isEmpty else { return nil }
+        var problem: String?
+        if settings.echoToReminders {
+            do { note.reminderID = try await EchoReminders.add(note) } catch { problem = error.localizedDescription }
+        }
+        setEchoNotes([note] + echoNotes)
+        // The nudge for this meeting has done its job.
+        PhoneNotifications.center.removeDeliveredNotifications(withIdentifiers: [ReminderPlanner.idPrefix + "echo|" + event.uid])
+        return problem
+    }
+
+    /// Deletes an Echo note and the reminder made from it.
+    func deleteEcho(_ note: EchoNote) {
+        if let id = note.reminderID { EchoReminders.remove(id) }
+        setEchoNotes(echoNotes.filter { $0.id != note.id })
+    }
+
+    /// Opens the recorder for the meeting an Echo nudge was about.
+    func openEcho(_ request: EchoRequest) {
+        echoRequest = request
+    }
+
+    /// The meeting behind an Echo nudge: the loaded event if it's still there, else one rebuilt from the nudge.
+    func event(for request: EchoRequest) -> CalendarEvent {
+        let around = DateInterval(start: request.start.addingTimeInterval(-3600), end: max(request.end, request.start).addingTimeInterval(3600))
+        if let e = events(in: around).first(where: { $0.uid == request.uid }) { return e }
+        let parts = request.uid.split(separator: "|", maxSplits: 2).map(String.init)
+        return CalendarEvent(id: parts.count == 3 ? parts[2] : request.uid, calendarID: parts.count == 3 ? parts[1] : "",
+                             accountEmail: parts.first ?? "", title: request.title, start: request.start, end: request.end,
+                             isAllDay: false, meetURL: nil, location: nil, attendees: [], htmlLink: nil)
+    }
+
+    private func setEchoNotes(_ notes: [EchoNote]) {
+        echoNotes = Array(notes.sorted { $0.createdAt > $1.createdAt }.prefix(Echo.keep))
+        if let data = try? JSONEncoder().encode(echoNotes) { defaults.set(data, forKey: Key.echoNotes) }
     }
 
     func dismissCard(_ card: ChangeCard) {

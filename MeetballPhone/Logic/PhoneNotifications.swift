@@ -7,6 +7,12 @@ enum PhoneNotifications {
     static let meetingCategory = "meetball.meeting"
     static let joinAction = "meetball.join"
     static let joinURLKey = "joinURL"
+    static let echoCategory = "meetball.echo"
+    static let echoAction = "meetball.echo.record"
+    static let echoUIDKey = "echoUID"
+    static let echoStartKey = "echoStart"
+    static let echoEndKey = "echoEnd"
+    static let echoTitleKey = "echoTitle"
     static let changePrefix = "meetball.change|"
     static let testID = "meetball.test"
 
@@ -16,6 +22,11 @@ enum PhoneNotifications {
         let join = UNNotificationAction(identifier: joinAction, title: "Join", options: [.foreground])
         center.setNotificationCategories([
             UNNotificationCategory(identifier: meetingCategory, actions: [join], intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: echoCategory,
+                                   actions: [UNNotificationAction(identifier: echoAction, title: "Record a note",
+                                                                  options: [.foreground],
+                                                                  icon: UNNotificationActionIcon(systemImageName: "mic.fill"))],
+                                   intentIdentifiers: [], options: []),
         ])
     }
 
@@ -33,7 +44,7 @@ enum PhoneNotifications {
         let stale = pending.map(\.identifier).filter { $0.hasPrefix(ReminderPlanner.idPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: stale)
         for r in plan {
-            let c = content(title: r.title, body: r.body, joinURL: r.event.meetURL)
+            let c = r.kind == .echo ? echoContent(r) : content(title: r.title, body: r.body, joinURL: r.event.meetURL)
             c.threadIdentifier = r.event.uid
             let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: r.fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
@@ -55,6 +66,20 @@ enum PhoneNotifications {
                         joinURL: nil)
         let trigger = UNTimeIntervalNotificationTrigger(timeInterval: max(1, delay), repeats: false)
         try? await center.add(UNNotificationRequest(identifier: testID, content: c, trigger: trigger))
+    }
+
+    /// The Echo nudge as a meeting ends: an ordinary alert (not Time Sensitive, it can wait), opening the recorder.
+    static func echoContent(_ r: PlannedReminder) -> UNMutableNotificationContent {
+        let c = UNMutableNotificationContent()
+        c.title = r.title
+        c.body = r.body
+        c.sound = .default
+        c.interruptionLevel = .active
+        c.relevanceScore = 0.5
+        c.categoryIdentifier = echoCategory
+        c.userInfo = [echoUIDKey: r.event.uid, echoStartKey: r.event.start.timeIntervalSince1970,
+                      echoEndKey: r.event.end.timeIntervalSince1970, echoTitleKey: r.event.title]
+        return c
     }
 
     static func content(title: String, body: String, joinURL: URL?) -> UNMutableNotificationContent {

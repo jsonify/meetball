@@ -106,6 +106,8 @@ targets:
       - Meetball/Calendar/MiniMonthRibbons.swift
       - Meetball/Calendar/QuickAddParser.swift
       - Meetball/Calendar/MeetingComposer.swift
+      - Meetball/Calendar/PreFlight.swift
+      - Meetball/Calendar/EchoNotes.swift
       - Meetball/Utilities/AppPreferences.swift
       - Meetball/Utilities/Formatters.swift
       - Meetball/Utilities/MeetingService.swift
@@ -135,6 +137,10 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSCalendarsFullAccessUsageDescription: Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.
+        # Echo: a short voice note after a meeting, transcribed on the iPhone, optionally added to Reminders.
+        NSMicrophoneUsageDescription: Echo records a short voice note after a meeting, only while you're recording.
+        NSSpeechRecognitionUsageDescription: Echo turns your voice note into text on your iPhone, so it can become a follow-up reminder.
+        NSRemindersFullAccessUsageDescription: Echo adds your after-meeting notes to Reminders as follow-ups.
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [app.meetball.MeetballPhone.refresh]
         UILaunchScreen: {}

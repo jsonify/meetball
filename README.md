@@ -97,6 +97,15 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **Shake** for the rest of your day: meetings left, hours booked, and your next free stretch (before 6 PM).
 - **Countdown moment**: with Meetball open in the last minute before a meeting, a full-screen seven-segment countdown,
   a tick every second for the last ten, a thunk at zero, and the Join key.
+- **Pre-flight card**: five minutes before a meeting (with Meetball open), a card with who's in it, the last meeting
+  like it in the past 90 days (same series, else same title, else mostly the same people) and your Echo note from then,
+  and the invite's links and notes without the dial-in boilerplate. The event screen shows the same "Last time" and
+  links, and so does the Mac's event popover.
+- **Echo**: when a meeting ends, a banner above the tab bar (for half an hour) and a notification offer one tap to record
+  a 20-second voice note. It's transcribed on the iPhone (Speech framework, on-device only), can be fixed up, and is
+  saved in Meetball against that meeting (the work calendar is a read-only feed, so nothing is written to it) and, unless
+  switched off in Settings, added to Reminders due the next working morning. Notes show on the event screen and in the
+  next pre-flight card for that meeting.
 - Needs iOS 18 or later.
 
 ### Alerts and CarPlay

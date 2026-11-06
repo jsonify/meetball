@@ -14,6 +14,8 @@ struct EventDetailSheet: View {
     /// The stored event when its calendar can be changed here; nil for a read-only feed such as the work calendar.
     @State private var editable: (event: EKEvent, store: EKEventStore)?
     @State private var editing = false
+    @State private var brief: PreFlightBrief?
+    @State private var recording = false
 
     var body: some View {
         ScrollView {
@@ -27,6 +29,11 @@ struct EventDetailSheet: View {
                 if let loc = event.location, !loc.isEmpty { whereGroup(loc) }
                 if !event.participants.isEmpty { peopleGroup }
                 if let notes = event.notes.map(EventNotesFormatter.plainText), !notes.isEmpty { notesGroup(notes) }
+                // Pre-flight: the last meeting like this one and the invite's links (people and notes are above).
+                if let brief { PreFlightSections(brief: brief, showPeople: false, showNotes: false) }
+                if store.settings.echoMode || !store.echoNotes(for: event).isEmpty {
+                    EchoNotesGroup(event: event) { recording = true }
+                }
                 editKey
                 HStack(spacing: 10) {
                     Button("Open in Calendar") { PhoneJoin.openInCalendar(event) }.buttonStyle(.sk1Key())
@@ -44,7 +51,13 @@ struct EventDetailSheet: View {
         }
         .sk1Chassis()
         .presentationDragIndicator(.visible)
-        .onAppear { editable = store.editableEvent(for: event) }
+        .onAppear {
+            editable = store.editableEvent(for: event)
+            if !event.isAllDay { brief = store.preFlight(for: event) }
+        }
+        .sheet(isPresented: $recording) {
+            EchoSheet(event: event).environmentObject(store)
+        }
         .sheet(isPresented: $editing) {
             if let editable {
                 EventEditor(event: editable.event, eventStore: editable.store) { changed in

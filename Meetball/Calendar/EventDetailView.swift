@@ -37,6 +37,8 @@ struct EventDetailPopover: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showAllAttendees = false
     @State private var confirmingDelete = false
+    /// Pre-flight: the last meeting like this one in what's loaded, and the invite's links.
+    @State private var brief: PreFlightBrief?
     @AppStorage(AppPreferences.Key.showEventTimeZone) private var showEventTimeZone = true
 
     private var isApple: Bool { AppleCalendarClient.isApple(event.accountEmail) }
@@ -57,6 +59,7 @@ struct EventDetailPopover: View {
         .frame(width: 340)
         .sk1Chassis()
         .onExitCommand { dismiss() }
+        .onAppear { if !event.isAllDay { brief = PreFlight.brief(for: event, history: store.events) } }
     }
 
     private let maxContentHeight: CGFloat = 460
@@ -69,6 +72,7 @@ struct EventDetailPopover: View {
             if event.meetURL != nil, !event.isAllDay, event.end > Date() { autoJoinRow }
             if !people.isEmpty || event.organizer != nil { attendeesSection }
             if !notes.isEmpty { notesSection }
+            if let brief, brief.lastTime != nil || !brief.links.isEmpty { preFlightSection(brief) }
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -203,6 +207,21 @@ struct EventDetailPopover: View {
         }
     }
 
+    private func preFlightSection(_ brief: PreFlightBrief) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let last = brief.lastTime {
+                SKCaption(brief.match?.label ?? "Last time", tone: .soft)
+                Label("\(last.title) · \(last.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())), "
+                      + RelativeTimeFormatter.string(for: last.start, relativeTo: Date()), systemImage: "clock.arrow.circlepath")
+                    .font(.callout).lineLimit(2)
+            }
+            if !brief.links.isEmpty {
+                SKCaption("From the invite", tone: .soft)
+                InviteLinks(links: brief.links)
+            }
+        }
+    }
+
     private var actions: some View {
         HStack(spacing: 6) {
             if confirmingDelete {
@@ -322,5 +341,22 @@ enum EventTimeZoneText {
         let city = WorldClock.cityName(tz.identifier)
         let abbr = tz.abbreviation(for: e.start).map { " (\($0))" } ?? ""
         return "\(e.start.shortTime(locale: locale, timeZone: tz)) \u{2013} \(e.end.shortTime(locale: locale, timeZone: tz)) in \(city)\(abbr)"
+    }
+}
+
+/// The invite's links as small keys, one per row.
+private struct InviteLinks: View {
+    let links: [PreFlightLink]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(links) { link in
+                Button { NSWorkspace.shared.open(link.url) } label: {
+                    Label(link.label, systemImage: "arrow.up.forward.square").lineLimit(1)
+                }
+                .buttonStyle(.sk1Key(size: .small))
+                .help(link.url.absoluteString)
+            }
+        }
     }
 }
