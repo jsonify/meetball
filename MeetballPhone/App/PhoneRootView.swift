@@ -29,13 +29,21 @@ struct PhoneRootView: View {
     }
 
     @EnvironmentObject private var store: PhoneStore
-    @SceneStorage("tab") private var tab: Tab = .today
+    @SceneStorage("tab") private var storedTab: Tab = .day
     @State private var detail: CalendarEvent?
     /// The composer, open; `start` when a slot on the day grid picked the time.
     @State private var compose: ComposeRequest?
     @State private var readout = false
     @State private var moment: CalendarEvent?
     @State private var dismissedMoments: Set<String> = []
+
+    /// The tab showing: Today falls back to Day while it's switched off in Settings.
+    private var tab: Tab {
+        get { storedTab == .today && !store.settings.showTodayTab ? .day : storedTab }
+        nonmutating set { storedTab = newValue }
+    }
+
+    private var tabs: [Tab] { Tab.allCases.filter { $0 != .today || store.settings.showTodayTab } }
 
     var body: some View {
         Group {
@@ -89,7 +97,7 @@ struct PhoneRootView: View {
         .onOpenURL { url in
             switch MeetballLink.parse(url) {
             case .join(let meeting): PhoneJoin.open(meeting)
-            case .today: tab = .today
+            case .today: tab = store.settings.showTodayTab ? .today : .day
             case nil: break
             }
         }
@@ -126,7 +134,11 @@ struct PhoneRootView: View {
         VStack(spacing: 0) {
             SKGroove()
             HStack(spacing: 0) {
-                ForEach(Tab.allCases) { t in
+                // Adding comes first, apart from the screens, and no bigger than them.
+                SKCaptionedKey("Add", systemImage: "plus", variant: .orange) { compose = ComposeRequest(start: nil) }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Add an event")
+                ForEach(tabs) { t in
                     SKCaptionedKey(t.title, systemImage: t.symbol, lamp: tab == t) { tab = t }
                         .frame(maxWidth: .infinity)
                 }

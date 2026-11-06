@@ -6,6 +6,7 @@ import SK1UI
 /// overlapping ones packed into columns (the Mac's `TimeGridLayoutBuilder`), all-day and multi-day bars pinned above
 /// and folded to "+N more" past two lanes, a meeting-load LED row under each date, and the red now line. Tap an empty
 /// slot to pencil in a meeting there, tap the pencilled block to compose it; swipe sideways to page, pinch to zoom.
+/// The next meeting rides on top as a slim Up Next card, so this is the home screen.
 struct DayGridView: View {
     @EnvironmentObject private var store: PhoneStore
     var open: (CalendarEvent) -> Void
@@ -43,6 +44,10 @@ struct DayGridView: View {
         return VStack(spacing: 12) {
             header(now: now, days: days)
                 .padding(.horizontal, 16)
+            if let next = MenuAgendaBuilder.hero(store.events(from: now, days: 2), now: now, horizon: 24 * 3600) {
+                DayGridUpNext(event: next, now: now, open: open)
+                    .padding(.horizontal, 10)
+            }
             SKWell {
                 VStack(spacing: 0) {
                     DayGridDateRow(days: days, loads: loads, now: now, span: dayCount) { day in
@@ -60,7 +65,6 @@ struct DayGridView: View {
                 }
             }
             .padding(.horizontal, 10)
-            .overlay(alignment: .bottomTrailing) { addKey }
         }
         .padding(.top, 8)
     }
@@ -85,8 +89,10 @@ struct DayGridView: View {
                         .buttonStyle(.sk1Key()).accessibilityLabel(dayCount == 1 ? "Next day" : "Next three days")
                 }
             }
-            SKSegmented(selection: $span, options: [SKSegmented<Int>.Option(1, "Day"), SKSegmented<Int>.Option(3, "3 Day")])
-                .frame(maxWidth: 200)
+            // Full width and key height, so the 3-day view can't be missed.
+            SKSegmented(selection: $span, options: [SKSegmented<Int>.Option(1, "Day"), SKSegmented<Int>.Option(3, "3 Day")],
+                        height: 30)
+                .frame(maxWidth: .infinity)
         }
     }
 
@@ -124,7 +130,7 @@ struct DayGridView: View {
                     }
                 }
                 .frame(height: h * 24)
-                .padding(.bottom, 72)   // room to scroll the evening out from under the add key
+                .padding(.bottom, 12)
             }
             .simultaneousGesture(swipe)
             .simultaneousGesture(zoom)
@@ -167,18 +173,6 @@ struct DayGridView: View {
             }
             .onEnded { _ in zoomBase = nil }
     }
-
-    /// The orange key, floating over the grid's corner: a new meeting at the pencilled slot, or the composer's next
-    /// free time.
-    private var addKey: some View {
-        Button { add(pencil); pencil = nil } label: {
-            Image(systemName: "plus").font(.system(size: 22, weight: .bold))
-        }
-        .buttonStyle(.sk1Key(.orange, size: .large))
-        .accessibilityLabel(pencil == nil ? "Add an event" : "Add an event at \(pencil!.shortTime)")
-        .padding(.trailing, 22)
-        .padding(.bottom, 14)
-    }
 }
 
 enum DayGridMetrics {
@@ -187,6 +181,62 @@ enum DayGridMetrics {
     static let minHourHeight: Double = 36
     static let maxHourHeight: Double = 120
     static let laneHeight: CGFloat = 24
+}
+
+// MARK: - Up next
+
+/// The Today tab's "Up next" card, slimmed to one row for the top of the grid: the countdown on an LCD, the title and
+/// time, and the Join key. Its edge warms from teal to a glowing orange as the meeting nears (`HeroUrgency`).
+struct DayGridUpNext: View {
+    let event: CalendarEvent
+    let now: Date
+    let open: (CalendarEvent) -> Void
+
+    var body: some View {
+        let inProgress = event.start <= now
+        let target = inProgress ? event.end : event.start
+        let countdown = SK1CountdownDigits.compact(target.timeIntervalSince(now))
+        let urgency = HeroUrgency.of(event, now: now)
+        let shape = RoundedRectangle(cornerRadius: SK1.Metrics.wellRadius, style: .continuous)
+        SKWell {
+            HStack(spacing: 10) {
+                SK1CountdownLCD(caption: inProgress ? "Ends in" : "Up next",
+                                digits: countdown.digits, unit: countdown.unit, live: inProgress,
+                                lamp: urgency.lamp, lampBlinking: urgency.lampBlinks, height: 44,
+                                accessibilityText: (inProgress ? "On now, ends " : "Up next, starts ")
+                                    + RelativeTimeFormatter.string(for: target, relativeTo: now))
+                    .frame(width: 118)
+                Button { open(event) } label: {
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: 5) {
+                            Circle().fill(Color(hex: event.colorHex)).frame(width: 7, height: 7)
+                            Text(event.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                        }
+                        Text(when).font(.system(size: 11, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                PhoneJoinButton(event: event, size: .small)
+            }
+            .padding(8)
+            .background(shape.fill(urgency.edgeColor.opacity(urgency.washOpacity)))
+        }
+        .overlay(
+            shape.strokeBorder(urgency.edgeColor.opacity(urgency.edgeOpacity), lineWidth: urgency.edgeWidth + 0.5)
+                .shadow(color: urgency.edgeColor.opacity(urgency.glow > 0 ? 0.6 : 0), radius: urgency.glow * 1.5)
+                .allowsHitTesting(false)
+        )
+        .animation(.easeInOut(duration: 0.4), value: urgency)
+        .sensoryFeedback(.warning, trigger: urgency) { _, new in new == .imminent }
+    }
+
+    private var when: String {
+        let day = Calendar.app.isDate(event.start, inSameDayAs: now) ? "" : PhoneAgenda.dayTitle(event.start, now: now) + " "
+        return "\(day)\(event.start.shortTime) – \(event.end.shortTime)"
+    }
 }
 
 // MARK: - Date row
