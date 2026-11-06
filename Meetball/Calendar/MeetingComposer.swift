@@ -3,7 +3,8 @@ import Foundation
 // Shared with the iPhone app (MeetballPhone), so it uses only Foundation.
 
 /// The pure logic behind the new-meeting composer: what a proposed time clashes with, which free times fit, and the
-/// .ics invite that carries a meeting to a calendar Meetball can't write to (a work calendar seen only as a feed).
+/// Google Calendar link that carries a meeting to a calendar Meetball can't write to (a work calendar
+/// seen only as a feed).
 public enum MeetingComposer {
     /// The length keys on the composer, in minutes.
     public static let lengthChoices = [15, 30, 45, 60]
@@ -72,32 +73,28 @@ public enum MeetingComposer {
         return "\(start.formatted(style)) \(time)"
     }
 
-    /// The meeting as an iCalendar file to email to an address whose calendar Meetball can't write to. It's published
-    /// (`METHOD:PUBLISH`) rather than sent as a request, so opening it in Outlook offers to add it to that calendar
-    /// without anyone else being invited or any reply going back.
-    public static func icsInvite(title: String, start: Date, end: Date, uid: String = UUID().uuidString,
-                                 notes: String? = nil, now: Date = Date()) -> String {
-        var lines = [
-            "BEGIN:VCALENDAR",
-            "VERSION:2.0",
-            "PRODID:-//Meetball//Meetball for iPhone//EN",
-            "CALSCALE:GREGORIAN",
-            "METHOD:PUBLISH",
-            "BEGIN:VEVENT",
-            "UID:\(uid)@meetball.app",
-            "DTSTAMP:\(icsDate(now))",
-            "DTSTART:\(icsDate(start))",
-            "DTEND:\(icsDate(end))",
-            "SUMMARY:\(icsEscape(title))",
-            "STATUS:CONFIRMED",
-            "TRANSP:OPAQUE",
-        ]
-        if let notes, !notes.isEmpty { lines.append("DESCRIPTION:\(icsEscape(notes))") }
-        lines += ["END:VEVENT", "END:VCALENDAR"]
-        return lines.flatMap(fold).joined(separator: "\r\n") + "\r\n"
+    /// Google Calendar's "new event" page filled in with the meeting, for a work Google calendar Meetball can only read
+    /// (a feed in Apple Calendar). Opening it in the browser or the Google Calendar app saves the event straight to that
+    /// calendar, invites included. `account` picks which signed-in Google account it opens as (`authuser`).
+    public static func googleCalendarURL(title: String, start: Date, end: Date, guests: [String] = [],
+                                         details: String? = nil, account: String? = nil) -> URL? {
+        var c = URLComponents(string: "https://calendar.google.com/calendar/render")
+        var items = [URLQueryItem(name: "action", value: "TEMPLATE"),
+                     URLQueryItem(name: "text", value: title),
+                     URLQueryItem(name: "dates", value: "\(icsDate(start))/\(icsDate(end))")]
+        if !guests.isEmpty { items.append(URLQueryItem(name: "add", value: guests.joined(separator: ","))) }
+        if let details, !details.isEmpty { items.append(URLQueryItem(name: "details", value: details)) }
+        if let account, !account.isEmpty { items.append(URLQueryItem(name: "authuser", value: account)) }
+        // Encoded by hand: queryItems leaves "&", "=" and "+" alone, which would split or change a title.
+        var allowed = CharacterSet.urlQueryAllowed
+        allowed.remove(charactersIn: "&=+?#")
+        c?.percentEncodedQueryItems = items.map {
+            URLQueryItem(name: $0.name, value: $0.value?.addingPercentEncoding(withAllowedCharacters: allowed))
+        }
+        return c?.url
     }
 
-    /// A UTC timestamp as iCalendar writes it: 20261106T153000Z.
+    /// A UTC timestamp as Google Calendar links (and iCalendar) write it: 20261106T153000Z.
     static func icsDate(_ d: Date) -> String {
         let f = DateFormatter()
         f.calendar = Calendar(identifier: .gregorian)
@@ -105,34 +102,5 @@ public enum MeetingComposer {
         f.timeZone = TimeZone(identifier: "UTC")
         f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         return f.string(from: d)
-    }
-
-    /// Backslash, semicolon, comma and newline escaped for an iCalendar text value.
-    static func icsEscape(_ s: String) -> String {
-        s.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: ";", with: "\\;")
-            .replacingOccurrences(of: ",", with: "\\,")
-            .replacingOccurrences(of: "\r\n", with: "\\n")
-            .replacingOccurrences(of: "\n", with: "\\n")
-    }
-
-    /// A content line folded to 75 octets, continuation lines starting with a space (RFC 5545 3.1).
-    static func fold(_ line: String) -> [String] {
-        var out: [String] = []
-        var current = ""
-        var bytes = 0
-        for ch in line {
-            let n = String(ch).utf8.count
-            let limit = out.isEmpty ? 75 : 74
-            if bytes + n > limit {
-                out.append(out.isEmpty ? current : " " + current)
-                current = ""
-                bytes = 0
-            }
-            current.append(ch)
-            bytes += n
-        }
-        out.append(out.isEmpty ? current : " " + current)
-        return out
     }
 }

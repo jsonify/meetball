@@ -1,6 +1,5 @@
 import EventKit
 import EventKitUI
-import MessageUI
 import SwiftUI
 import UIKit
 import SK1Tokens
@@ -10,12 +9,14 @@ import SK1UI
 /// LCD as you type; then the day, start and length can be nudged with keys instead of retyped, the day's meetings show
 /// on a strip with any clash in red, and free times that fit are one tap away.
 ///
-/// It saves to a calendar Meetball can write to, or, for a work calendar it can only read (a subscribed feed), emails
-/// the meeting as an .ics file to your work address to add from Outlook, optionally keeping a hold on a personal
-/// calendar. Invite people hands the meeting to Apple's own editor, since EventKit can't add invitees.
+/// It saves to a calendar Meetball can write to, or, for a work Google calendar it can only read (a feed in Apple
+/// Calendar), opens Google Calendar's new-event page filled in, guests from the line included, optionally keeping a
+/// hold on a personal calendar. Invite people hands the meeting to Apple's own editor, since EventKit can't add
+/// invitees.
 struct QuickAddSheet: View {
     @EnvironmentObject private var store: PhoneStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openURL) private var openURL
     @AppStorage("phone.workEmail") private var workEmail = ""
     @State private var text = ""
     @State private var destination = ""
@@ -46,6 +47,7 @@ struct QuickAddSheet: View {
                 SKTextField("Event", text: $text, prompt: "1:1 with Sam fri 2pm for 45 min", height: 44)
                     .submitLabel(.done)
                     .onSubmit { primary(r, start: start, end: end) }
+                    .textInputAutocapitalization(.sentences)
                 readout(r, start: start, end: end, clashes: clashes)
                 DayStrip(events: dayEvents.filter { !$0.isAllDay }, start: start, end: end, clashing: !clashes.isEmpty)
                 tune(start: start, minutes: minutes, now: now)
@@ -74,17 +76,6 @@ struct QuickAddSheet: View {
         }
         .sheet(item: $handoff) { h in
             switch h.kind {
-            case .mail(let to, let subject, let body, let ics):
-                MailComposer(to: to, subject: subject, body: body, ics: ics) { sent in
-                    handoff = nil
-                    if sent { finish() }
-                }
-                .ignoresSafeArea()
-            case .share(let url):
-                ShareSheet(items: [url]) { done in
-                    handoff = nil
-                    if done { finish() }
-                }
             case .editor(let event, let eventStore):
                 EventEditor(event: event, eventStore: eventStore) { saved in
                     handoff = nil
@@ -207,14 +198,14 @@ struct QuickAddSheet: View {
 
     private var destinationGroup: some View {
         let options = store.writableCalendars.map { SKPicker<String>.Option($0.id, $0.summary) }
-            + [SKPicker<String>.Option(Self.workDestination, "Work · email to Outlook")]
+            + [SKPicker<String>.Option(Self.workDestination, "Work · Google Calendar")]
         return SKGroup(caption: "Add to",
-                       note: isWork ? "Meetball emails the meeting to your work address. Open the attachment in Outlook to add it to your work calendar." : nil) {
+                       note: isWork ? "Opens Google Calendar with the meeting filled in, emails in the line as guests. Tap Save there to put it on your work calendar." : nil) {
             SKRow(title: "Calendar") {
                 SKPicker(selection: $destination, options: options, stepper: false)
             }
             if isWork {
-                SKRow(title: "Work email") {
+                SKRow(title: "Work account", subtitle: "Optional: picks the Google account") {
                     SKTextField("Work email", text: $workEmail, prompt: "you@company.com")
                         .keyboardType(.emailAddress)
                         .textInputAutocapitalization(.never)
@@ -235,7 +226,9 @@ struct QuickAddSheet: View {
 
     @ViewBuilder
     private func hints(_ r: QuickAddResult) -> some View {
-        if !r.attendees.isEmpty && !isWork {
+        if r.addMeet && isWork {
+            Text("Google Calendar adds a Meet link when you tap Add Google Meet video conferencing.").sk1Hint()
+        } else if !r.attendees.isEmpty && !isWork {
             Text("Emails in the line aren't invited automatically. Use Invite people to send the invites.").sk1Hint()
         } else if r.addMeet {
             Text("Add the video link in Invite people, or from the meeting app.").sk1Hint()
@@ -246,11 +239,12 @@ struct QuickAddSheet: View {
 
     private func actions(_ r: QuickAddResult, start: Date, end: Date) -> some View {
         let title = cleanTitle(r)
-        let workReady = EmailValidator.isValid(workEmail.trimmingCharacters(in: .whitespaces))
+        let account = workEmail.trimmingCharacters(in: .whitespaces)
+        let workReady = account.isEmpty || EmailValidator.isValid(account)
         return VStack(spacing: 10) {
             Button { primary(r, start: start, end: end) } label: {
-                Label(isWork ? "Email to work" : "Add to calendar",
-                      systemImage: isWork ? "envelope.badge" : "calendar.badge.plus")
+                Label(isWork ? "Open in Google Calendar" : "Add to calendar",
+                      systemImage: isWork ? "arrow.up.forward.app" : "calendar.badge.plus")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.sk1Key(.orange, size: .large))
@@ -274,7 +268,7 @@ struct QuickAddSheet: View {
         let title = cleanTitle(r)
         guard !title.isEmpty else { return }
         error = nil
-        if isWork { return sendToWork(title: title, start: start, end: end) }
+        if isWork { return sendToWork(title: title, start: start, end: end, guests: r.attendees) }
         guard let cal = store.writableCalendars.first(where: { $0.id == destination }) else { return }
         Task {
             do {
@@ -286,9 +280,11 @@ struct QuickAddSheet: View {
         }
     }
 
-    private func sendToWork(title: String, start: Date, end: Date) {
-        let to = workEmail.trimmingCharacters(in: .whitespaces)
-        guard EmailValidator.isValid(to) else { return }
+    private func sendToWork(title: String, start: Date, end: Date, guests: [String]) {
+        let account = workEmail.trimmingCharacters(in: .whitespaces)
+        guard account.isEmpty || EmailValidator.isValid(account),
+              let url = MeetingComposer.googleCalendarURL(title: title, start: start, end: end, guests: guests,
+                                                          account: account.isEmpty ? nil : account) else { return }
         Task {
             if let hold = store.writableCalendars.first(where: { $0.id == holdCalendarID }) {
                 do { try await store.addEvent(title: title, start: start, end: end, calendar: hold) } catch {
@@ -296,20 +292,8 @@ struct QuickAddSheet: View {
                     return
                 }
             }
-            let ics = MeetingComposer.icsInvite(title: title, start: start, end: end)
-            let when = "\(start.formatted(.dateTime.weekday(.wide).month(.abbreviated).day())), \(start.shortTime)–\(end.shortTime)"
-            let body = "\(title)\n\(when)\n\nOpen the attached invite to add it to your calendar.\n\nSent from Meetball."
-            if MFMailComposeViewController.canSendMail() {
-                handoff = Handoff(kind: .mail(to: to, subject: title, body: body, ics: Data(ics.utf8)))
-            } else {
-                let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(Self.fileName(title)).ics")
-                do {
-                    try Data(ics.utf8).write(to: url, options: .atomic)
-                    handoff = Handoff(kind: .share(url))
-                } catch {
-                    self.error = "Couldn't make the invite: \(error.localizedDescription)"
-                }
-            }
+            openURL(url)
+            finish()
         }
     }
 
@@ -326,20 +310,11 @@ struct QuickAddSheet: View {
         saved += 1
         dismiss()
     }
-
-    /// A title safe to use as a file name.
-    static func fileName(_ title: String) -> String {
-        let cleaned = title.components(separatedBy: CharacterSet(charactersIn: "/\\:?%*|\"<>")).joined()
-            .trimmingCharacters(in: .whitespaces)
-        return cleaned.isEmpty ? "Meeting" : String(cleaned.prefix(60))
-    }
 }
 
 /// What the composer hands the meeting to.
 private struct Handoff: Identifiable {
     enum Kind {
-        case mail(to: String, subject: String, body: String, ics: Data)
-        case share(URL)
         case editor(EKEvent, EKEventStore)
     }
     let id = UUID()
@@ -403,52 +378,6 @@ struct DayStrip: View {
 
 private extension Double {
     func clamped(_ lo: Double, _ hi: Double) -> Double { Swift.min(Swift.max(self, lo), hi) }
-}
-
-/// Mail with the meeting's .ics attached. `onFinish(true)` when it was sent (or saved to send later).
-struct MailComposer: UIViewControllerRepresentable {
-    let to: String
-    let subject: String
-    let body: String
-    let ics: Data
-    var onFinish: (Bool) -> Void
-
-    func makeUIViewController(context: Context) -> MFMailComposeViewController {
-        let vc = MFMailComposeViewController()
-        vc.mailComposeDelegate = context.coordinator
-        vc.setToRecipients([to])
-        vc.setSubject(subject)
-        vc.setMessageBody(body, isHTML: false)
-        vc.addAttachmentData(ics, mimeType: "text/calendar", fileName: "\(QuickAddSheet.fileName(subject)).ics")
-        return vc
-    }
-
-    func updateUIViewController(_ vc: MFMailComposeViewController, context: Context) {}
-
-    func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
-
-    final class Coordinator: NSObject, MFMailComposeViewControllerDelegate {
-        let onFinish: (Bool) -> Void
-        init(onFinish: @escaping (Bool) -> Void) { self.onFinish = onFinish }
-        func mailComposeController(_ controller: MFMailComposeViewController, didFinishWith result: MFMailComposeResult,
-                                   error: Error?) {
-            onFinish(result == .sent || result == .saved)
-        }
-    }
-}
-
-/// The share sheet, for when Mail isn't set up: the .ics can go to Outlook, Gmail or Files instead.
-struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-    var onFinish: (Bool) -> Void
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        let vc = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        vc.completionWithItemsHandler = { _, completed, _, _ in onFinish(completed) }
-        return vc
-    }
-
-    func updateUIViewController(_ vc: UIActivityViewController, context: Context) {}
 }
 
 /// Apple's event editor, filled in with the composer's meeting: it can add invitees and a location on calendars that

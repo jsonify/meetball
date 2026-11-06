@@ -53,25 +53,20 @@ final class MeetingComposerTests: XCTestCase {
         XCTAssertEqual(MeetingComposer.roundUp(at(14, 59)), at(15))
     }
 
-    func testICSInviteIsPublishedWithUTCTimesAndEscapedText() {
-        let ics = MeetingComposer.icsInvite(title: "1:1, Sam; budget", start: at(14), end: at(14, 45), uid: "abc",
-                                            now: at(9))
-        XCTAssertTrue(ics.hasPrefix("BEGIN:VCALENDAR\r\n"))
-        XCTAssertTrue(ics.hasSuffix("END:VCALENDAR\r\n"))
-        XCTAssertTrue(ics.contains("METHOD:PUBLISH\r\n"))
-        XCTAssertTrue(ics.contains("UID:abc@meetball.app\r\n"))
-        XCTAssertTrue(ics.contains("DTSTART:20261105T220000Z\r\n"))
-        XCTAssertTrue(ics.contains("DTEND:20261105T224500Z\r\n"))
-        XCTAssertTrue(ics.contains(#"SUMMARY:1:1\, Sam\; budget"# + "\r\n"))
-        XCTAssertFalse(ics.contains("ATTENDEE"))
-    }
-
-    func testLongLinesFoldAt75Octets() {
-        let line = "SUMMARY:" + String(repeating: "x", count: 200)
-        let folded = MeetingComposer.fold(line)
-        XCTAssertEqual(folded.count, 3)
-        XCTAssertTrue(folded.allSatisfy { $0.utf8.count <= 75 })
-        XCTAssertTrue(folded.dropFirst().allSatisfy { $0.hasPrefix(" ") })
-        XCTAssertEqual(folded.map { $0.hasPrefix(" ") ? String($0.dropFirst()) : $0 }.joined(), line)
+    func testGoogleCalendarLinkCarriesTimesGuestsAndAccount() throws {
+        let url = try XCTUnwrap(MeetingComposer.googleCalendarURL(title: "1:1 & budget", start: at(14), end: at(14, 45),
+                                                                  guests: ["sam@work.com", "ana@work.com"],
+                                                                  account: "jason@work.com"))
+        let c = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(c.host, "calendar.google.com")
+        let q = Dictionary(uniqueKeysWithValues: (c.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        XCTAssertEqual(q["action"], "TEMPLATE")
+        XCTAssertEqual(q["text"], "1:1 & budget")
+        XCTAssertEqual(q["dates"], "20261105T220000Z/20261105T224500Z")
+        XCTAssertEqual(q["add"], "sam@work.com,ana@work.com")
+        XCTAssertEqual(q["authuser"], "jason@work.com")
+        let bare = try XCTUnwrap(MeetingComposer.googleCalendarURL(title: "x", start: at(9), end: at(10)))
+        XCTAssertFalse(bare.absoluteString.contains("authuser"))
+        XCTAssertFalse(bare.absoluteString.contains("add="))
     }
 }
