@@ -22,6 +22,9 @@ struct PhoneSettings: Codable, Equatable {
     var echoMode: Bool = true
     /// Echo notes are also added to Reminders as follow-ups.
     var echoToReminders: Bool = true
+    /// The Today tab (the MB-1 display and agenda). Off by default: the app opens on the Day grid, which has the next
+    /// meeting on top.
+    var showTodayTab: Bool = false
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -52,7 +55,8 @@ extension PhoneSettings {
                   countdownMoment: try c.decodeIfPresent(Bool.self, forKey: .countdownMoment) ?? d.countdownMoment,
                   preFlight: try c.decodeIfPresent(Bool.self, forKey: .preFlight) ?? d.preFlight,
                   echoMode: try c.decodeIfPresent(Bool.self, forKey: .echoMode) ?? d.echoMode,
-                  echoToReminders: try c.decodeIfPresent(Bool.self, forKey: .echoToReminders) ?? d.echoToReminders)
+                  echoToReminders: try c.decodeIfPresent(Bool.self, forKey: .echoToReminders) ?? d.echoToReminders,
+                  showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab)
     }
 }
 

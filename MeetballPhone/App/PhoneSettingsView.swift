@@ -76,6 +76,9 @@ struct PhoneSettingsView: View {
             SKRow(title: "Theme", subtitle: "Light is the cream SK-1 look, Dark the charcoal one. System follows the iPhone.") {
                 SKSegmented(selection: $themeRaw, options: AppTheme.allCases.map { SKSegmented<String>.Option($0.rawValue, $0.title) })
             }
+            SKRow(title: "Today tab", subtitle: "The MB-1 display and the rest of today and tomorrow as a list. Meetball opens on the Day grid either way.") {
+                Toggle("Today tab", isOn: $store.settings.showTodayTab).labelsHidden().toggleStyle(.sk1Switch)
+            }
         }
     }
 
