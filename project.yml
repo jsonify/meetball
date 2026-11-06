@@ -211,3 +211,33 @@ targets:
         CODE_SIGN_IDENTITY: "Apple Development"
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MeetballPhone.app/MeetballPhone"
         BUNDLE_LOADER: "$(TEST_HOST)"
+
+# Shared schemes, generated on every Mac. Without them the build depends on Xcode inventing schemes for each target,
+# which some Xcode setups don't do ("does not contain a scheme named Meetball" from make dist / make install).
+schemes:
+  Meetball:
+    build:
+      targets:
+        Meetball: all
+        MeetballTests: [test]
+    test:
+      targets: [MeetballTests]
+  MeetballTests:
+    build:
+      targets:
+        MeetballTests: [test]
+    test:
+      targets: [MeetballTests]
+  MeetballPhone:
+    build:
+      targets:
+        MeetballPhone: all
+        MeetballPhoneTests: [test]
+    test:
+      targets: [MeetballPhoneTests]
+  MeetballPhoneTests:
+    build:
+      targets:
+        MeetballPhoneTests: [test]
+    test:
+      targets: [MeetballPhoneTests]
