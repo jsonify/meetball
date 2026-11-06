@@ -90,6 +90,25 @@ final class AppleCalendarClient {
         try store.save(e, span: .thisEvent, commit: true)
     }
 
+    /// An unsaved event filled in with what the composer has, for Apple's own event editor (the only way to invite
+    /// people: EventKit can't add attendees itself). The editor saves it, or not, in `eventStore`.
+    func draftEvent(title: String, start: Date, end: Date, calendarID: String?) -> EKEvent? {
+        guard isAuthorized else { return nil }
+        let e = EKEvent(eventStore: store)
+        e.title = title
+        e.startDate = start
+        e.endDate = end
+        if let calendarID, let ek = store.calendar(withIdentifier: calendarID), ek.allowsContentModifications {
+            e.calendar = ek
+        } else {
+            e.calendar = store.defaultCalendarForNewEvents
+        }
+        return e
+    }
+
+    /// The store `draftEvent` events belong to.
+    var eventStore: EKEventStore { store }
+
     private static func attendee(_ p: EKParticipant) -> EventAttendee {
         let raw = p.url.absoluteString
         let email = raw.lowercased().hasPrefix("mailto:") ? String(raw.dropFirst(7)) : nil
