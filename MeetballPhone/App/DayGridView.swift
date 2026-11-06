@@ -206,7 +206,8 @@ struct DayGridUpNext: View {
                                 lamp: urgency.lamp, lampBlinking: urgency.lampBlinks, height: 44,
                                 accessibilityText: (inProgress ? "On now, ends " : "Up next, starts ")
                                     + RelativeTimeFormatter.string(for: target, relativeTo: now))
-                    .frame(width: 118)
+                    // Wide enough for "UP NEXT" or "ENDS IN" beside two digits and their unit.
+                    .frame(width: 150)
                 Button { open(event) } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 5) {
