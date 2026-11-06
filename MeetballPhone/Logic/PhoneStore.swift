@@ -161,6 +161,13 @@ final class PhoneStore: ObservableObject {
         return (e, client.eventStore)
     }
 
+    /// The stored event behind `event` with the store to edit it in, for Apple's event editor. Nil when its calendar is
+    /// read-only (a subscribed work feed), which edits in Google Calendar instead.
+    func editableEvent(for event: CalendarEvent) -> (event: EKEvent, store: EKEventStore)? {
+        guard let e = client.editableEvent(for: event) else { return nil }
+        return (e, client.eventStore)
+    }
+
     /// The calendar quick add picks first: the Calendar app's default for new events when Meetball can write to it.
     var defaultCalendarForNewEvents: GCalendar? {
         let id = client.defaultCalendarID

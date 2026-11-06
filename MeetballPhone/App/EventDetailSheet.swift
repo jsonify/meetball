@@ -1,3 +1,4 @@
+import EventKit
 import SwiftUI
 import UIKit
 import SK1Tokens
@@ -8,7 +9,11 @@ struct EventDetailSheet: View {
     let event: CalendarEvent
     @EnvironmentObject private var store: PhoneStore
     @Environment(\.dismiss) private var dismiss
+    @AppStorage("phone.workEmail") private var workEmail = ""
     @State private var copied = 0
+    /// The stored event when its calendar can be changed here; nil for a read-only feed such as the work calendar.
+    @State private var editable: (event: EKEvent, store: EKEventStore)?
+    @State private var editing = false
 
     var body: some View {
         ScrollView {
@@ -22,6 +27,7 @@ struct EventDetailSheet: View {
                 if let loc = event.location, !loc.isEmpty { whereGroup(loc) }
                 if !event.participants.isEmpty { peopleGroup }
                 if let notes = event.notes.map(EventNotesFormatter.plainText), !notes.isEmpty { notesGroup(notes) }
+                editKey
                 HStack(spacing: 10) {
                     Button("Open in Calendar") { PhoneJoin.openInCalendar(event) }.buttonStyle(.sk1Key())
                     if let url = event.meetURL {
@@ -38,6 +44,45 @@ struct EventDetailSheet: View {
         }
         .sk1Chassis()
         .presentationDragIndicator(.visible)
+        .onAppear { editable = store.editableEvent(for: event) }
+        .sheet(isPresented: $editing) {
+            if let editable {
+                EventEditor(event: editable.event, eventStore: editable.store) { changed in
+                    editing = false
+                    // The screen shows the old details; the calendars reload from the change.
+                    if changed { dismiss() }
+                }
+                .ignoresSafeArea()
+            }
+        }
+    }
+
+    /// Edit: Apple's editor for calendars the phone can change, or the event's edit page in Google Calendar for the
+    /// read-only work feed.
+    @ViewBuilder
+    private var editKey: some View {
+        if editable != nil {
+            Button { editing = true } label: {
+                Label("Edit", systemImage: "pencil").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.sk1Key(size: .large))
+        } else if GoogleEventLink.isFromGoogle(event) {
+            let account = workEmail.trimmingCharacters(in: .whitespaces)
+            let url = GoogleEventLink.editURL(for: event, account: account)
+                ?? GoogleEventLink.searchURL(for: event, account: account)
+            if let url {
+                VStack(alignment: .leading, spacing: 6) {
+                    Button { UIApplication.shared.open(url) } label: {
+                        Label("Edit in Google Calendar", systemImage: "arrow.up.forward.app").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.sk1Key(size: .large))
+                    Text(account.isEmpty
+                         ? "This calendar is read-only here. Set your work email in New meeting so Google opens the right account."
+                         : "This calendar is read-only here, so changes are made in Google Calendar.")
+                        .sk1Hint()
+                }
+            }
+        }
     }
 
     private var header: some View {

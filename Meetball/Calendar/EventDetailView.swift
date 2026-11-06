@@ -225,6 +225,14 @@ struct EventDetailPopover: View {
                         .buttonStyle(.sk1Key(size: .small))
                         .help("Open in Calendar")
                         .accessibilityLabel("Open in Calendar")
+                    // A Google calendar subscribed in Calendar (the work feed) is read-only here: edit it in Google.
+                    if GoogleEventLink.isFromGoogle(event),
+                       let link = GoogleEventLink.editURL(for: event, account: nil)
+                        ?? GoogleEventLink.searchURL(for: event, account: nil) {
+                        Button { NSWorkspace.shared.open(link) } label: { Label("Edit in Google", systemImage: "pencil") }
+                            .buttonStyle(.sk1Key(size: .small))
+                            .help("Edit this event in Google Calendar")
+                    }
                 }
                 Spacer()
                 if !event.isAllDay {

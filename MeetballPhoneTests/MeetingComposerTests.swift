@@ -69,4 +69,49 @@ final class MeetingComposerTests: XCTestCase {
         XCTAssertFalse(bare.absoluteString.contains("authuser"))
         XCTAssertFalse(bare.absoluteString.contains("add="))
     }
+
+    func testGoogleEditLinkNamesTheEventOnYourCalendar() throws {
+        var e = ev("Budget review", at(14), at(15))
+        e.externalID = "7kq2abc0def@google.com"
+        e.organizerEmail = "boss@work.com"
+        let url = try XCTUnwrap(GoogleEventLink.editURL(for: e, account: " Jason@Work.com "))
+        let c = try XCTUnwrap(URLComponents(url: url, resolvingAgainstBaseURL: false))
+        XCTAssertEqual(c.host, "calendar.google.com")
+        XCTAssertTrue(c.path.hasPrefix("/calendar/r/eventedit/"))
+        let eid = String(c.path.dropFirst("/calendar/r/eventedit/".count))
+        XCTAssertFalse(eid.contains("="))
+        let padded = eid.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+            + String(repeating: "=", count: (4 - eid.count % 4) % 4)
+        let decoded = try XCTUnwrap(Data(base64Encoded: padded).flatMap { String(data: $0, encoding: .utf8) })
+        XCTAssertEqual(decoded, "7kq2abc0def jason@work.com")
+        XCTAssertEqual(c.queryItems?.first { $0.name == "authuser" }?.value, "jason@work.com")
+    }
+
+    func testGoogleEditLinkFallsBackToOrganizerAndNamesTheOccurrence() throws {
+        var e = ev("Standup", at(9), at(9, 15))
+        e.externalID = "abc123@google.com"
+        e.organizerEmail = "jason@work.com"
+        e.occurrenceDate = at(9)
+        let url = try XCTUnwrap(GoogleEventLink.editURL(for: e, account: "", calendar: cal))
+        let eid = String(url.path.dropFirst("/calendar/r/eventedit/".count))
+        let padded = eid.replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+            + String(repeating: "=", count: (4 - eid.count % 4) % 4)
+        let decoded = try XCTUnwrap(Data(base64Encoded: padded).flatMap { String(data: $0, encoding: .utf8) })
+        XCTAssertEqual(decoded, "abc123_20261105T170000Z jason@work.com")
+
+        XCTAssertEqual(GoogleEventLink.instanceID("abc123", occurrence: at(0), allDay: true, calendar: cal), "abc123_20261105")
+    }
+
+    func testGoogleEditLinkOnlyForGoogleEvents() {
+        var e = ev("Dentist", at(9), at(10))
+        e.externalID = "5F1C-22@icloud.com"
+        e.organizerEmail = "jason@work.com"
+        XCTAssertFalse(GoogleEventLink.isFromGoogle(e))
+        XCTAssertNil(GoogleEventLink.editURL(for: e, account: "jason@work.com"))
+        e.externalID = "abc@google.com"
+        e.organizerEmail = nil
+        XCTAssertTrue(GoogleEventLink.isFromGoogle(e))
+        XCTAssertNil(GoogleEventLink.editURL(for: e, account: nil))
+        XCTAssertNotNil(GoogleEventLink.searchURL(for: e, account: nil))
+    }
 }

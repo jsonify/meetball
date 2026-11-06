@@ -104,3 +104,66 @@ public enum MeetingComposer {
         return f.string(from: d)
     }
 }
+
+/// Links into Google Calendar for an event Meetball sees only through a read-only feed (a work Google calendar
+/// subscribed in Apple Calendar). Meetball can't change those itself, so it opens the event's own edit page in Google.
+public enum GoogleEventLink {
+    /// Google's event id from a feed's iCalendar UID ("abc123@google.com" → "abc123"); nil for events that didn't come
+    /// from Google.
+    public static func eventID(fromUID uid: String?) -> String? {
+        guard let uid, uid.lowercased().hasSuffix("@google.com") else { return nil }
+        let id = String(uid.dropLast("@google.com".count))
+        return id.isEmpty || id.contains(" ") ? nil : id
+    }
+
+    /// The id Google gives one occurrence of a repeating event: `<id>_20261106T170000Z`, or `<id>_20261106` all day.
+    static func instanceID(_ id: String, occurrence: Date, allDay: Bool, calendar: Calendar = .current) -> String {
+        let f = DateFormatter()
+        f.calendar = Calendar(identifier: .gregorian)
+        f.locale = Locale(identifier: "en_US_POSIX")
+        if allDay {
+            f.timeZone = calendar.timeZone
+            f.dateFormat = "yyyyMMdd"
+        } else {
+            f.timeZone = TimeZone(identifier: "UTC")
+            f.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        }
+        return "\(id)_\(f.string(from: occurrence))"
+    }
+
+    /// Google's `eid`: URL-safe base64 of "<event id> <calendar email>", without padding (it sits in the URL's path).
+    static func eid(eventID: String, calendarEmail: String) -> String {
+        Data("\(eventID) \(calendarEmail)".utf8).base64EncodedString()
+            .replacingOccurrences(of: "=", with: "")
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+    }
+
+    /// The Google Calendar page that edits `event`, opened as `account` (your work email). The event lives on that
+    /// account's calendar; without an account the organizer's email stands in, which is you for events you added.
+    /// Nil when the event isn't from Google or there's no email to find its calendar by.
+    public static func editURL(for event: CalendarEvent, account: String?, calendar: Calendar = .current) -> URL? {
+        guard let id = eventID(fromUID: event.externalID) else { return nil }
+        let mine = account?.trimmingCharacters(in: .whitespaces).lowercased()
+        let owner = (mine?.isEmpty == false ? mine : nil) ?? event.organizerEmail?.lowercased()
+        guard let owner, owner.contains("@") else { return nil }
+        let eventID = event.occurrenceDate.map { instanceID(id, occurrence: $0, allDay: event.isAllDay, calendar: calendar) } ?? id
+        var c = URLComponents(string: "https://calendar.google.com/calendar/r/eventedit/\(eid(eventID: eventID, calendarEmail: owner))")
+        c?.queryItems = [URLQueryItem(name: "authuser", value: owner)]
+        return c?.url
+    }
+
+    /// Google Calendar's search for the event's title: the fallback when `editURL` can't name the event.
+    public static func searchURL(for event: CalendarEvent, account: String?) -> URL? {
+        var c = URLComponents(string: "https://calendar.google.com/calendar/r/search")
+        var items = [URLQueryItem(name: "q", value: event.title)]
+        if let account = account?.trimmingCharacters(in: .whitespaces), !account.isEmpty {
+            items.append(URLQueryItem(name: "authuser", value: account))
+        }
+        c?.queryItems = items
+        return c?.url
+    }
+
+    /// Whether the event came from a Google calendar (so Google can edit it).
+    public static func isFromGoogle(_ event: CalendarEvent) -> Bool { eventID(fromUID: event.externalID) != nil }
+}
