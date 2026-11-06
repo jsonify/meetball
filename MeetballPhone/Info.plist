@@ -24,8 +24,6 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
-	<key>LSRequiresIPhoneOS</key>
-	<true/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Meetball reads your calendars to remind you before meetings and tell you when one moves or is cancelled.</string>
 	<key>UIBackgroundModes</key>
