@@ -128,10 +128,7 @@ struct TimeGridView: View {
 
     /// Scroll to just before now when today is visible, otherwise to the start of working hours.
     private func scrollToStart(_ proxy: ScrollViewProxy, now: Date) {
-        let cal = Calendar.app
-        let hour = days.contains(where: { cal.isDate($0, inSameDayAs: now) })
-            ? max(0, cal.component(.hour, from: now) - 1)
-            : workdayStartHour
+        let hour = TimeGridLayoutBuilder.openingHour(days: days, now: now, workdayStartHour: workdayStartHour)
         DispatchQueue.main.async { proxy.scrollTo(hour, anchor: .top) }
     }
 }

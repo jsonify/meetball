@@ -188,6 +188,70 @@ final class TimeGridTests: XCTestCase {
     }
 }
 
+final class AllDayStripTests: XCTestCase {
+    let cal = Calendar.app
+    func day(_ d: Int) -> Date { cal.date(from: DateComponents(year: 2026, month: 11, day: d))! }
+    func bar(_ id: String, from a: Int, days n: Int) -> CalendarEvent {
+        CalendarEvent(id: id, calendarID: "c", accountEmail: "a@b.c", title: id, start: day(a), end: day(a + n),
+                      isAllDay: true, meetURL: nil, location: nil, attendees: [], htmlLink: nil)
+    }
+
+    func testBarsAcrossAWeekBoundary() {
+        // Sat 7 – Mon 9 Nov 2026 crosses Sunday, where calendar weeks start; the 3-day strip shouldn't care.
+        let trip = bar("trip", from: 6, days: 4)        // Fri 6 – Mon 9
+        let oncall = bar("oncall", from: 8, days: 1)    // Sun 8
+        let early = bar("early", from: 1, days: 2)      // ended before
+        let bars = TimeGridLayoutBuilder.allDayBars(events: [oncall, trip, early], firstDay: day(7), dayCount: 3, calendar: cal)
+        XCTAssertEqual(bars.map(\.event.id), ["trip", "oncall"])
+        XCTAssertEqual(bars[0].startIndex, 0)
+        XCTAssertEqual(bars[0].endIndex, 2)
+        XCTAssertTrue(bars[0].continuesBefore)
+        XCTAssertFalse(bars[0].continuesAfter)
+        XCTAssertEqual(bars[1].lane, 1)
+        XCTAssertEqual(bars[1].startIndex, 1)
+    }
+
+    func testTimedEventsAreNotBars() {
+        let s = cal.date(bySettingHour: 9, minute: 0, second: 0, of: day(7))!
+        let meeting = CalendarEvent(id: "m", calendarID: "c", accountEmail: "a@b.c", title: "m", start: s, end: s.addingTimeInterval(3600),
+                                    isAllDay: false, meetURL: nil, location: nil, attendees: [], htmlLink: nil)
+        XCTAssertTrue(TimeGridLayoutBuilder.allDayBars(events: [meeting], firstDay: day(7), dayCount: 1, calendar: cal).isEmpty)
+    }
+
+    func testFoldsPastTwoLanesWithCountsPerDay() {
+        let events = [bar("a", from: 7, days: 3), bar("b", from: 7, days: 1), bar("c", from: 7, days: 1), bar("d", from: 9, days: 1)]
+        let bars = TimeGridLayoutBuilder.allDayBars(events: events, firstDay: day(7), dayCount: 3, calendar: cal)
+        // a takes lane 0 across all three days; b, c stack on day 0; d drops into lane 1 on day 2.
+        let folded = TimeGridLayoutBuilder.collapse(bars, dayCount: 3, maxLanes: 2)
+        XCTAssertEqual(folded.laneCount, 3)
+        XCTAssertTrue(folded.isFolded)
+        XCTAssertEqual(folded.shown.map(\.event.id), ["a"])
+        XCTAssertEqual(folded.hiddenPerDay, [2, 0, 1])
+        XCTAssertEqual(folded.shownLaneCount, 1)
+
+        let open = TimeGridLayoutBuilder.collapse(bars, dayCount: 3, maxLanes: 8)
+        XCTAssertFalse(open.isFolded)
+        XCTAssertEqual(open.shown.count, 4)
+        XCTAssertEqual(open.hiddenPerDay, [0, 0, 0])
+    }
+
+    func testTwoLanesShowWithoutFolding() {
+        let bars = TimeGridLayoutBuilder.allDayBars(events: [bar("a", from: 7, days: 1), bar("b", from: 7, days: 1)],
+                                                    firstDay: day(7), dayCount: 1, calendar: cal)
+        let strip = TimeGridLayoutBuilder.collapse(bars, dayCount: 1, maxLanes: 2)
+        XCTAssertFalse(strip.isFolded)
+        XCTAssertEqual(strip.shownLaneCount, 2)
+    }
+
+    func testDaysAndOpeningHour() {
+        let days = TimeGridLayoutBuilder.days(from: day(7).addingTimeInterval(5000), count: 3, calendar: cal)
+        XCTAssertEqual(days, [day(7), day(8), day(9)])
+        let now = cal.date(bySettingHour: 14, minute: 20, second: 0, of: day(8))!
+        XCTAssertEqual(TimeGridLayoutBuilder.openingHour(days: days, now: now, calendar: cal), 13)
+        XCTAssertEqual(TimeGridLayoutBuilder.openingHour(days: [day(10)], now: now, calendar: cal), 8)
+    }
+}
+
 final class MenuAgendaTests: XCTestCase {
     let cal = Calendar.current
     func ev(_ id: String, _ s: Date, _ e: Date, allDay: Bool = false) -> CalendarEvent {

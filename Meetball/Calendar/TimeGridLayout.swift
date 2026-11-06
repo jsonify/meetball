@@ -20,6 +20,16 @@ public struct TimeGridAllDayBar: Identifiable, Hashable {
     public var id: String { "\(event.uid)|\(lane)" }
 }
 
+/// The all-day strip as drawn: the bars that fit and, per day, how many are folded away.
+public struct AllDayStrip: Equatable {
+    public let shown: [TimeGridAllDayBar]
+    public let hiddenPerDay: [Int]
+    /// Lanes before folding.
+    public let laneCount: Int
+    public var isFolded: Bool { hiddenPerDay.contains { $0 > 0 } }
+    public var shownLaneCount: Int { (shown.map(\.lane).max() ?? -1) + 1 }
+}
+
 public enum TimeGridLayoutBuilder {
     /// Column-packs overlapping segments: each cluster of transitively overlapping events shares a column count,
     /// and each event takes the first free column. Very short events are treated as `minDuration` long so they stay visible.
@@ -67,6 +77,58 @@ public enum TimeGridLayoutBuilder {
                               continuesBefore: span.continuesBeforeWeek || span.startColumn - firstDayOffset < 0,
                               continuesAfter: span.continuesAfterWeek || span.endColumn - firstDayOffset > lastIndex)
         }.sorted { ($0.lane, $0.startIndex) < ($1.lane, $1.startIndex) }
+    }
+
+    /// All-day and multi-day bars across any run of `dayCount` days from `firstDay`, not tied to a calendar week (the
+    /// iPhone's 3-day view can start on a Saturday). Longer bars take the upper lanes; each bar takes the first lane free
+    /// for its whole run.
+    public static func allDayBars(events: [CalendarEvent], firstDay: Date, dayCount: Int,
+                                  calendar: Calendar = .app) -> [TimeGridAllDayBar] {
+        let first = calendar.startOfDay(for: firstDay)
+        guard dayCount > 0, let end = calendar.date(byAdding: .day, value: dayCount, to: first) else { return [] }
+        func index(_ d: Date) -> Int { calendar.dateComponents([.day], from: first, to: calendar.startOfDay(for: d)).day ?? 0 }
+        let bars = events.filter { $0.isBarEvent(calendar: calendar) && $0.start < end && $0.end > first }
+            .sorted { $0.start != $1.start ? $0.start < $1.start : ($0.end != $1.end ? $0.end > $1.end : $0.uid < $1.uid) }
+        var laneEnds: [Int] = []
+        var out: [TimeGridAllDayBar] = []
+        for e in bars {
+            let lastInstant = e.end > e.start ? e.end.addingTimeInterval(-1) : e.end
+            let rawStart = index(e.start), rawEnd = index(lastInstant)
+            let s = max(0, rawStart), en = max(s, min(dayCount - 1, rawEnd))
+            let lane = laneEnds.firstIndex(where: { $0 < s }) ?? laneEnds.count
+            if lane == laneEnds.count { laneEnds.append(en) } else { laneEnds[lane] = en }
+            out.append(TimeGridAllDayBar(event: e, startIndex: s, endIndex: en, lane: lane,
+                                         continuesBefore: rawStart < 0, continuesAfter: rawEnd > dayCount - 1))
+        }
+        return out.sorted { ($0.lane, $0.startIndex) < ($1.lane, $1.startIndex) }
+    }
+
+    /// The all-day strip folded to at most `maxLanes` lanes: when there are more, the last lane gives way to a
+    /// "+N more" per day, counting that day's bars that aren't shown.
+    public static func collapse(_ bars: [TimeGridAllDayBar], dayCount: Int, maxLanes: Int) -> AllDayStrip {
+        let laneCount = (bars.map(\.lane).max() ?? -1) + 1
+        guard laneCount > maxLanes, maxLanes > 0 else {
+            return AllDayStrip(shown: bars, hiddenPerDay: Array(repeating: 0, count: max(0, dayCount)), laneCount: laneCount)
+        }
+        let keep = maxLanes - 1
+        let shown = bars.filter { $0.lane < keep }
+        let hidden = (0..<max(0, dayCount)).map { d in
+            bars.filter { $0.lane >= keep && $0.startIndex <= d && $0.endIndex >= d }.count
+        }
+        return AllDayStrip(shown: shown, hiddenPerDay: hidden, laneCount: laneCount)
+    }
+
+    /// `count` consecutive days from the start of `first`.
+    public static func days(from first: Date, count: Int, calendar: Calendar = .app) -> [Date] {
+        let start = calendar.startOfDay(for: first)
+        return (0..<max(0, count)).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
+    }
+
+    /// The hour a time grid opens at: an hour before now when today is showing, otherwise the start of the workday.
+    public static func openingHour(days: [Date], now: Date, workdayStartHour: Int = 8, calendar: Calendar = .app) -> Int {
+        days.contains(where: { calendar.isDate($0, inSameDayAs: now) })
+            ? max(0, calendar.component(.hour, from: now) - 1)
+            : workdayStartHour
     }
 
     /// Minutes from the start of `day` to `date`, clamped to the day.
