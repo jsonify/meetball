@@ -145,12 +145,13 @@ struct QuickAddSheet: View {
         })
         return SKGroup(caption: "When") {
             SKRow(title: "Day") {
-                SKPicker(selection: dayBinding,
-                         options: dayOffsets.map { SKPicker<Int>.Option($0, dayLabel($0, today: today)) })
+                ScrollingPicker(selection: dayBinding,
+                                options: dayOffsets.map { ($0, dayLabel($0, today: today)) }, name: "Day")
             }
             SKRow(title: "Starts") {
-                SKPicker(selection: timeBinding,
-                         options: times.map { SKPicker<Int>.Option($0, dayStart.addingTimeInterval(Double($0) * 60).shortTime) })
+                ScrollingPicker(selection: timeBinding,
+                                options: times.map { ($0, dayStart.addingTimeInterval(Double($0) * 60).shortTime) },
+                                name: "Starts")
             }
             SKRow(title: "Length") {
                 SKSegmented(selection: lengthBinding, options: lengths.map { SKSegmented<Int>.Option($0, lengthLabel($0)) })
@@ -315,6 +316,91 @@ struct QuickAddSheet: View {
     private func finish() {
         saved += 1
         dismiss()
+    }
+}
+
+/// SKPicker's look (◀ chip ▶, the list with an orange square on the chosen choice) for long lists: SK1Kit's popover
+/// list doesn't scroll, so 96 start times ran off the screen and over the sheet's close key. This one's list scrolls,
+/// opens on the chosen choice, and stays a sheet-friendly height.
+struct ScrollingPicker<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(value: Value, label: String)]
+    let name: String
+    @State private var choosing = false
+
+    private var index: Int? { options.firstIndex { $0.value == selection } }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            arrow(-1, symbol: "arrowtriangle.left.fill", label: "Previous").disabled(index == 0)
+            Button { choosing = true } label: { chip }
+                .buttonStyle(.plain)
+                .accessibilityLabel(Text("\(name), \(options.first { $0.value == selection }?.label ?? "")"))
+                .popover(isPresented: $choosing, arrowEdge: .top) { list.presentationCompactAdaptation(.popover) }
+            arrow(1, symbol: "arrowtriangle.right.fill", label: "Next").disabled(index == options.count - 1)
+        }
+        .fixedSize()
+    }
+
+    private var chip: some View {
+        ZStack {
+            ForEach(options.indices, id: \.self) { Text(options[$0].label).hidden() }
+            Text(options.first { $0.value == selection }?.label ?? "–")
+        }
+        .font(.system(size: 10, weight: .bold, design: .monospaced))
+        .tracking(0.5)
+        .foregroundStyle(Color(sk1Hex: SK1.lcdInk))
+        .lineLimit(1)
+        .padding(.horizontal, 7)
+        .frame(minWidth: 44, minHeight: 20, maxHeight: 20)
+        .background(SKGlass(.chip, radius: 3))
+        .contentShape(Rectangle())
+    }
+
+    private var list: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(options.indices, id: \.self) { i in
+                        let chosen = options[i].value == selection
+                        Button {
+                            selection = options[i].value
+                            choosing = false
+                        } label: {
+                            HStack(spacing: 7) {
+                                RoundedRectangle(cornerRadius: 2)
+                                    .fill(chosen ? Color(sk1Hex: SK1.orange) : Color.secondary.opacity(0.35))
+                                    .frame(width: 8, height: 8)
+                                Text(options[i].label)
+                                    .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(chosen ? Color.primary : Color.secondary)
+                                    .lineLimit(1)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.horizontal, 12)
+                            .frame(minHeight: 34)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .id(i)
+                        .accessibilityAddTraits(chosen ? .isSelected : [])
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+            .frame(width: 170, height: min(CGFloat(options.count) * 34 + 12, 280))
+            .onAppear { if let index { proxy.scrollTo(index, anchor: .center) } }
+        }
+        .sk1Chassis()
+    }
+
+    private func arrow(_ by: Int, symbol: String, label: String) -> some View {
+        Button {
+            guard let i = index.map({ $0 + by }), options.indices.contains(i) else { return }
+            selection = options[i].value
+        } label: { Image(systemName: symbol) }
+            .buttonStyle(.sk1Key(.round, size: .mini))
+            .accessibilityLabel(Text("\(name): \(label.lowercased())"))
     }
 }
 
