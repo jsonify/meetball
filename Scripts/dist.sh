@@ -41,11 +41,17 @@ version_args=(CURRENT_PROJECT_VERSION="$build_number" MEETBALL_COMMIT="$commit" 
 
 mkdir -p build
 log=build/dist.log
+# Two builds sharing build/DerivedData fail with "database is locked"; say so up front instead.
+if pgrep -f "xcodebuild.*-derivedDataPath build/DerivedData" >/dev/null 2>&1; then
+  echo "Another Meetball build is still running (an earlier make in another tab?). Wait for it, or: pkill xcodebuild" >&2
+  exit 1
+fi
 echo "==> Building Release (log: $log)"
 if ! xcodebuild -project Meetball.xcodeproj -scheme Meetball -configuration Release \
     ${arch_args[@]+"${arch_args[@]}"} "${version_args[@]}" \
     -allowProvisioningUpdates -derivedDataPath build/DerivedData build >"$log" 2>&1; then
-  grep -E "error:|BUILD FAILED" "$log" | tail -20 >&2 || tail -20 "$log" >&2
+  # -a: xcodebuild logs can hold bytes that make grep call the file binary and print nothing useful.
+  grep -aE "error:|BUILD FAILED" "$log" | tail -20 >&2 || tail -20 "$log" >&2
   echo "Build failed. Full log: $log" >&2
   exit 1
 fi
