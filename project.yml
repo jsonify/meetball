@@ -88,9 +88,9 @@ targets:
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Meetball.app/Contents/MacOS/Meetball"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
-  # Meetball for iPhone: a personal meeting notifier (not for the App Store). It reads Apple Calendar through the same
-  # EventKit client and change detector as the Mac app and schedules Time Sensitive reminders, which Siri can announce
-  # in CarPlay. See README, "iPhone notifier".
+  # Meetball for iPhone (personal, not for the App Store): Today / Week / Month, quick add and the Mac app's fun, plus
+  # the notifier, which schedules Time Sensitive reminders Siri can announce in CarPlay. It reads Apple Calendar through
+  # the same EventKit client, change detector and calendar layout code as the Mac app. See README, "Meetball for iPhone".
   MeetballPhone:
     type: application
     platform: iOS
@@ -100,7 +100,18 @@ targets:
       - Meetball/Calendar/Models.swift
       - Meetball/Calendar/MeetingChanges.swift
       - Meetball/Calendar/AppleCalendarClient.swift
+      - Meetball/Calendar/Layout.swift
+      - Meetball/Calendar/TimeGridLayout.swift
+      - Meetball/Calendar/MiniMonthRibbons.swift
+      - Meetball/Calendar/QuickAddParser.swift
       - Meetball/Utilities/AppPreferences.swift
+      - Meetball/Utilities/Formatters.swift
+      - Meetball/Utilities/MeetingService.swift
+      - Meetball/DesignSystem/EventChip.swift
+      - Meetball/DesignSystem/Components.swift
+      - Meetball/DesignSystem/CountdownLCD.swift
+      - Meetball/DesignSystem/HeroUrgency.swift
+      - Meetball/MeetingGuardian/Confetti.swift
     dependencies:
       - package: SK1Kit
         product: SK1Tokens
@@ -117,7 +128,7 @@ targets:
         CFBundleDisplayName: Meetball
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
-        NSCalendarsFullAccessUsageDescription: Meetball reads your calendars to remind you before meetings and tell you when one moves or is cancelled.
+        NSCalendarsFullAccessUsageDescription: Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [app.meetball.MeetballPhone.refresh]
         UILaunchScreen: {}

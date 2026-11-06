@@ -10,6 +10,8 @@ struct PhoneSettings: Codable, Equatable {
     var notifyChanges: Bool = true
     /// Calendar keys (`GCalendar.key`) the user switched off.
     var hiddenCalendars: Set<String> = []
+    /// Confetti when a meeting is cancelled.
+    var celebrateCancellations: Bool = true
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -21,6 +23,21 @@ struct PhoneSettings: Codable, Equatable {
 
     func save(_ d: UserDefaults = .standard) {
         if let data = try? JSONEncoder().encode(self) { d.set(data, forKey: Self.storageKey) }
+    }
+}
+
+extension PhoneSettings {
+    /// Settings saved by an older build lack the newer keys; each missing one takes its default, so an update keeps
+    /// everything else (calendars switched off, say).
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = PhoneSettings()
+        self.init(leadMinutes: try c.decodeIfPresent(Int.self, forKey: .leadMinutes) ?? d.leadMinutes,
+                  alertAtStart: try c.decodeIfPresent(Bool.self, forKey: .alertAtStart) ?? d.alertAtStart,
+                  notifyChanges: try c.decodeIfPresent(Bool.self, forKey: .notifyChanges) ?? d.notifyChanges,
+                  hiddenCalendars: try c.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendars) ?? d.hiddenCalendars,
+                  celebrateCancellations: try c.decodeIfPresent(Bool.self, forKey: .celebrateCancellations)
+                    ?? d.celebrateCancellations)
     }
 }
 

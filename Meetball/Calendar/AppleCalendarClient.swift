@@ -68,6 +68,28 @@ final class AppleCalendarClient {
         }
     }
 
+    /// Identifiers of the calendars new events can be added to (the iPhone app's quick add).
+    func writableCalendarIDs() -> Set<String> {
+        guard isAuthorized else { return [] }
+        return Set(store.calendars(for: .event).filter(\.allowsContentModifications).map(\.calendarIdentifier))
+    }
+
+    /// The calendar the Calendar app puts new events on.
+    var defaultCalendarID: String? { isAuthorized ? store.defaultCalendarForNewEvents?.calendarIdentifier : nil }
+
+    /// Adds an event with no invitees (the iPhone app's quick add). Throws when the calendar is gone or read-only.
+    func addEvent(title: String, start: Date, end: Date, calendarID: String) throws {
+        guard isAuthorized, let ek = store.calendar(withIdentifier: calendarID), ek.allowsContentModifications else {
+            throw CocoaError(.featureUnsupported)
+        }
+        let e = EKEvent(eventStore: store)
+        e.calendar = ek
+        e.title = title
+        e.startDate = start
+        e.endDate = end
+        try store.save(e, span: .thisEvent, commit: true)
+    }
+
     private static func attendee(_ p: EKParticipant) -> EventAttendee {
         let raw = p.url.absoluteString
         let email = raw.lowercased().hasPrefix("mailto:") ? String(raw.dropFirst(7)) : nil
