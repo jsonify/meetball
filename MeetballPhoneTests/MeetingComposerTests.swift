@@ -62,7 +62,7 @@ final class MeetingComposerTests: XCTestCase {
         XCTAssertTrue(ics.contains("UID:abc@meetball.app\r\n"))
         XCTAssertTrue(ics.contains("DTSTART:20261105T220000Z\r\n"))
         XCTAssertTrue(ics.contains("DTEND:20261105T224500Z\r\n"))
-        XCTAssertTrue(ics.contains("SUMMARY:1:1\\, Sam\; budget\r\n"))
+        XCTAssertTrue(ics.contains(#"SUMMARY:1:1\, Sam\; budget"# + "\r\n"))
         XCTAssertFalse(ics.contains("ATTENDEE"))
     }
 
