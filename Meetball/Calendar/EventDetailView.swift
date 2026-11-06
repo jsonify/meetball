@@ -117,6 +117,12 @@ struct EventDetailPopover: View {
             }
             if guardianStore.isMuted(event) {
                 Label("Alerts muted for this event", systemImage: "bell.slash").foregroundStyle(.secondary)
+            } else if !event.isAllDay && guardianStore.isCalendarSilenced(event) {
+                if guardianStore.isAlertOn(event) {
+                    Label("Alerts on for this event (its calendar is silenced)", systemImage: "bell.badge").foregroundStyle(.secondary)
+                } else {
+                    Label("Alerts off for this calendar", systemImage: "bell.slash").foregroundStyle(.secondary)
+                }
             }
         }
         .font(.callout)
@@ -257,13 +263,24 @@ struct EventDetailPopover: View {
                 }
                 Spacer()
                 if !event.isAllDay {
-                    let muted = guardianStore.isMuted(event)
-                    Button { guardianStore.setMuted(!muted, for: event) } label: {
-                        Image(systemName: muted ? "bell.slash.fill" : "bell")
+                    if guardianStore.isCalendarSilenced(event) && !guardianStore.isMuted(event) {
+                        // The calendar is silenced: the bell turns alerts on for just this event.
+                        let on = guardianStore.isAlertOn(event)
+                        Button { guardianStore.setAlertOn(!on, for: event) } label: {
+                            Image(systemName: on ? "bell.badge.fill" : "bell.slash")
+                        }
+                        .buttonStyle(.sk1Key(isOn: on, size: .small))
+                        .help(on ? "Stop alerts for this event" : "Alert me for this event (its calendar is silenced)")
+                        .accessibilityLabel(on ? "Stop alerts for this event" : "Alert me for this event")
+                    } else {
+                        let muted = guardianStore.isMuted(event)
+                        Button { guardianStore.setMuted(!muted, for: event) } label: {
+                            Image(systemName: muted ? "bell.slash.fill" : "bell")
+                        }
+                        .buttonStyle(.sk1Key(isOn: muted, size: .small))
+                        .help(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
+                        .accessibilityLabel(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
                     }
-                    .buttonStyle(.sk1Key(isOn: muted, size: .small))
-                    .help(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
-                    .accessibilityLabel(muted ? "Unmute alerts for this event" : "Mute alerts for this event")
                 }
                 if !isApple {
                     Button { confirmingDelete = true } label: { Image(systemName: "trash") }

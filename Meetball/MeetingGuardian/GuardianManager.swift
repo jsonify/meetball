@@ -85,7 +85,8 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
 
     var policy: AlertPolicy {
         AlertPolicy(defaultStyle: store.settings.style, calendarRules: store.calendarRules,
-                    importanceRules: store.importanceRules, isPro: subs.isPremiumActive)
+                    importanceRules: store.importanceRules, isPro: subs.isPremiumActive,
+                    alertOnEvents: Set(store.alertOnEvents.keys))
     }
 
     /// Effective style, enforcing Pro gating, per-calendar intensity and importance rules.

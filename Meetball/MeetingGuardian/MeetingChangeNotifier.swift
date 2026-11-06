@@ -13,6 +13,8 @@ final class MeetingChangeNotifier {
 
     func handle(_ changes: [MeetingChange], now: Date = Date()) {
         let s = store.settings
+        // A silenced calendar (set to Off) stays quiet about changes too, unless that event was turned back on.
+        let changes = changes.filter { !store.isCalendarSilenced($0.event) || store.isAlertOn($0.event) }
         guard s.notifyChanges, !changes.isEmpty else { return }
         if s.changeCard { MeetingChangeCardPanel.show(changes) }
         let c = UNMutableNotificationContent()

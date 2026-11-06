@@ -137,7 +137,7 @@ struct PhoneRootView: View {
     /// Sleeps until a minute before the next meeting with a link, then shows the countdown moment (restarted by every
     /// refresh, so a moved meeting moves it).
     private func waitForMoment() async {
-        guard store.settings.countdownMoment, let e = PhoneAgenda.nextJoinable(store.upcoming, now: Date()),
+        guard store.settings.countdownMoment, let e = PhoneAgenda.nextJoinable(store.upcoming.filter(store.settings.alerts(for:)), now: Date()),
               !dismissedMoments.contains(e.uid) else { return }
         let wait = e.start.timeIntervalSinceNow - 60
         if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
@@ -155,7 +155,7 @@ struct PhoneRootView: View {
     private func waitForPreFlight() async {
         guard store.settings.preFlight else { return }
         while !Task.isCancelled {
-            let upcoming = store.upcoming.filter { !shownPreFlights.contains($0.uid) }
+            let upcoming = store.upcoming.filter { !shownPreFlights.contains($0.uid) && store.settings.alerts(for: $0) }
             guard let e = PreFlight.next(upcoming, now: Date()) else { return }
             let wait = e.start.timeIntervalSinceNow - PreFlight.lead
             if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }

@@ -93,8 +93,8 @@ extension CalendarEvent {
 }
 
 /// Decides the alert style for an event. Order:
-/// 1. Free plan: soft reminders only.
-/// 2. A calendar set to Off never alerts.
+/// 1. A calendar set to Off never alerts (on any plan), unless the event was switched back on by itself.
+/// 2. Free plan: soft reminders only.
 /// 3. The first enabled importance rule that matches.
 /// 4. The calendar's intensity, else the default style.
 public struct AlertPolicy {
@@ -102,6 +102,8 @@ public struct AlertPolicy {
     public var calendarRules: [CalendarRule]
     public var importanceRules: [ImportanceRule]
     public var isPro: Bool
+    /// uids of events on a calendar set to Off that alert anyway.
+    public var alertOnEvents: Set<String> = []
 
     public func matchingRule(for e: CalendarEvent) -> ImportanceRule? {
         importanceRules.first { $0.enabled && $0.matches(e) }
@@ -109,15 +111,24 @@ public struct AlertPolicy {
 
     /// nil means no alert.
     public func style(for e: CalendarEvent) -> AlertStyle? {
-        guard isPro else { return .soft }
         let cal = calendarRules.first { $0.calendarKey == e.calendarKey }
-        if let cal, cal.style == nil { return nil }
+        if let cal, cal.style == nil {
+            // Off calendar: silent unless this event was turned on, which then alerts as if the calendar were Default
+            // (a rule that matches still sets how loud, but can't silence what was asked for by hand).
+            guard alertOnEvents.contains(e.uid) else { return nil }
+            guard isPro else { return .soft }
+            return matchingRule(for: e)?.intensity.style ?? defaultStyle
+        }
+        guard isPro else { return .soft }
         if let rule = matchingRule(for: e) { return rule.intensity.style }
         return cal?.style ?? defaultStyle
     }
 
     /// Why `style(for:)` chose what it did, for the live summary.
     public func reason(for e: CalendarEvent) -> String? {
+        if alertOnEvents.contains(e.uid), calendarRules.contains(where: { $0.calendarKey == e.calendarKey && $0.style == nil }) {
+            return "turned on for this event"
+        }
         guard isPro else { return nil }
         if let rule = matchingRule(for: e) { return rule.kind == .titleContains ? "title rule" : rule.kind.title.lowercased() }
         if calendarRules.contains(where: { $0.calendarKey == e.calendarKey }) { return "calendar setting" }

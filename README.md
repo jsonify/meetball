@@ -25,7 +25,10 @@ Independent implementation; written from observed behavior and public APIs, not 
   open in Google Calendar; "Join" action on alert notifications
 - Meeting Guardian: soft notification, heads-up overlay, hard overlay (+sound), timings, "Are you still joining?" prompt,
   Focus break-through (time-sensitive), screen-share suppression (heuristic), quiet hours, sleep/shutdown warning, per-calendar rules
-- Pro tier via StoreKit 2 (soft alerts are free; heads-up/hard/per-calendar rules are Pro)
+- Silence a calendar: set it to **Off** in Settings › Meeting Guardian › Calendars (a family calendar, say). Its events
+  stay visible but never alert, including change notifications. To be alerted for one of them anyway, press the bell in the event's popover (or
+  **Alert me** under the next meeting); a muted event's bell does the opposite on any other calendar. Works on any plan.
+- Pro tier via StoreKit 2 (soft alerts and silencing a calendar are free; heads-up/hard/per-calendar strength rules are Pro)
 - Launch at login, refresh interval, per-account accent color
 - SK-1 look via [SK1Kit](https://github.com/jsonify/SK1Kit) 0.4+ (cream/charcoal chassis, sunken trays, raised keys,
   olive LCD), laid out after Skreener: the popover is a launcher (an LCD strip that shows the next meeting or the key
@@ -116,6 +119,12 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 
 ### Alerts and CarPlay
 Meetball reminds you before meetings and tells you when one moves, gets a new link, or is cancelled.
+
+**Silencing a calendar.** In Settings › Calendars, press a calendar's bell to keep its meetings on screen but drop their
+reminders, Echo nudges, Live Activity, countdown moment and pre-flight card (a family calendar, say); the switch beside
+it still hides a calendar entirely. Open one of its meetings and turn on **Alert me** to be reminded about just that
+one; on any other calendar the same switch turns one meeting's alerts off. A silenced calendar's moved, re-linked and
+cancelled meetings don't notify either (they still get a card on Today).
 
 **How alerts reach CarPlay.** Every alert is a Time Sensitive local notification. CarPlay only draws banners for apps
 Apple has approved for CarPlay, which a calendar isn't, so in the car Siri *reads* Meetball's alerts (Announce

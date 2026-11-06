@@ -105,16 +105,15 @@ struct MeetingGuardianSettingsView: View {
                         if calendars.calendars.isEmpty {
                             Text("Connect a Google account or Apple Calendar to set alert strength for each calendar.").sk1Hint()
                         } else {
-                            CalendarIntensityMatrix(calendars: calendars.calendars, defaultStyle: store.settings.style)
-                                .disabled(!subs.isPremiumActive)
-                                .opacity(subs.isPremiumActive ? 1 : 0.55)
+                            CalendarIntensityMatrix(calendars: calendars.calendars, defaultStyle: store.settings.style,
+                                                    isPro: subs.isPremiumActive)
                         }
                     }
                     .padding(SK1.Metrics.rowInset)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                if !subs.isPremiumActive { ProHint(text: "Set alert strength per calendar with Meetball Pro.") { showPaywall = true } }
-                Text("Default follows the alert style above. Calendars set to Off never alert, whatever the rules below say.").sk1Hint()
+                if !subs.isPremiumActive { ProHint(text: "Set alert strength per calendar with Meetball Pro. Off works on any plan.") { showPaywall = true } }
+                Text("Default follows the alert style above. Calendars set to Off (a family calendar, say) stay visible but never alert, whatever the rules below say. To be alerted for one of their events, open it and press its bell.").sk1Hint()
             }
             SKGroup(caption: "Importance rules",
                     note: "Rules are checked from the top; the first one that matches sets the alert strength, overriding the calendar's setting.") {
@@ -200,6 +199,8 @@ struct ProHint: View {
 struct CalendarIntensityMatrix: View {
     let calendars: [GCalendar]
     let defaultStyle: AlertStyle
+    /// Without Pro only Default and Off can be chosen.
+    var isPro = true
     @EnvironmentObject var store: MeetingGuardianStore
 
     private var groups: [(source: String, calendars: [GCalendar])] {
@@ -256,6 +257,8 @@ struct CalendarIntensityMatrix: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .disabled(!isPro && column != nil && column != .off)
+        .opacity(!isPro && column != nil && column != .off ? 0.4 : 1)
         .help(column.map { "\($0.title) for \(cal.summary)" } ?? "Use the default (\(defaultStyle.shortTitle)) for \(cal.summary)")
         .accessibilityLabel("\(cal.summary): \(column?.title ?? "Default")")
         .accessibilityAddTraits(selected ? .isSelected : [])

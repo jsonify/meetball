@@ -131,6 +131,9 @@ public final class MeetingGuardianStore: ObservableObject {
     @Published public var importanceRules: [ImportanceRule] = [] { didSet { save() } }
     /// Events whose alerts the user muted, keyed by event uid, valued by the event's end (pruned once it has passed).
     @Published public private(set) var mutedEvents: [String: Date] = [:] { didSet { save() } }
+    /// Events on a calendar set to Off that the user wants alerts for anyway, keyed by event uid, valued by the event's
+    /// end (pruned once it has passed).
+    @Published public private(set) var alertOnEvents: [String: Date] = [:] { didSet { save() } }
     /// Single meetings set to auto-join, keyed by event uid, valued by the event's end (pruned once it has passed).
     @Published public private(set) var autoJoinEvents: [String: Date] = [:] { didSet { save() } }
     /// Recurring series set to auto-join, keyed by `AutoJoin.seriesKey`.
@@ -151,6 +154,10 @@ public final class MeetingGuardianStore: ObservableObject {
             let now = Date()
             mutedEvents = m.filter { $0.value > now }
         }
+        if let d = defaults.data(forKey: "guardian.alertOn"), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
+            let now = Date()
+            alertOnEvents = m.filter { $0.value > now }
+        }
         if let d = defaults.data(forKey: "guardian.autoJoin"), let m = try? JSONDecoder().decode([String: Date].self, from: d) {
             let now = Date()
             autoJoinEvents = m.filter { $0.value > now }
@@ -168,6 +175,7 @@ public final class MeetingGuardianStore: ObservableObject {
         if let d = try? JSONEncoder().encode(calendarRules) { defaults.set(d, forKey: "guardian.rules") }
         if let d = try? JSONEncoder().encode(importanceRules) { defaults.set(d, forKey: "guardian.importance") }
         if let d = try? JSONEncoder().encode(mutedEvents) { defaults.set(d, forKey: "guardian.muted") }
+        if let d = try? JSONEncoder().encode(alertOnEvents) { defaults.set(d, forKey: "guardian.alertOn") }
         if let d = try? JSONEncoder().encode(autoJoinEvents) { defaults.set(d, forKey: "guardian.autoJoin") }
         if let d = try? JSONEncoder().encode(autoJoinSeries) { defaults.set(d, forKey: "guardian.autoJoinSeries") }
         if let d = try? JSONEncoder().encode(autoJoinSeriesOff) { defaults.set(d, forKey: "guardian.autoJoinSeriesOff") }
@@ -207,8 +215,15 @@ public final class MeetingGuardianStore: ObservableObject {
     }
     public func isMuted(_ e: CalendarEvent) -> Bool { mutedEvents[e.uid] != nil }
     public func setMuted(_ muted: Bool, for e: CalendarEvent) {
-        if muted { mutedEvents[e.uid] = e.end } else { mutedEvents[e.uid] = nil }
+        if muted { mutedEvents[e.uid] = e.end; alertOnEvents[e.uid] = nil } else { mutedEvents[e.uid] = nil }
     }
+    /// True when the user asked for alerts on this event although its calendar is set to Off.
+    public func isAlertOn(_ e: CalendarEvent) -> Bool { alertOnEvents[e.uid] != nil }
+    public func setAlertOn(_ on: Bool, for e: CalendarEvent) {
+        if on { alertOnEvents[e.uid] = e.end; mutedEvents[e.uid] = nil } else { alertOnEvents[e.uid] = nil }
+    }
+    /// True when `e`'s calendar is set to Off.
+    public func isCalendarSilenced(_ e: CalendarEvent) -> Bool { rule(for: e.calendarKey).map { $0.style == nil } ?? false }
     public func rule(for key: String) -> CalendarRule? { calendarRules.first { $0.calendarKey == key } }
     public func upsert(_ rule: CalendarRule) {
         if let i = calendarRules.firstIndex(where: { $0.calendarKey == rule.calendarKey }) { calendarRules[i] = rule } else { calendarRules.append(rule) }

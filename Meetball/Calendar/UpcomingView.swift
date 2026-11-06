@@ -188,11 +188,14 @@ private struct NextMeetingCard: View {
 
     @ViewBuilder private var alertState: some View {
         let muted = guardianStore.isMuted(event)
+        let silenced = !muted && guardianStore.isCalendarSilenced(event) && !guardianStore.isAlertOn(event)
         let upcoming = guardian.plannedAlerts(for: event).filter { $0.fireDate > now }
         HStack(spacing: 6) {
-            Image(systemName: muted ? "bell.slash" : "bell.badge").foregroundStyle(.secondary)
+            Image(systemName: muted || silenced ? "bell.slash" : "bell.badge").foregroundStyle(.secondary)
             if muted {
                 Text("Alerts muted for this meeting")
+            } else if silenced {
+                Text("Alerts off for this calendar")
             } else if upcoming.isEmpty {
                 Text(inProgress || guardian.plannedAlerts(for: event).isEmpty ? "No more alerts for this meeting" : "Alert already shown")
             } else {
@@ -202,7 +205,12 @@ private struct NextMeetingCard: View {
                 }.joined(separator: ", "))
             }
             if !event.isAllDay && !inProgress {
-                Button(muted ? "Unmute" : "Mute") { guardianStore.setMuted(!muted, for: event) }.buttonStyle(.sk1Key(size: .small))
+                if !muted && guardianStore.isCalendarSilenced(event) {
+                    let on = guardianStore.isAlertOn(event)
+                    Button(on ? "Stop alerts" : "Alert me") { guardianStore.setAlertOn(!on, for: event) }.buttonStyle(.sk1Key(size: .small))
+                } else {
+                    Button(muted ? "Unmute" : "Mute") { guardianStore.setMuted(!muted, for: event) }.buttonStyle(.sk1Key(size: .small))
+                }
             }
         }
         .font(.caption).foregroundStyle(.secondary)
