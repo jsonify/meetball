@@ -4,6 +4,7 @@ options:
   xcodeVersion: "16.4"
   deploymentTarget:
     macOS: "15.0"
+    iOS: "17.0"
 packages:
   SK1Kit:
     url: https://github.com/jsonify/SK1Kit.git
@@ -85,4 +86,62 @@ targets:
         CODE_SIGN_IDENTITY: "Apple Development"
         DEAD_CODE_STRIPPING: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Meetball.app/Contents/MacOS/Meetball"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+  # Meetball for iPhone: a personal meeting notifier (not for the App Store). It reads Apple Calendar through the same
+  # EventKit client and change detector as the Mac app and schedules Time Sensitive reminders, which Siri can announce
+  # in CarPlay. See README, "iPhone notifier".
+  MeetballPhone:
+    type: application
+    platform: iOS
+    sources:
+      - MeetballPhone
+      # Shared with the Mac app; these files must not use AppKit.
+      - Meetball/Calendar/Models.swift
+      - Meetball/Calendar/MeetingChanges.swift
+      - Meetball/Calendar/AppleCalendarClient.swift
+      - Meetball/Utilities/AppPreferences.swift
+    dependencies:
+      - package: SK1Kit
+        product: SK1Tokens
+      - package: SK1Kit
+        product: SK1UI
+    entitlements:
+      path: MeetballPhone/MeetballPhone.entitlements
+      properties:
+        com.apple.developer.usernotifications.time-sensitive: true
+    info:
+      path: MeetballPhone/Info.plist
+      properties:
+        CFBundleName: Meetball
+        CFBundleDisplayName: Meetball
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSCalendarsFullAccessUsageDescription: Meetball reads your calendars to remind you before meetings and tell you when one moves or is cancelled.
+        UIBackgroundModes: [fetch]
+        BGTaskSchedulerPermittedIdentifiers: [app.meetball.MeetballPhone.refresh]
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.meetball.MeetballPhone
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: NO
+  MeetballPhoneTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources: [MeetballPhoneTests]
+    dependencies:
+      - target: MeetballPhone
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        TARGETED_DEVICE_FAMILY: "1"
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MeetballPhone.app/MeetballPhone"
         BUNDLE_LOADER: "$(TEST_HOST)"

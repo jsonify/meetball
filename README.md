@@ -58,12 +58,50 @@ build fails, the errors are printed and the full log is at `build/dist.log`.
 ### CI
 `.github/workflows/ci.yml` builds the app and runs `MeetballTests` on a macOS runner (newest Xcode, signed ad hoc, no
 secrets) on every push and pull request, and runs `Scripts/sk1-audit.sh` on Linux. The build and test logs and the
-`.xcresult` are uploaded as the `meetball-ci-logs` artifact.
+`.xcresult` are uploaded as the `meetball-ci-logs` artifact. The `ios` job builds `MeetballPhone` for a device (unsigned) and runs
+`MeetballPhoneTests` on the newest iPhone simulator (`meetball-ios-ci-logs`).
 
 ### SK-1 look
 `Scripts/sk1-audit.sh Meetball` lists anything still drawn natively (it should report nothing; a native control kept on
 purpose ends its line with `// sk1-audit: ignore (reason)`). `.claude/skills/adopt-sk1kit` is SK1Kit's adoption skill
 for Claude Code sessions. Both come from SK1Kit: refresh them with its `Scripts/install-adoption-kit.sh <this repo>`.
+
+## iPhone notifier (MeetballPhone)
+A small personal iPhone app (not for the App Store) that reminds you before meetings and tells you when one moves, gets a
+new join link, or is cancelled. It reads the calendars in the iPhone's Calendar app through EventKit (a work Google
+calendar added via iCloud included), using the Mac app's `AppleCalendarClient` and `MeetingChangeDetector`. One SK-1
+screen: the next meeting on an LCD, whether alerts can reach the car, the alert lead time (1/5/10/15 min, optional alert
+at start), what's coming up, recent changes, and per-calendar switches.
+
+**How alerts reach CarPlay.** Every alert is a Time Sensitive local notification. CarPlay only draws banners for apps
+Apple has approved for CarPlay, which a calendar isn't, so in the car Siri *reads* Meetball's alerts (Announce
+Notifications) rather than showing them. That works for any app's Time Sensitive notifications.
+
+**What's reliable and what isn't.** Reminders are handed to iOS ahead of time (up to 48 per refresh, 48 hours out), so
+they fire on time even when Meetball isn't running. Changes are only noticed when Meetball gets to run: when you open
+it, when the Calendar database changes while it's still in memory, and when iOS grants a background app refresh
+(requested every 15 minutes; iOS decides, often every 30 min to a few hours, less in Low Power Mode or if you rarely
+open the app). So a meeting moved an hour ahead is usually caught; one moved five minutes before it starts may not be,
+and the old reminder can still fire. Opening Meetball, or pulling down to refresh, always checks right away.
+
+### Install it on your iPhone
+1. On the Mac: `git pull`, `xcodegen generate`, `open Meetball.xcodeproj`.
+2. Connect the iPhone with a cable (after the first run it also works over Wi-Fi) and tap **Trust** on the phone.
+3. In Xcode pick the **MeetballPhone** scheme and your iPhone as the destination. Under the target's *Signing &
+   Capabilities*, the team is already TS339TNM5P with automatic signing; Xcode registers the phone and creates the
+   `app.meetball.MeetballPhone` App ID with the Time Sensitive Notifications capability. If it says the bundle ID is
+   taken, change `PRODUCT_BUNDLE_IDENTIFIER` for `MeetballPhone` in `project.yml` and regenerate.
+4. Press ⌘R. The first time, iOS asks you to turn on **Developer Mode** (Settings › Privacy & Security › Developer
+   Mode, then restart the phone) and Xcode may need a minute to prepare the device. Run again afterwards.
+5. On first launch, allow **Full Access** to calendars and allow notifications.
+6. On the iPhone, check:
+   - Settings › Notifications › Meetball: Allow, **Time Sensitive Notifications** on, **Announce Notifications** on.
+   - Settings › Notifications › Announce Notifications: on, and **CarPlay** on (choose "Announce" rather than "Off").
+   - Settings › Focus › Driving › Apps: **Time Sensitive Notifications** on, so Driving Focus lets them through.
+   - Settings › General › Background App Refresh: on, and on for Meetball.
+7. Tap **Test alert in 10 s**, then lock the phone (or start it just before you get in the car) to hear how it sounds.
+
+With a paid developer account the install lasts a year; reinstall from Xcode after that (or after any update you pull).
 
 ## Configuration (use your own credentials)
 Copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (gitignored; never commit it) and set `GOOGLE_CLIENT_ID` (a Google Cloud "Desktop app" OAuth client, Calendar API enabled),

@@ -1,8 +1,9 @@
 import EventKit
-import AppKit
+import CoreGraphics
 
 /// Reads calendars through EventKit, i.e. whatever accounts are already configured in macOS Calendar
 /// (Exchange, iCloud, Google, ...). No OAuth, so org admins can't block it per-app. Read-only.
+/// Shared with the iPhone notifier (MeetballPhone), so it uses no AppKit.
 @MainActor
 final class AppleCalendarClient {
     static let sourcePrefix = "Apple · "
@@ -114,7 +115,10 @@ final class AppleCalendarClient {
     }
 
     private static func hex(_ c: CGColor?) -> String {
-        guard let c, let n = NSColor(cgColor: c)?.usingColorSpace(.sRGB) else { return "#4285F4" }
-        return String(format: "#%02X%02X%02X", Int(n.redComponent * 255), Int(n.greenComponent * 255), Int(n.blueComponent * 255))
+        guard let c, let srgb = CGColorSpace(name: CGColorSpace.sRGB),
+              let n = c.converted(to: srgb, intent: .defaultIntent, options: nil), let comps = n.components, comps.count >= 3
+        else { return "#4285F4" }
+        let v = comps.prefix(3).map { Int((min(max($0, 0), 1) * 255).rounded(.down)) }
+        return String(format: "#%02X%02X%02X", v[0], v[1], v[2])
     }
 }

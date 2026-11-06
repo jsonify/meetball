@@ -1,0 +1,101 @@
+import XCTest
+@testable import MeetballPhone
+
+private let now = Date(timeIntervalSince1970: 1_800_000_000)
+
+private func ev(_ id: String, _ title: String = "Standup", in minutes: Double, length: Double = 30, calendar: String = "work",
+                allDay: Bool = false, declined: Bool = false, url: String? = "https://meet.google.com/abc-defg-hij") -> CalendarEvent {
+    var e = CalendarEvent(id: id, calendarID: calendar, accountEmail: "Apple · iCloud", title: title,
+                          start: now.addingTimeInterval(minutes * 60), end: now.addingTimeInterval((minutes + length) * 60),
+                          isAllDay: allDay, meetURL: url.flatMap(URL.init(string:)), location: nil, attendees: [], htmlLink: nil)
+    e.isDeclined = declined
+    return e
+}
+
+final class ReminderPlannerTests: XCTestCase {
+    func testLeadReminderFiresBeforeStart() {
+        let plan = ReminderPlanner.plan([ev("a", in: 60)], settings: PhoneSettings(), now: now)
+        XCTAssertEqual(plan.count, 1)
+        XCTAssertEqual(plan[0].kind, .lead)
+        XCTAssertEqual(plan[0].fireDate, now.addingTimeInterval(50 * 60))
+        XCTAssertEqual(plan[0].title, "Standup")
+        XCTAssertTrue(plan[0].body.hasPrefix("Starts in 10 min · "), plan[0].body)
+    }
+
+    func testLeadAlreadyPassedIsSkippedButStartAlertKept() {
+        var s = PhoneSettings()
+        s.alertAtStart = true
+        let plan = ReminderPlanner.plan([ev("a", in: 5)], settings: s, now: now)
+        XCTAssertEqual(plan.map(\.kind), [.start])
+        XCTAssertTrue(plan[0].body.hasPrefix("Starting now"))
+    }
+
+    func testSkipsAllDayDeclinedHiddenStartedAndFarOff() {
+        var s = PhoneSettings()
+        s.hiddenCalendars = ["Apple · iCloud|hidden"]
+        let events = [
+            ev("allday", in: 120, allDay: true),
+            ev("declined", in: 120, declined: true),
+            ev("hidden", in: 120, calendar: "hidden"),
+            ev("started", in: -5),
+            ev("far", in: 49 * 60),
+            ev("ok", "Planning", in: 120),
+        ]
+        XCTAssertEqual(ReminderPlanner.plan(events, settings: s, now: now).map(\.event.id), ["ok"])
+    }
+
+    func testInProgressMeetingIsUpcomingButGetsNoReminder() {
+        let events = [ev("live", in: -5), ev("next", in: 30)]
+        XCTAssertEqual(ReminderPlanner.meetings(events, settings: PhoneSettings(), now: now).map(\.id), ["live", "next"])
+        XCTAssertEqual(ReminderPlanner.plan(events, settings: PhoneSettings(), now: now).map(\.event.id), ["next"])
+    }
+
+    func testSameMeetingOnTwoCalendarsAlertsOnce() {
+        let events = [ev("a", "Artifactory Standup", in: 60, calendar: "google"), ev("b", "artifactory standup ", in: 60, calendar: "icloud")]
+        XCTAssertEqual(ReminderPlanner.plan(events, settings: PhoneSettings(), now: now).count, 1)
+    }
+
+    func testMovedMeetingSaysSoFirst() {
+        let e = ev("a", "Artifactory Standup", in: 60)
+        let plan = ReminderPlanner.plan([e], settings: PhoneSettings(), moved: [e.uid], now: now)
+        XCTAssertTrue(plan[0].body.hasPrefix("Moved to \(e.start.shortTime) · Starts in 10 min"), plan[0].body)
+    }
+
+    func testCapsPendingReminders() {
+        var s = PhoneSettings()
+        s.alertAtStart = true
+        let events = (0..<40).map { ev("e\($0)", "M\($0)", in: Double(20 + $0 * 60)) }
+        let plan = ReminderPlanner.plan(events, settings: s, now: now)
+        XCTAssertEqual(plan.count, ReminderPlanner.maxPending)
+        XCTAssertEqual(plan, plan.sorted { $0.fireDate < $1.fireDate })
+        XCTAssertEqual(Set(plan.map(\.id)).count, plan.count)
+    }
+
+    func testChangeAlertDropsEmojiForSiri() {
+        let cancelled = MeetingChange(kind: .cancelled, event: ev("a", "1:1", in: 60))
+        let alert = ReminderPlanner.changeAlert([cancelled], now: now)
+        XCTAssertEqual(alert?.title, "Canceled: 1:1")
+        XCTAssertNil(ReminderPlanner.changeAlert([], now: now))
+        let moved = MeetingChange(kind: .rescheduled(from: now.addingTimeInterval(3600), to: now.addingTimeInterval(7200)),
+                                  event: ev("b", in: 120))
+        XCTAssertEqual(ReminderPlanner.changeAlert([cancelled, moved], now: now)?.title, "2 meetings updated")
+    }
+
+    func testMovedUIDsTrackReschedulesAndExpire() {
+        let e = ev("a", in: 120)
+        let moved = MeetingChange(kind: .rescheduled(from: now.addingTimeInterval(3600), to: e.start), event: e)
+        let out = ReminderPlanner.movedUIDs(["old": now.addingTimeInterval(-60), "keep": now.addingTimeInterval(60)],
+                                            changes: [moved], now: now)
+        XCTAssertEqual(Set(out.keys), [e.uid, "keep"])
+    }
+
+    func testSettingsRoundTrip() {
+        let d = UserDefaults(suiteName: "ReminderPlannerTests")!
+        d.removePersistentDomain(forName: "ReminderPlannerTests")
+        XCTAssertEqual(PhoneSettings.load(d), PhoneSettings())
+        var s = PhoneSettings()
+        s.leadMinutes = 5; s.alertAtStart = true; s.hiddenCalendars = ["x"]
+        s.save(d)
+        XCTAssertEqual(PhoneSettings.load(d), s)
+    }
+}
