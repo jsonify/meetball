@@ -30,6 +30,9 @@ struct PhoneRootView: View {
     @SceneStorage("tab") private var tab: Tab = .today
     @State private var detail: CalendarEvent?
     @State private var quickAdd = false
+    @State private var readout = false
+    @State private var moment: CalendarEvent?
+    @State private var dismissedMoments: Set<String> = []
 
     var body: some View {
         ScrollView {
@@ -58,6 +61,19 @@ struct PhoneRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: store.celebration)
+        .sheet(isPresented: $readout) {
+            DayReadoutSheet().environmentObject(store)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .meetballShake)) { _ in
+            if detail == nil && !quickAdd && moment == nil { readout = true }
+        }
+        .fullScreenCover(item: $moment) { e in
+            CountdownMomentView(event: e) {
+                dismissedMoments.insert(e.uid)
+                moment = nil
+            }
+        }
+        .task(id: "\(store.revision)|\(store.settings.countdownMoment)") { await waitForMoment() }
         .onOpenURL { url in
             switch MeetballLink.parse(url) {
             case .join(let meeting): PhoneJoin.open(meeting)
@@ -65,6 +81,20 @@ struct PhoneRootView: View {
             case nil: break
             }
         }
+    }
+
+    /// Sleeps until a minute before the next meeting with a link, then shows the countdown moment (restarted by every
+    /// refresh, so a moved meeting moves it).
+    private func waitForMoment() async {
+        guard store.settings.countdownMoment, let e = PhoneAgenda.nextJoinable(store.upcoming, now: Date()),
+              !dismissedMoments.contains(e.uid) else { return }
+        let wait = e.start.timeIntervalSinceNow - 60
+        if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+        guard !Task.isCancelled, e.start > Date(), moment == nil else { return }
+        detail = nil
+        quickAdd = false
+        readout = false
+        moment = e
     }
 
     @ViewBuilder

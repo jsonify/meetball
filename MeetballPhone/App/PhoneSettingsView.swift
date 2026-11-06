@@ -33,9 +33,13 @@ struct PhoneSettingsView: View {
     // MARK: Fun
 
     private var funGroup: some View {
-        SKGroup(caption: "Fun") {
+        SKGroup(caption: "Fun",
+                note: "Shake your phone to see the rest of your day. Ask Siri \u{201C}Join my meeting in Meetball\u{201D} or \u{201C}What's my next meeting in Meetball\u{201D}, put Join Meeting on the Action Button (Settings › Action Button › Shortcut), or add the Join Meeting control to Control Center.") {
             SKRow(title: "Celebrate cancellations", subtitle: "Confetti and a happy buzz when a meeting is called off.") {
                 Toggle("Celebrate cancellations", isOn: $store.settings.celebrateCancellations).labelsHidden().toggleStyle(.sk1Switch)
+            }
+            SKRow(title: "Countdown moment", subtitle: "Full screen for the last minute before a meeting while Meetball is open, ticking for the last ten seconds.") {
+                Toggle("Countdown moment", isOn: $store.settings.countdownMoment).labelsHidden().toggleStyle(.sk1Switch)
             }
             SKRow(title: "Try it") {
                 Button("Confetti") { store.previewCelebration() }.buttonStyle(.sk1Key(size: .small))

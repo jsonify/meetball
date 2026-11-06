@@ -14,6 +14,8 @@ struct PhoneSettings: Codable, Equatable {
     var celebrateCancellations: Bool = true
     /// The countdown Live Activity (Lock Screen, Dynamic Island) in the hour before a meeting.
     var liveActivity: Bool = true
+    /// A full-screen countdown with haptics in the last minute before a meeting, while Meetball is open.
+    var countdownMoment: Bool = true
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -40,7 +42,8 @@ extension PhoneSettings {
                   hiddenCalendars: try c.decodeIfPresent(Set<String>.self, forKey: .hiddenCalendars) ?? d.hiddenCalendars,
                   celebrateCancellations: try c.decodeIfPresent(Bool.self, forKey: .celebrateCancellations)
                     ?? d.celebrateCancellations,
-                  liveActivity: try c.decodeIfPresent(Bool.self, forKey: .liveActivity) ?? d.liveActivity)
+                  liveActivity: try c.decodeIfPresent(Bool.self, forKey: .liveActivity) ?? d.liveActivity,
+                  countdownMoment: try c.decodeIfPresent(Bool.self, forKey: .countdownMoment) ?? d.countdownMoment)
     }
 }
 

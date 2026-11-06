@@ -116,4 +116,60 @@ enum PhoneAgenda {
         guard hours > 0 else { return 0 }
         return min(segments, max(1, Int((hours / fullDay * Double(segments)).rounded())))
     }
+
+    /// The shake readout's numbers for the rest of today.
+    struct DayStats: Equatable {
+        /// Timed meetings today that haven't ended.
+        var left: Int
+        /// Hours in meetings today (overlaps counted once).
+        var hours: Double
+        /// The first stretch of at least `minGap` with no meeting, from now until `dayEndHour` (nil when there is none).
+        var freeGap: DateInterval?
+
+        /// "2:30" for 2.5 hours, for the seven-segment LCD.
+        var hoursDigits: String {
+            let mins = Int((hours * 60).rounded())
+            return String(format: "%d:%02d", mins / 60, mins % 60)
+        }
+
+        /// A line about the day, from how booked it is.
+        var verdict: String {
+            if left == 0 { return hours == 0 ? "Not a single meeting. Legendary." : "Meetings done. The rest is yours." }
+            if hours >= 6 { return "Stacked. Drink water between calls." }
+            if hours >= 3.5 { return "Busy, but there's room to breathe." }
+            return "Light day. Go make something."
+        }
+    }
+
+    static func dayStats(_ events: [CalendarEvent], now: Date, dayEndHour: Int = 18, minGap: TimeInterval = 15 * 60,
+                         calendar: Calendar = .app) -> DayStats {
+        let start = calendar.startOfDay(for: now)
+        let next = calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86400)
+        let timed = events.filter { !$0.isDeclined && !$0.isBarEvent(calendar: calendar) && $0.start < next && $0.end > start }
+        let left = timed.filter { $0.end > now }.count
+        let hours = MeetingLoadBuilder.build(events: timed, from: now, days: 1, calendar: calendar).first?.hours ?? 0
+
+        var dayEnd = calendar.date(bySettingHour: dayEndHour, minute: 0, second: 0, of: now) ?? next
+        if dayEnd <= now { dayEnd = next }
+        var cursor = now
+        var gap: DateInterval?
+        for e in timed.filter({ $0.end > now }).sorted(by: { $0.start < $1.start }) {
+            if e.start.timeIntervalSince(cursor) >= minGap {
+                gap = DateInterval(start: cursor, end: min(e.start, dayEnd))
+                break
+            }
+            cursor = max(cursor, e.end)
+            if cursor >= dayEnd { break }
+        }
+        if gap == nil, cursor < dayEnd, dayEnd.timeIntervalSince(cursor) >= minGap {
+            gap = DateInterval(start: cursor, end: dayEnd)
+        }
+        if let g = gap, g.duration < minGap { gap = nil }
+        return DayStats(left: left, hours: hours, freeGap: gap)
+    }
+
+    /// The meeting the countdown moment is for: the next one with a join link that hasn't started.
+    static func nextJoinable(_ upcoming: [CalendarEvent], now: Date) -> CalendarEvent? {
+        upcoming.filter { $0.meetURL != nil && $0.start > now }.min { $0.start < $1.start }
+    }
 }

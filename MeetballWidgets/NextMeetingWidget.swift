@@ -55,6 +55,8 @@ struct NextMeetingWidgetView: View {
     let entry: NextMeetingEntry
     @Environment(\.widgetFamily) private var family
     @Environment(\.colorScheme) private var scheme
+    /// False in StandBy (the phone on its side on a charger), where the widget fills the half screen as a desk clock.
+    @Environment(\.showsWidgetContainerBackground) private var showsBackground
 
     var body: some View {
         content
@@ -77,7 +79,7 @@ struct NextMeetingWidgetView: View {
         case .accessoryCircular: circular
         case .accessoryRectangular: rectangular
         case .systemMedium: medium
-        default: small
+        default: if showsBackground { small } else { standBy }
         }
     }
 
@@ -95,6 +97,30 @@ struct NextMeetingWidgetView: View {
             }
             Spacer(minLength: 0)
         }
+    }
+
+    /// StandBy: the countdown as big as it goes, the title under it, like an MB-1 desk clock.
+    private var standBy: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Circle().fill(entry.meeting.map { WidgetStyle.lamp(for: $0, now: entry.date) } ?? WidgetStyle.teal)
+                    .frame(width: 10, height: 10)
+                Text(caption.uppercased()).font(.system(size: 13, weight: .heavy)).tracking(1.5)
+            }
+            if let m = entry.meeting {
+                let target = m.start <= entry.date ? m.end : m.start
+                let c = WidgetCountdown.digits(target.timeIntervalSince(entry.date))
+                HStack(alignment: .bottom, spacing: 6) {
+                    SKSevenSegment(c.digits, digitHeight: 64, spacing: 6, color: WidgetStyle.orange)
+                    Text(c.unit).font(.system(size: 16, weight: .heavy)).foregroundStyle(WidgetStyle.orange)
+                }
+                Text(m.title).font(.system(size: 18, weight: .bold)).lineLimit(1)
+            } else {
+                Text(entry.date, style: .time).font(.system(size: 54, weight: .bold, design: .monospaced))
+                Text("All clear").font(.headline).foregroundStyle(.secondary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
     }
 
     private var medium: some View {

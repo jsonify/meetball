@@ -89,6 +89,16 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   background refreshes then keep it right (a moved meeting moves it, a cancelled one ends it). Switch it off in
   Settings › Alerts.
 
+- **Siri, Shortcuts, Action Button**: "Join my meeting in Meetball" opens the meeting that's on or starts within 10
+  minutes; "What's my next meeting in Meetball" says it (good in the car). Both are App Shortcuts, so they can go on the
+  Action Button (Settings › Action Button › Shortcut › Meetball). A **Join Meeting** control does the same from Control
+  Center. They use the meetings Meetball last saved for the widgets.
+- **StandBy**: the small widget becomes an MB-1 desk clock counting down to your next meeting.
+- **Shake** for the rest of your day: meetings left, hours booked, and your next free stretch (before 6 PM).
+- **Countdown moment**: with Meetball open in the last minute before a meeting, a full-screen seven-segment countdown,
+  a tick every second for the last ten, a thunk at zero, and the Join key.
+- Needs iOS 18 or later.
+
 ### Alerts and CarPlay
 Meetball reminds you before meetings and tells you when one moves, gets a new link, or is cancelled.
 

@@ -4,7 +4,8 @@ options:
   xcodeVersion: "16.4"
   deploymentTarget:
     macOS: "15.0"
-    iOS: "17.0"
+    # iOS 18: the Join Meeting control and OpenURLIntent (Siri, Action Button).
+    iOS: "18.0"
 packages:
   SK1Kit:
     url: https://github.com/jsonify/SK1Kit.git
