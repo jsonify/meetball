@@ -59,6 +59,7 @@ xcodebuild -project Meetball.xcodeproj -scheme MeetballTests test   # or ⌘U in
 | `make dist` | Build `dist/Meetball.app` |
 | `make run` | Build, quit any running Meetball, and open the new build |
 | `make install` | Build, copy to `/Applications/Meetball.app`, and open it |
+| `make phone` | Build MeetballPhone (Release), install it on your paired iPhone, and open it (`PHONE="name"` picks one when several are reachable) |
 | `make universal` | Build for arm64 + x86_64 (`Scripts/dist.sh --universal`) |
 | `make clean` | Delete `build/` and `dist/` |
 
@@ -138,6 +139,10 @@ open the app). So a meeting moved an hour ahead is usually caught; one moved fiv
 and the old reminder can still fire. Opening Meetball, or pulling down to refresh, always checks right away.
 
 ### Install it on your iPhone
+Once the phone has been set up below (paired, trusted, Developer Mode on, signed once from Xcode), later builds go on
+from the terminal with `make phone` (`Scripts/phone.sh`): it finds the paired iPhone that's reachable by cable or
+Wi-Fi, builds, installs and opens Meetball. Keep the phone unlocked. The build log is at `build/phone.log`.
+
 1. On the Mac: `git pull`, `xcodegen generate`, `open Meetball.xcodeproj`.
 2. Connect the iPhone with a cable (after the first run it also works over Wi-Fi) and tap **Trust** on the phone.
 3. In Xcode pick the **MeetballPhone** scheme and your iPhone as the destination. Under the target's *Signing &
