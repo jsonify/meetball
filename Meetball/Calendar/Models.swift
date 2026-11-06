@@ -60,9 +60,11 @@ public struct CalendarEvent: Identifiable, Hashable {
         return tz.secondsFromGMT(for: when) == local.secondsFromGMT(for: when) ? nil : tz
     }
 
-    /// All-day or multi-day events render as bars (month grid, all-day row) rather than timed blocks.
+    /// All-day events and those a day long or more render as bars (month grid, all-day row) rather than timed blocks.
+    /// A shorter timed event that runs past midnight (11:43 PM – 12:13 AM) stays a timed block, split across the two
+    /// days' columns, so it shows at its time instead of hiding in the all-day strip.
     public func isBarEvent(calendar: Calendar = .app) -> Bool {
-        isAllDay || end.timeIntervalSince(start) >= 86400 || !calendar.isDate(start, inSameDayAs: end.addingTimeInterval(-1))
+        isAllDay || end.timeIntervalSince(start) >= 86400
     }
 }
 
