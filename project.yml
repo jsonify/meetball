@@ -117,10 +117,14 @@ targets:
         product: SK1Tokens
       - package: SK1Kit
         product: SK1UI
+      # The widgets and the countdown Live Activity, embedded in the app.
+      - target: MeetballWidgets
     entitlements:
       path: MeetballPhone/MeetballPhone.entitlements
       properties:
         com.apple.developer.usernotifications.time-sensitive: true
+        # Shared with MeetballWidgets: the app writes the next meetings there for the widgets (WidgetSnapshot).
+        com.apple.security.application-groups: [group.app.meetball.MeetballPhone]
     info:
       path: MeetballPhone/Info.plist
       properties:
@@ -133,6 +137,11 @@ targets:
         BGTaskSchedulerPermittedIdentifiers: [app.meetball.MeetballPhone.refresh]
         UILaunchScreen: {}
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSSupportsLiveActivities: true
+        # meetball://join?url=… and meetball://today, from the widgets and the Live Activity (MeetballLink).
+        CFBundleURLTypes:
+          - CFBundleURLName: app.meetball.MeetballPhone
+            CFBundleURLSchemes: [meetball]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.meetball.MeetballPhone
@@ -142,6 +151,44 @@ targets:
         CODE_SIGN_IDENTITY: "Apple Development"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         ENABLE_HARDENED_RUNTIME: NO
+  # The iPhone app's widgets (next meeting on the Home Screen and Lock Screen) and its countdown Live Activity (Lock
+  # Screen, Dynamic Island). It reads meetings the app saves to the shared App Group rather than the calendar itself.
+  MeetballWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - MeetballWidgets
+      # Shared with the app: the App Group snapshot, meetball:// links and the Live Activity's attributes.
+      - MeetballPhone/Shared
+    dependencies:
+      - package: SK1Kit
+        product: SK1Tokens
+      - package: SK1Kit
+        product: SK1UI
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+    entitlements:
+      path: MeetballWidgets/MeetballWidgets.entitlements
+      properties:
+        com.apple.security.application-groups: [group.app.meetball.MeetballPhone]
+    info:
+      path: MeetballWidgets/Info.plist
+      properties:
+        CFBundleName: MeetballWidgets
+        CFBundleDisplayName: Meetball
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.meetball.MeetballPhone.Widgets
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_IDENTITY: "Apple Development"
+        ENABLE_HARDENED_RUNTIME: NO
+        SKIP_INSTALL: YES
   MeetballPhoneTests:
     type: bundle.unit-test
     platform: iOS

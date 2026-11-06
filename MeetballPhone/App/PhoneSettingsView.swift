@@ -111,6 +111,10 @@ struct PhoneSettingsView: View {
             SKRow(title: "Also when it starts") {
                 Toggle("Also when it starts", isOn: $store.settings.alertAtStart).labelsHidden().toggleStyle(.sk1Switch)
             }
+            SKRow(title: "Countdown on the Lock Screen",
+                  subtitle: "A Live Activity in the hour before a meeting, in the Dynamic Island too. It starts when you open Meetball in that hour.") {
+                Toggle("Countdown on the Lock Screen", isOn: $store.settings.liveActivity).labelsHidden().toggleStyle(.sk1Switch)
+            }
             SKRow(title: "Moves, new links, cancellations",
                   subtitle: "Checked whenever Meetball runs; see Background checks above.") {
                 Toggle("Moves, new links, cancellations", isOn: $store.settings.notifyChanges).labelsHidden().toggleStyle(.sk1Switch)

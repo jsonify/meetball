@@ -124,6 +124,8 @@ final class PhoneStore: ObservableObject {
         upcoming = ReminderPlanner.meetings(events, settings: settings, now: now)
         scheduled = ReminderPlanner.plan(events, settings: settings, moved: Set(moved.keys), now: now)
         await PhoneNotifications.apply(scheduled)
+        LiveActivityController.updateWidgets(upcoming: upcoming, now: now)
+        await LiveActivityController.reconcile(upcoming: upcoming, enabled: settings.liveActivity, now: now)
         lastRefresh = now
     }
 

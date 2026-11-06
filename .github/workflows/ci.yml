@@ -141,4 +141,4 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: sk1-audit
-        run: Scripts/sk1-audit.sh Meetball MeetballPhone
+        run: Scripts/sk1-audit.sh Meetball MeetballPhone MeetballWidgets
