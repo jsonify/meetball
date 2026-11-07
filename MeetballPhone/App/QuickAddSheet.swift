@@ -89,8 +89,8 @@ struct QuickAddSheet: View {
         }) { h in
             switch h.kind {
             case .editor(let event, let eventStore):
-                EventEditor(event: event, eventStore: eventStore) { saved in
-                    if saved { finishAfterHandoff = true; Task { await store.refresh() } }
+                EventEditor(event: event, eventStore: eventStore) { action in
+                    if action == .saved { finishAfterHandoff = true; Task { await store.refresh() } }
                     handoff = nil
                 }
                 .ignoresSafeArea()
@@ -479,12 +479,12 @@ private extension Double {
 }
 
 /// Apple's event editor, filled in with the composer's meeting: it can add invitees and a location on calendars that
-/// support them (iCloud, Exchange, CalDAV). Also edits a stored event from the event screen. `onFinish(true)` when it
-/// saved (or deleted the stored event).
+/// support them (iCloud, Exchange, CalDAV). Also edits a stored event from the event screen. `onFinish` gets what the
+/// person did: saved, deleted (the stored event) or cancelled.
 struct EventEditor: UIViewControllerRepresentable {
     let event: EKEvent
     let eventStore: EKEventStore
-    var onFinish: (Bool) -> Void
+    var onFinish: (EKEventEditViewAction) -> Void
 
     func makeUIViewController(context: Context) -> EKEventEditViewController {
         let vc = EKEventEditViewController()
@@ -499,10 +499,32 @@ struct EventEditor: UIViewControllerRepresentable {
     func makeCoordinator() -> Coordinator { Coordinator(onFinish: onFinish) }
 
     final class Coordinator: NSObject, EKEventEditViewDelegate {
-        let onFinish: (Bool) -> Void
-        init(onFinish: @escaping (Bool) -> Void) { self.onFinish = onFinish }
+        let onFinish: (EKEventEditViewAction) -> Void
+        private var finished = false
+        init(onFinish: @escaping (EKEventEditViewAction) -> Void) { self.onFinish = onFinish }
+
         func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
-            onFinish(action == .saved || action == .deleted)
+            guard !finished else { return }
+            finished = true
+            // Deleting goes through the editor's own "Delete Event" sheet, which is still on its way out when this is
+            // called. Closing the editor on top of it left a screen that took no more taps (the app looked frozen), so
+            // the editor is closed only once nothing is presented over it.
+            let onFinish = onFinish
+            Task { @MainActor in
+                var tries = 0
+                while Self.isBusy(controller) && tries < 40 {  // gives up after ~2 s
+                    tries += 1
+                    try? await Task.sleep(for: .milliseconds(50))
+                }
+                onFinish(action)
+            }
+        }
+
+        /// Whether something is still presented over the editor, or a transition is running.
+        @MainActor
+        static func isBusy(_ vc: UIViewController) -> Bool {
+            vc.presentedViewController != nil || vc.transitionCoordinator != nil
+                || (vc as? UINavigationController)?.topViewController?.presentedViewController != nil
         }
     }
 }

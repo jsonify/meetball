@@ -85,6 +85,13 @@ final class AppleCalendarClient {
         }
     }
 
+    /// Deletes `event` from its calendar (the iPhone app's Delete key). `futureToo` also removes the later meetings of a
+    /// repeating series; otherwise only this occurrence goes. Throws when the calendar is read-only or the event is gone.
+    func deleteEvent(_ event: CalendarEvent, futureToo: Bool) throws {
+        guard let e = editableEvent(for: event) else { throw CocoaError(.featureUnsupported) }
+        try store.remove(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
+    }
+
     /// Identifiers of the calendars new events can be added to (the iPhone app's quick add).
     func writableCalendarIDs() -> Set<String> {
         guard isAuthorized else { return [] }
