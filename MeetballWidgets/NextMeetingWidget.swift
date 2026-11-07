@@ -30,8 +30,8 @@ struct NextMeetingProvider: TimelineProvider {
 
     static func sample(_ now: Date) -> WidgetSnapshot {
         WidgetSnapshot(meetings: [
-            WidgetMeeting(id: "a", title: "Design review", start: now.addingTimeInterval(12 * 60),
-                          end: now.addingTimeInterval(42 * 60), colorHex: "#E8743B", joinURL: URL(string: "https://meet.google.com/abc")),
+            WidgetMeeting(id: "a", title: "Design review", start: now.addingTimeInterval(8 * 60),
+                          end: now.addingTimeInterval(38 * 60), colorHex: "#E8743B", joinURL: URL(string: "https://meet.google.com/abc")),
             WidgetMeeting(id: "b", title: "1:1 with Sam", start: now.addingTimeInterval(90 * 60),
                           end: now.addingTimeInterval(120 * 60), colorHex: "#1F9E86", joinURL: nil),
         ], savedAt: now)
@@ -53,7 +53,10 @@ struct NextMeetingWidget: Widget {
 
 struct NextMeetingWidgetView: View {
     let entry: NextMeetingEntry
-    @Environment(\.widgetFamily) private var family
+    /// Draws this size instead of the environment's, for previews and renders outside WidgetKit.
+    var previewFamily: WidgetFamily? = nil
+    @Environment(\.widgetFamily) private var environmentFamily
+    private var family: WidgetFamily { previewFamily ?? environmentFamily }
     @Environment(\.colorScheme) private var scheme
     /// False in StandBy (the phone on its side on a charger), where the widget fills the half screen as a desk clock.
     @Environment(\.showsWidgetContainerBackground) private var showsBackground
@@ -85,18 +88,89 @@ struct NextMeetingWidgetView: View {
 
     // MARK: Home Screen
 
-    private var small: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            lcd(height: 58)
+    /// The LCD (countdown and an LED bar for how far along), the meeting with its calendar colour, time, service and a
+    /// lit Join key when it's time, then a footer: what clashes with it, what comes after, or when you're free.
+    private var small: some View { smallCard(footer: true) }
+
+    private func smallCard(footer: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            lcd(height: 54)
             if let m = entry.meeting {
-                Text(m.title).font(.system(size: 14, weight: .bold)).lineLimit(2)
-                Text(timeRange(m)).font(.caption2).foregroundStyle(.secondary)
+                ViewThatFits(in: .vertical) {
+                    meetingBlock(m, titleLines: 2, footer: footer)
+                    meetingBlock(m, titleLines: 1, footer: footer)
+                }
             } else {
                 Text(entry.snapshot == nil ? "Open Meetball once to set up." : "Nothing in the next two days.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }
+    }
+
+    private func meetingBlock(_ m: WidgetMeeting, titleLines: Int, footer: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(alignment: .top, spacing: 6) {
+                RoundedRectangle(cornerRadius: 1.5).fill(WidgetStyle.color(m.colorHex)).frame(width: 3)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(m.title).font(.system(size: 14, weight: .bold)).lineLimit(titleLines)
+                        .fixedSize(horizontal: false, vertical: true)
+                    detailRow(m)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
+            if footer { footerLine(m) }
+        }
+    }
+
+    /// "2:00 – 2:30 · Meet", or the time and a lit JOIN key once it can be joined (on now, or within 10 minutes).
+    private func detailRow(_ m: WidgetMeeting) -> some View {
+        HStack(spacing: 4) {
+            // The full range when it fits; beside the JOIN key, just the start ("5:25 PM") or, while on, the end
+            // ("til 5:55 PM").
+            ViewThatFits(in: .horizontal) {
+                Text(timeRange(m))
+                Text(m.start <= entry.date ? "til \(shortTime(m.end))" : shortTime(m.start))
+            }
+            .font(.system(size: 11, weight: .medium)).monospacedDigit()
+            .foregroundStyle(.secondary).lineLimit(1)
+            if m.joinURL != nil && m.start.timeIntervalSince(entry.date) < 10 * 60 {
+                Spacer(minLength: 2)
+                HStack(spacing: 2) {
+                    Image(systemName: "video.fill").font(.system(size: 7, weight: .bold))
+                    Text("JOIN").font(.system(size: 8.5, weight: .heavy)).tracking(0.6)
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 5).padding(.vertical, 2)
+                .background(WidgetStyle.orange, in: Capsule())
+            } else if let service = WidgetService.name(m.joinURL) {
+                Text("· \(service)").font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary).lineLimit(1)
+            }
+        }
+    }
+
+    /// A clash first ("+1 AT THE SAME TIME"), else the next meeting that day ("THEN 1:1 with Sam 3:30"), else when the
+    /// day frees up ("FREE AFTER 2:30").
+    @ViewBuilder private func footerLine(_ m: WidgetMeeting) -> some View {
+        let clashes = entry.snapshot?.overlapping(m, at: entry.date) ?? []
+        HStack(spacing: 4) {
+            if let first = clashes.first {
+                Image(systemName: "rectangle.on.rectangle").font(.system(size: 8, weight: .bold)).foregroundStyle(WidgetStyle.orange)
+                Text("+\(clashes.count)").font(.system(size: 9, weight: .heavy)).foregroundStyle(WidgetStyle.orange)
+                Text(first.title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+            } else if let then = entry.snapshot?.following(m) {
+                Text("THEN").font(.system(size: 8, weight: .heavy)).tracking(0.8).foregroundStyle(.secondary)
+                Circle().fill(WidgetStyle.color(then.colorHex)).frame(width: 5, height: 5)
+                Text(then.title).font(.system(size: 10, weight: .semibold)).lineLimit(1)
+                Spacer(minLength: 2)
+                Text(shortTime(then.start)).font(.system(size: 10, weight: .medium)).monospacedDigit()
+                    .foregroundStyle(.secondary).layoutPriority(1)
+            } else {
+                Text("FREE AFTER").font(.system(size: 8, weight: .heavy)).tracking(0.8).foregroundStyle(.secondary)
+                Text(shortTime(m.end)).font(.system(size: 10, weight: .semibold)).monospacedDigit()
+            }
+        }
+        .lineLimit(1)
     }
 
     /// StandBy: the countdown as big as it goes, the title under it, like an MB-1 desk clock.
@@ -125,7 +199,7 @@ struct NextMeetingWidgetView: View {
 
     private var medium: some View {
         HStack(alignment: .top, spacing: 12) {
-            small.frame(maxWidth: .infinity)
+            smallCard(footer: false).frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 6) {
                 Text("LATER").font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(.secondary)
                 let later = entry.snapshot?.later(than: entry.meeting, now: entry.date, limit: 3) ?? []
@@ -160,16 +234,32 @@ struct NextMeetingWidgetView: View {
                     if let m = entry.meeting {
                         let target = m.start <= entry.date ? m.end : m.start
                         let c = WidgetCountdown.digits(target.timeIntervalSince(entry.date))
-                        SKSevenSegment(c.digits, digitHeight: 24, spacing: 3, color: WidgetStyle.lcdInk)
+                        SKSevenSegment(c.digits, digitHeight: 22, spacing: 3, color: WidgetStyle.lcdInk)
                         Text(c.unit).font(.system(size: 9, weight: .heavy)).foregroundStyle(WidgetStyle.lcdInk)
                     } else {
                         Text("MB-1").font(.system(size: 18, weight: .heavy, design: .monospaced)).foregroundStyle(WidgetStyle.lcdInk)
                     }
                 }
+                if let m = entry.meeting, let p = WidgetSnapshot.progress(of: m, at: entry.date) {
+                    ledBar(p)
+                }
             }
             .padding(.horizontal, 8)
         }
         .frame(height: height)
+    }
+
+    /// Ten LED segments on the glass: how much of the meeting has gone by, or how close the last hour has brought it.
+    private func ledBar(_ progress: Double) -> some View {
+        let lit = Int((progress * 10).rounded())
+        return HStack(spacing: 2) {
+            ForEach(0..<10, id: \.self) { i in
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(WidgetStyle.lcdInk.opacity(i < lit ? 0.85 : 0.15))
+                    .frame(height: 3)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     private var caption: String {
@@ -229,12 +319,26 @@ struct NextMeetingWidgetView: View {
 
     // MARK: Text
 
+    /// "2:00 – 2:30", with the weekday first when it isn't today ("Tue 9:00 – 9:30").
     private func timeRange(_ m: WidgetMeeting) -> String {
-        "\(m.start.formatted(date: .omitted, time: .shortened)) – \(m.end.formatted(date: .omitted, time: .shortened))"
+        let day = Calendar.current.isDate(m.start, inSameDayAs: entry.date) ? "" : m.start.formatted(.dateTime.weekday(.abbreviated)) + " "
+        return "\(day)\(shortTime(m.start)) – \(shortTime(m.end))"
     }
+
+    private func shortTime(_ d: Date) -> String { d.formatted(date: .omitted, time: .shortened) }
 
     private func dayTime(_ d: Date) -> String {
         Calendar.current.isDateInToday(d) ? d.formatted(date: .omitted, time: .shortened)
             : d.formatted(.dateTime.weekday(.abbreviated).hour().minute())
     }
+}
+
+#Preview("Small") {
+    NextMeetingWidgetView(entry: NextMeetingEntry(date: .now, snapshot: NextMeetingProvider.sample(.now)), previewFamily: .systemSmall)
+        .padding(16).frame(width: 170, height: 170)
+}
+
+#Preview("Medium") {
+    NextMeetingWidgetView(entry: NextMeetingEntry(date: .now, snapshot: NextMeetingProvider.sample(.now)), previewFamily: .systemMedium)
+        .padding(16).frame(width: 364, height: 170)
 }
