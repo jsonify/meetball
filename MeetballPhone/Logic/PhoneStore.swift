@@ -58,6 +58,9 @@ final class PhoneStore: ObservableObject {
     private let client = AppleCalendarClient()
     private var started = false
     private var debounce: Task<Void, Never>?
+    /// Meetings deleted on this phone (an event's id prefix, the earliest start it covers, and when), so refreshes in the
+    /// next few minutes don't report their disappearance as a cancellation.
+    private var locallyRemoved: [(prefix: String, from: Date, at: Date)] = []
     /// Events per range for the calendar screens, cleared by each refresh.
     private var rangeCache: [String: [CalendarEvent]] = [:]
     private let defaults = UserDefaults.standard
@@ -119,7 +122,11 @@ final class PhoneStore: ObservableObject {
 
         var moved = defaults.dictionary(forKey: Key.moved) as? [String: Date] ?? [:]
         if let previous = StoredEventSnapshot.load()?.snapshot(now: now) {
-            let changes = MeetingChangeDetector.diff(old: previous, new: snapshot, now: now)
+            let ignoring = Set(previous.events.values.filter { e in
+                locallyRemoved.contains { e.uid.hasPrefix($0.prefix) && e.start >= $0.from }
+            }.map(\.uid))
+            locallyRemoved.removeAll { now.timeIntervalSince($0.at) > 600 }
+            let changes = MeetingChangeDetector.diff(old: previous, new: snapshot, now: now, ignoring: ignoring)
             moved = ReminderPlanner.movedUIDs(moved, changes: changes, now: now)
             if !changes.isEmpty {
                 setCards(ChangeCard.merged(changeCards, changes.map { ChangeCard($0, now: now) }, now: now))
@@ -183,6 +190,22 @@ final class PhoneStore: ObservableObject {
     func editableEvent(for event: CalendarEvent) -> (event: EKEvent, store: EKEventStore)? {
         guard let e = client.editableEvent(for: event) else { return nil }
         return (e, client.eventStore)
+    }
+
+    /// Deletes `event` (and, with `futureToo`, the rest of its series) at once, then refreshes in the background so the
+    /// event screen can close straight away.
+    func deleteEvent(_ event: CalendarEvent, futureToo: Bool) throws {
+        try client.deleteEvent(event, futureToo: futureToo)
+        noteDeleted(event)
+        Task { await refresh() }
+    }
+
+    /// Records that `event` was deleted here (by the Delete key or Apple's editor), so it isn't announced as cancelled.
+    /// Later meetings of its series are covered too: if they're still there, nothing is reported for them anyway.
+    func noteDeleted(_ event: CalendarEvent) {
+        // An Apple event's id is "<eventIdentifier>@<start>", shared by every occurrence up to the last "@".
+        let base = event.id.lastIndex(of: "@").map { String(event.id[..<$0]) } ?? event.id
+        locallyRemoved.append((prefix: "\(event.accountEmail)|\(event.calendarID)|\(base)@", from: event.start, at: Date()))
     }
 
     /// The calendar quick add picks first: the Calendar app's default for new events when Meetball can write to it.

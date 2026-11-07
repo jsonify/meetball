@@ -123,6 +123,9 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   saved in Meetball against that meeting (the work calendar is a read-only feed, so nothing is written to it) and, unless
   switched off in Settings, added to Reminders due the next working morning. Notes show on the event screen and in the
   next pre-flight card for that meeting.
+- **Delete**: the event screen's **Delete Event** key asks once (for a repeating meeting: this one only, or every one
+  after it) and closes; Meetball doesn't then announce your own delete as a cancellation. Deleting from inside Apple's
+  editor (Edit) works too. Shown for calendars the iPhone can change; the read-only work feed is edited in Google Calendar.
 - Needs iOS 18 or later.
 
 ### Alerts and CarPlay
