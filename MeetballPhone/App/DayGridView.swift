@@ -52,8 +52,9 @@ struct DayGridView: View {
         return VStack(spacing: 12) {
             header(now: now, days: days)
                 .padding(.horizontal, 16)
-            if let next = MenuAgendaBuilder.hero(store.events(from: now, days: 2), now: now, horizon: 24 * 3600) {
-                DayGridUpNext(event: next, now: now, open: open)
+            let soon = store.events(from: now, days: 2)
+            if let next = MenuAgendaBuilder.hero(soon, now: now, horizon: 24 * 3600) {
+                DayGridUpNext(event: next, now: now, overlapping: MenuAgendaBuilder.overlapping(next, in: soon, now: now), open: open)
                     .padding(.horizontal, 10)
             }
             SKWell {
@@ -199,6 +200,8 @@ enum DayGridMetrics {
 struct DayGridUpNext: View {
     let event: CalendarEvent
     let now: Date
+    /// Other meetings at the same time: one slim row each under the main one.
+    var overlapping: [CalendarEvent] = []
     let open: (CalendarEvent) -> Void
 
     var body: some View {
@@ -208,6 +211,7 @@ struct DayGridUpNext: View {
         let urgency = HeroUrgency.of(event, now: now)
         let shape = RoundedRectangle(cornerRadius: SK1.Metrics.wellRadius, style: .continuous)
         SKWell {
+          VStack(spacing: 0) {
             HStack(spacing: 10) {
                 SK1CountdownLCD(caption: inProgress ? "Ends in" : "Up next",
                                 digits: countdown.digits, unit: countdown.unit, live: inProgress,
@@ -232,7 +236,15 @@ struct DayGridUpNext: View {
                 PhoneJoinButton(event: event, size: .small)
             }
             .padding(8)
-            .background(shape.fill(urgency.edgeColor.opacity(urgency.washOpacity)))
+            if !overlapping.isEmpty {
+                VStack(alignment: .leading, spacing: 0) {
+                    SKGroove()
+                    ForEach(overlapping, id: \.uid) { e in overlapRow(e) }
+                }
+                .padding(.horizontal, 8).padding(.bottom, 6)
+            }
+          }
+          .background(shape.fill(urgency.edgeColor.opacity(urgency.washOpacity)))
         }
         .overlay(
             shape.strokeBorder(urgency.edgeColor.opacity(urgency.edgeOpacity), lineWidth: urgency.edgeWidth + 0.5)
@@ -241,6 +253,27 @@ struct DayGridUpNext: View {
         )
         .animation(.easeInOut(duration: 0.4), value: urgency)
         .sensoryFeedback(.warning, trigger: urgency) { _, new in new == .imminent }
+    }
+
+    /// A meeting that overlaps the main one: dot, title, its time ("now" once it's on), and a small Join key.
+    private func overlapRow(_ e: CalendarEvent) -> some View {
+        HStack(spacing: 6) {
+            Button { open(e) } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: "rectangle.on.rectangle").font(.system(size: 9)).foregroundStyle(.secondary)
+                    Circle().fill(Color(hex: e.colorHex)).frame(width: 7, height: 7)
+                    Text(e.title).font(.caption.weight(.semibold)).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(e.start <= now ? "now" : e.start.shortTime)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced)).foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Also \(e.start <= now ? "on now" : "at \(e.start.shortTime)"): \(e.title)")
+            if e.meetURL != nil { PhoneJoinButton(event: e, size: .small) }
+        }
+        .padding(.top, 6)
     }
 
     private var when: String {

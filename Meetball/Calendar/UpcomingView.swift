@@ -46,8 +46,9 @@ struct UpcomingView: View {
                             .accessibilityElement(children: .ignore)
                             .accessibilityLabel("Loading your meetings")
                         } else if let hero {
-                            NextMeetingCard(event: hero, now: now)
-                            restOfToday(events, now: now, excluding: hero)
+                            let overlapping = MenuAgendaBuilder.overlapping(hero, in: events, now: now)
+                            NextMeetingCard(event: hero, now: now, overlapping: overlapping)
+                            restOfToday(events, now: now, excluding: Set(([hero] + overlapping).map(\.uid)))
                         } else {
                             NoMoreMeetingsView(preview: Self.nextDayPreview(events, now: now), now: now)
                         }
@@ -81,8 +82,8 @@ struct UpcomingView: View {
         .padding(12)
     }
 
-    @ViewBuilder private func restOfToday(_ events: [CalendarEvent], now: Date, excluding hero: CalendarEvent) -> some View {
-        let rest = Self.laterToday(events, now: now).filter { $0.uid != hero.uid }
+    @ViewBuilder private func restOfToday(_ events: [CalendarEvent], now: Date, excluding shown: Set<String>) -> some View {
+        let rest = Self.laterToday(events, now: now).filter { !shown.contains($0.uid) }
         if !rest.isEmpty {
             VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
                 SKCaption("Later today", tone: .soft)
@@ -131,6 +132,8 @@ struct UpcomingView: View {
 private struct NextMeetingCard: View {
     let event: CalendarEvent
     let now: Date
+    /// Other meetings at the same time, listed under the card's keys.
+    var overlapping: [CalendarEvent] = []
     @EnvironmentObject var guardian: MeetingGuardianManager
     @EnvironmentObject var guardianStore: MeetingGuardianStore
 
@@ -164,6 +167,9 @@ private struct NextMeetingCard: View {
                         }
                     }
                     alertState
+                    if !overlapping.isEmpty {
+                        OverlappingMeetingsList(events: overlapping, now: now, joinKey: .cream)
+                    }
                 }
                 Spacer(minLength: 0)
             }

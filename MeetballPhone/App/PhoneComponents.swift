@@ -51,6 +51,8 @@ struct PhoneJoinButton: View {
 struct PhoneHeroCard: View {
     let event: CalendarEvent
     let now: Date
+    /// Other meetings at the same time (`MenuAgendaBuilder.overlapping`), listed under the Join key.
+    var overlapping: [CalendarEvent] = []
     var open: (CalendarEvent) -> Void = { _ in }
 
     var body: some View {
@@ -92,6 +94,9 @@ struct PhoneHeroCard: View {
                 } else {
                     Text("No video link").sk1Hint()
                 }
+                if !overlapping.isEmpty {
+                    PhoneOverlappingList(events: overlapping, now: now, open: open)
+                }
             }
             .padding(14)
             .background(shape.fill(urgency.edgeColor.opacity(urgency.washOpacity)))
@@ -103,6 +108,25 @@ struct PhoneHeroCard: View {
         )
         .animation(.easeInOut(duration: 0.4), value: urgency)
         .sensoryFeedback(.warning, trigger: urgency) { _, new in new == .imminent }
+    }
+}
+
+/// The meetings that overlap the featured one, under a "Also on now" / "Overlaps" caption, each with its own Join.
+struct PhoneOverlappingList: View {
+    let events: [CalendarEvent]
+    let now: Date
+    var open: (CalendarEvent) -> Void = { _ in }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            SKGroove().padding(.vertical, 2)
+            HStack(spacing: 5) {
+                Image(systemName: "rectangle.on.rectangle").font(.caption2)
+                SKCaption(OverlapCaption.text(events, now: now), tone: .soft)
+            }
+            .foregroundStyle(.secondary)
+            ForEach(events, id: \.uid) { PhoneAgendaRow(event: $0, now: now, open: open) }
+        }
     }
 }
 

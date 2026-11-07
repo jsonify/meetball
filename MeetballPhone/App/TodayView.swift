@@ -17,7 +17,9 @@ struct TodayView: View {
     private func content(now: Date) -> some View {
         let events = store.events(from: now, days: 2)
         let hero = MenuAgendaBuilder.hero(events, now: now, horizon: 24 * 3600)
-        let groups = MenuAgendaBuilder.build(events: events, now: now, days: 2, limit: 40, excluding: hero?.uid)
+        let overlapping = hero.map { MenuAgendaBuilder.overlapping($0, in: events, now: now) } ?? []
+        let shownInHero = Set(([hero].compactMap { $0 } + overlapping).map(\.uid))
+        let groups = MenuAgendaBuilder.build(events: events, now: now, days: 2, limit: 40, excluding: shownInHero)
         let line = MeetingStatusText.line(events, now: now)
         return VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
             PhoneScreenHeader(title: "Today", detail: now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
@@ -35,7 +37,7 @@ struct TodayView: View {
             if let hero {
                 VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
                     SKCaption(hero.start <= now ? "On now" : "Up next", tone: .soft)
-                    PhoneHeroCard(event: hero, now: now, open: open)
+                    PhoneHeroCard(event: hero, now: now, overlapping: overlapping, open: open)
                 }
             } else if store.calendarAccess == .granted {
                 freeCard

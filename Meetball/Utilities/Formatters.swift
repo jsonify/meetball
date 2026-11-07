@@ -41,18 +41,28 @@ public enum MeetingStatusText {
         MenuAgendaBuilder.hero(events, now: now, horizon: 7 * 86400)
     }
 
-    /// The popover strip's detail: "NOW · 20M LEFT", "NEXT IN 1H 5M", or "NO MEETINGS AHEAD"; `live` while one is on.
-    public static func strip(_ events: [CalendarEvent], now: Date) -> (detail: String, live: Bool) {
-        guard let e = current(events, now: now) else { return ("NO MEETINGS AHEAD", false) }
-        if e.start <= now { return ("NOW · \(TimeUntilFormatter.string(until: e.end, now: now).uppercased()) LEFT", true) }
-        return ("NEXT IN \(TimeUntilFormatter.string(until: e.start, now: now).uppercased())", false)
+    /// " +2" when other meetings overlap `e`, else "".
+    static func overlapSuffix(_ e: CalendarEvent, in events: [CalendarEvent], now: Date) -> String {
+        let n = MenuAgendaBuilder.overlapping(e, in: events, now: now).count
+        return n > 0 ? " +\(n)" : ""
     }
 
-    /// The main window display's line: "Standup · 20m left", "Standup · in 1h 5m", or "No meetings ahead".
+    /// The popover strip's detail: "NOW · 20M LEFT", "NEXT IN 1H 5M", or "NO MEETINGS AHEAD"; `live` while one is on.
+    /// "+1" follows when another meeting overlaps it ("NOW · 20M LEFT +1").
+    public static func strip(_ events: [CalendarEvent], now: Date) -> (detail: String, live: Bool) {
+        guard let e = current(events, now: now) else { return ("NO MEETINGS AHEAD", false) }
+        let more = overlapSuffix(e, in: events, now: now)
+        if e.start <= now { return ("NOW · \(TimeUntilFormatter.string(until: e.end, now: now).uppercased()) LEFT\(more)", true) }
+        return ("NEXT IN \(TimeUntilFormatter.string(until: e.start, now: now).uppercased())\(more)", false)
+    }
+
+    /// The main window display's line: "Standup · 20m left", "Standup · in 1h 5m", or "No meetings ahead";
+    /// "Standup +1 · 20m left" when another meeting overlaps it.
     public static func line(_ events: [CalendarEvent], now: Date) -> (message: String, live: Bool) {
         guard let e = current(events, now: now) else { return ("No meetings ahead", false) }
-        if e.start <= now { return ("\(e.title) · \(TimeUntilFormatter.string(until: e.end, now: now)) left", true) }
-        return ("\(e.title) · in \(TimeUntilFormatter.string(until: e.start, now: now))", false)
+        let more = overlapSuffix(e, in: events, now: now)
+        if e.start <= now { return ("\(e.title)\(more) · \(TimeUntilFormatter.string(until: e.end, now: now)) left", true) }
+        return ("\(e.title)\(more) · in \(TimeUntilFormatter.string(until: e.start, now: now))", false)
     }
 
     /// Timed, not-declined meetings today that haven't ended.

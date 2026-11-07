@@ -29,6 +29,38 @@ final class LogicTests: XCTestCase {
         XCTAssertEqual(MeetingStatusText.remainingToday([on, next, ended, tomorrow], now: now), 2)
     }
 
+    func testOverlappingMeetings() {
+        let now = cal.date(from: DateComponents(year: 2026, month: 3, day: 10, hour: 10))!
+        let hero = ev("Standup", now.addingTimeInterval(-600), now.addingTimeInterval(1200))
+        let alsoOn = ev("Sync", now.addingTimeInterval(-300), now.addingTimeInterval(1800))
+        let laterClash = ev("Review", now.addingTimeInterval(600), now.addingTimeInterval(3600))
+        let afterHero = ev("After", now.addingTimeInterval(1200), now.addingTimeInterval(2400))
+        let ended = ev("Earlier", now.addingTimeInterval(-1200), now.addingTimeInterval(-60))
+        var declined = ev("Declined", now, now.addingTimeInterval(600)); declined.isDeclined = true
+        let allDay = ev("Holiday", cal.startOfDay(for: now), cal.startOfDay(for: now).addingTimeInterval(86400), allDay: true)
+        let events = [hero, alsoOn, laterClash, afterHero, ended, declined, allDay, alsoOn]
+        XCTAssertEqual(MenuAgendaBuilder.overlapping(hero, in: events, now: now).map(\.title), ["Sync", "Review"])
+        XCTAssertEqual(MenuAgendaBuilder.overlapping(hero, in: [hero], now: now), [])
+        XCTAssertEqual(OverlapCaption.text([alsoOn], now: now), "Also on now")
+        XCTAssertEqual(OverlapCaption.text([alsoOn, laterClash], now: now), "2 overlaps")
+        XCTAssertEqual(OverlapCaption.text([laterClash], now: now), "1 overlap")
+
+        // The LCD lines and the menu bar say how many others clash with the meeting they name.
+        XCTAssertTrue(MeetingStatusText.strip([hero, laterClash], now: now) == ("NOW · 20M LEFT +1", true))
+        XCTAssertTrue(MeetingStatusText.line([hero, laterClash], now: now) == ("Standup +1 · 20m left", true))
+        var s = MenuBarTitleSettings()
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: hero, overlapCount: 2, now: now, settings: s, calendar: cal).text, "now · 20m left +2")
+        s.format = .titleCountdown
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: hero, overlapCount: 1, now: now, settings: s, calendar: cal).text, "Standup +1 · 20m left")
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: hero, now: now, settings: s, calendar: cal).text, "Standup · 20m left")
+        s.format = .iconOnly
+        XCTAssertEqual(MenuBarTitleBuilder.build(next: hero, overlapCount: 1, now: now, settings: s, calendar: cal).text, "")
+
+        // Meetings shown with the hero are left out of the agenda below it.
+        let groups = MenuAgendaBuilder.build(events: [hero, alsoOn, laterClash, afterHero], now: now, excluding: [hero.uid, alsoOn.uid, laterClash.uid], calendar: cal)
+        XCTAssertEqual(groups.flatMap(\.timed).map(\.title), ["After"])
+    }
+
     func testOvernightMeetingStaysOnTheTimeGrid() {
         let app = Calendar.app
         let day = app.startOfDay(for: Date())

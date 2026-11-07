@@ -20,6 +20,10 @@ Independent implementation; written from observed behavior and public APIs, not 
 - Create events (attendees, Google Meet link, focus blocks) and delete events
 - Menu-bar extra: next-meeting countdown, mini month with event dots (click a day to scope the agenda), hero card for the
   next/in-progress meeting, agenda grouped by day with a "now" line, all-day chips, declined events dimmed
+- Overlapping meetings: when another meeting overlaps the one featured (on now or up next), the hero card in the popover,
+  the Upcoming card in the main window, and the iPhone's Up next and Today cards list it under the main meeting
+  ("Also on now" or "1 overlap") with its own Join key. The menu bar title, the popover's LCD strip and the main window's
+  display add a count ("Standup +1 · 20m left") so a clash isn't hidden behind the one meeting they name
 - One-click join: global shortcut (default ⌃⌥⌘J, recordable) joins the nearest meeting; Join buttons show the service
   (Meet, Zoom, Teams, Webex) and open the native app (zoommtg://, msteams://) or a chosen browser per service; copy link /
   open in Google Calendar; "Join" action on alert notifications
