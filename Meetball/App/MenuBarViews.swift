@@ -76,7 +76,9 @@ struct MenuBarContent: View {
     @ViewBuilder private var agenda: some View {
         let now = model.now
         let hero = scopedDay == nil ? MenuAgendaBuilder.hero(events, now: now) : nil
-        let groups = MenuAgendaBuilder.build(events: events, now: now, scopedDay: scopedDay, excluding: hero?.uid)
+        let overlapping = hero.map { MenuAgendaBuilder.overlapping($0, in: events, now: now) } ?? []
+        let shownInHero = Set(([hero].compactMap { $0 } + overlapping).map(\.uid))
+        let groups = MenuAgendaBuilder.build(events: events, now: now, scopedDay: scopedDay, excluding: shownInHero)
         VStack(alignment: .leading, spacing: 12) {
             if let day = scopedDay {
                 HStack {
@@ -86,7 +88,7 @@ struct MenuBarContent: View {
                 }
             }
             if let hero {
-                HeroMeetingCard(event: hero, now: now,
+                HeroMeetingCard(event: hero, now: now, overlapping: overlapping,
                                 autoJoinAt: guardianStore.isAutoJoin(hero) && hero.meetURL != nil
                                     ? AutoJoin.joinTime(hero, delayMinutes: guardianStore.settings.autoJoinDelayMinutes) : nil)
             }
@@ -353,6 +355,8 @@ struct MiniMonthView: View {
 struct HeroMeetingCard: View {
     let event: CalendarEvent
     let now: Date
+    /// Other meetings at the same time (`MenuAgendaBuilder.overlapping`), listed under the Join key.
+    var overlapping: [CalendarEvent] = []
     /// When auto-join opens this meeting, if it's set to.
     var autoJoinAt: Date? = nil
 
@@ -392,6 +396,9 @@ struct HeroMeetingCard: View {
                 } else {
                     Text("No video link").sk1Hint()
                 }
+                if !overlapping.isEmpty {
+                    OverlappingMeetingsList(events: overlapping, now: now, joinKey: .cream)
+                }
             }
             .padding(12)
             .background(shape.fill(urgency.edgeColor.opacity(urgency.washOpacity)))
@@ -408,6 +415,25 @@ struct HeroMeetingCard: View {
 
     private var timeRange: String {
         "\(event.start.shortTime) – \(event.end.shortTime)"
+    }
+}
+
+/// The meetings that overlap the featured one, under a "Also on now" / "Overlaps" caption, each with its own Join.
+struct OverlappingMeetingsList: View {
+    let events: [CalendarEvent]
+    let now: Date
+    var joinKey: SK1KeyVariant?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            SKGroove().padding(.vertical, 2)
+            HStack(spacing: 5) {
+                Image(systemName: "rectangle.on.rectangle").font(.caption2)
+                SKCaption(OverlapCaption.text(events, now: now), tone: .soft)
+            }
+            .foregroundStyle(.secondary)
+            ForEach(events, id: \.uid) { AgendaRow(event: $0, now: now, joinKey: joinKey) }
+        }
     }
 }
 

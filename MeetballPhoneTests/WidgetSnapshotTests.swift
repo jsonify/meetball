@@ -21,6 +21,30 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(s.later(than: s.current(at: now), now: now, limit: 2).map(\.id), ["b", "c"])
     }
 
+    func testOverlappingAndFollowing() {
+        let s = WidgetSnapshot(meetings: [m("a", in: 0), m("clash", in: 15), m("then", in: 45), m("after", in: 90)], savedAt: now)
+        let a = s.meetings[0]
+        XCTAssertEqual(s.overlapping(a, at: now).map(\.id), ["clash"])
+        XCTAssertEqual(s.overlapping(s.meetings[2], at: now), [])
+        XCTAssertEqual(s.following(a)?.id, "then")
+        XCTAssertNil(s.following(s.meetings[3]))
+    }
+
+    func testProgress() {
+        let live = m("live", in: -10, length: 40)
+        XCTAssertEqual(WidgetSnapshot.progress(of: live, at: now)!, 0.25, accuracy: 0.001)
+        XCTAssertEqual(WidgetSnapshot.progress(of: m("soon", in: 15), at: now)!, 0.75, accuracy: 0.001)
+        XCTAssertNil(WidgetSnapshot.progress(of: m("far", in: 90), at: now))
+    }
+
+    func testService() {
+        XCTAssertEqual(WidgetService.name(URL(string: "https://meet.google.com/abc-defg-hij")), "Meet")
+        XCTAssertEqual(WidgetService.name(URL(string: "https://acme.zoom.us/j/123")), "Zoom")
+        XCTAssertEqual(WidgetService.name(URL(string: "https://teams.microsoft.com/l/meetup-join/x")), "Teams")
+        XCTAssertNil(WidgetService.name(URL(string: "https://example.com/call")))
+        XCTAssertNil(WidgetService.name(nil))
+    }
+
     func testTimelineIsPerMinuteNearAMeetingAndSparseOtherwise() {
         let s = WidgetSnapshot(meetings: [m("a", in: 3 * 60)], savedAt: now)
         let dates = s.timelineDates(from: now, span: 5 * 3600)

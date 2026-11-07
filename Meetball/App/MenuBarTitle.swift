@@ -107,9 +107,10 @@ public enum MenuBarTitleBuilder {
         MenuAgendaBuilder.hero(events, now: now, horizon: .greatestFiniteMagnitude)
     }
 
-    public static func build(next: CalendarEvent?, now: Date, settings: MenuBarTitleSettings,
+    /// `overlapCount` is how many other meetings overlap `next`; the title shows it as "+1" so a clash isn't hidden.
+    public static func build(next: CalendarEvent?, overlapCount: Int = 0, now: Date, settings: MenuBarTitleSettings,
                              calendar: Calendar = .app, locale: Locale = .current) -> MenuBarTitle {
-        var title = meetingTitle(next: next, now: now, settings: settings, calendar: calendar)
+        var title = meetingTitle(next: next, overlapCount: overlapCount, now: now, settings: settings, calendar: calendar)
         if settings.showDate { title.date = dateText(now, calendar: calendar, locale: locale) }
         return title
     }
@@ -122,7 +123,7 @@ public enum MenuBarTitleBuilder {
         return f.string(from: now)
     }
 
-    private static func meetingTitle(next: CalendarEvent?, now: Date, settings: MenuBarTitleSettings,
+    private static func meetingTitle(next: CalendarEvent?, overlapCount: Int, now: Date, settings: MenuBarTitleSettings,
                                      calendar: Calendar) -> MenuBarTitle {
         guard let e = next, e.end > now else { return .idle }
         let inProgress = e.start <= now
@@ -134,13 +135,14 @@ public enum MenuBarTitleBuilder {
             let service = MeetingService.detect(url)
             if service != .other { symbol = service.symbol }
         }
-        let title = truncate(e.title, to: settings.maxTitleLength)
+        let more = overlapCount > 0 ? " +\(overlapCount)" : ""
+        let title = truncate(e.title, to: settings.maxTitleLength) + more
         let left = "\(TimeUntilFormatter.string(until: e.end, now: now)) left"
         let countdown = TimeUntilFormatter.string(until: e.start, now: now)
         let text: String
         switch settings.format {
         case .countdown:
-            text = inProgress ? "now · \(left)" : countdown
+            text = (inProgress ? "now · \(left)" : countdown) + more
         case .titleCountdown:
             text = inProgress ? "\(title) · \(left)" : "\(title) · in \(countdown)"
         case .titleStartTime:

@@ -173,11 +173,23 @@ public enum MenuAgendaBuilder {
         return timed.filter { $0.start.timeIntervalSince(now) <= horizon }.min(by: { $0.start < $1.start })
     }
 
+    /// Meetings double-booked with `hero`: timed, not declined, not yet ended, and overlapping its time; soonest first.
+    /// Shown with the hero so a clash isn't hidden behind the one meeting it features.
+    public static func overlapping(_ hero: CalendarEvent, in events: [CalendarEvent], now: Date,
+                                   calendar: Calendar = .app) -> [CalendarEvent] {
+        var seen: Set<String> = [hero.uid]
+        return events
+            .filter { !$0.isBarEvent(calendar: calendar) && !$0.isDeclined && $0.end > now
+                && $0.start < hero.end && $0.end > hero.start }
+            .sorted { $0.start != $1.start ? $0.start < $1.start : $0.title < $1.title }
+            .filter { seen.insert($0.uid).inserted }
+    }
+
     /// Groups events by day.
     /// - With `scopedDay`: every event on that day (past ones included).
     /// - Otherwise: events that haven't ended, from today through `days` days ahead, capped at `limit` timed events.
     public static func build(events: [CalendarEvent], now: Date, scopedDay: Date? = nil, days: Int = 7, limit: Int = 20,
-                             excluding excluded: String? = nil, calendar: Calendar = .app) -> [AgendaDayGroup] {
+                             excluding excluded: Set<String> = [], calendar: Calendar = .app) -> [AgendaDayGroup] {
         let first = calendar.startOfDay(for: scopedDay ?? now)
         let dayCount = scopedDay == nil ? days : 1
         var remaining = limit
@@ -185,7 +197,7 @@ public enum MenuAgendaBuilder {
         for i in 0..<dayCount {
             guard let day = calendar.date(byAdding: .day, value: i, to: first),
                   let next = calendar.date(byAdding: .day, value: 1, to: day) else { continue }
-            let onDay = events.filter { $0.start < next && $0.end > day && $0.uid != excluded }
+            let onDay = events.filter { $0.start < next && $0.end > day && !excluded.contains($0.uid) }
             var allDay = onDay.filter { $0.isBarEvent(calendar: calendar) }
             var timed = onDay.filter { !$0.isBarEvent(calendar: calendar) }.sorted { $0.start < $1.start }
             if scopedDay == nil {
@@ -210,6 +222,15 @@ public enum MenuAgendaBuilder {
             for s in segs where !seen.contains(s.event.colorHex) { seen.append(s.event.colorHex) }
             return Array(seen.prefix(3))
         }
+    }
+}
+
+/// The caption over the meetings that overlap the featured one.
+public enum OverlapCaption {
+    /// "Also on now" when every one has started, else "Overlaps" ("1 overlap" / "2 overlaps").
+    public static func text(_ events: [CalendarEvent], now: Date) -> String {
+        if !events.isEmpty && events.allSatisfy({ $0.start <= now }) { return "Also on now" }
+        return events.count == 1 ? "1 overlap" : "\(events.count) overlaps"
     }
 }
 

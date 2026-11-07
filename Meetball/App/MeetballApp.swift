@@ -73,7 +73,10 @@ final class AppModel: ObservableObject {
     func updateMenuBarTitle() {
         let now = Date()
         let settings = MenuBarTitleSettings(defaults: .standard)
-        let title = MenuBarTitleBuilder.build(next: MenuBarTitleBuilder.pick(calendar.meetingEvents, now: now), now: now, settings: settings)
+        let events = calendar.meetingEvents
+        let next = MenuBarTitleBuilder.pick(events, now: now)
+        let overlaps = next.map { MenuAgendaBuilder.overlapping($0, in: events, now: now).count } ?? 0
+        let title = MenuBarTitleBuilder.build(next: next, overlapCount: overlaps, now: now, settings: settings)
         let styleChanged = settings.style != menuBarStyle
         menuBarStyle = settings.style
         if title != menuBarTitle || styleChanged { menuBarTitle = title; renderLCD() }

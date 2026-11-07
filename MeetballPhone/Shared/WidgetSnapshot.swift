@@ -55,6 +55,29 @@ struct WidgetSnapshot: Codable, Equatable {
             .sorted { $0.start < $1.start }.prefix(limit))
     }
 
+    /// Meetings that overlap `meeting` and haven't ended (a double-booking), soonest first.
+    func overlapping(_ meeting: WidgetMeeting, at now: Date) -> [WidgetMeeting] {
+        meetings.filter { $0.id != meeting.id && $0.end > now && $0.start < meeting.end && $0.end > meeting.start }
+            .sorted { $0.start < $1.start }
+    }
+
+    /// The first meeting starting once `meeting` is over, on the same day: what comes after it.
+    func following(_ meeting: WidgetMeeting, calendar: Calendar = .current) -> WidgetMeeting? {
+        meetings.filter { $0.id != meeting.id && $0.start >= meeting.end && calendar.isDate($0.start, inSameDayAs: meeting.start) }
+            .min { $0.start < $1.start }
+    }
+
+    /// How far along: the share of a meeting on now that has gone by, or of the last hour before one starts (empty an
+    /// hour out, full at the start). Nil when it's more than an hour away.
+    static func progress(of m: WidgetMeeting, at now: Date) -> Double? {
+        if m.start <= now {
+            let length = m.end.timeIntervalSince(m.start)
+            return length > 0 ? min(1, max(0, now.timeIntervalSince(m.start) / length)) : 1
+        }
+        let until = m.start.timeIntervalSince(now)
+        return until <= 3600 ? 1 - until / 3600 : nil
+    }
+
     /// Meetings today that haven't ended.
     func remainingToday(at now: Date, calendar: Calendar = .current) -> Int {
         meetings.filter { $0.end > now && calendar.isDate($0.start, inSameDayAs: now) }.count
@@ -90,6 +113,18 @@ enum WidgetCountdown {
         if mins < 24 * 60 { return (String(format: "%d:%02d", mins / 60, mins % 60), "HR") }
         let days = mins / (24 * 60)
         return ("\(days)", days == 1 ? "DAY" : "DAYS")
+    }
+}
+
+/// The video service behind a join link, for the widget's label ("Meet", "Zoom", …); nil when it isn't one of these.
+enum WidgetService {
+    static func name(_ url: URL?) -> String? {
+        guard let host = url?.host?.lowercased() else { return nil }
+        if host.hasSuffix("meet.google.com") { return "Meet" }
+        if host.hasSuffix("zoom.us") || host.hasSuffix("zoomgov.com") { return "Zoom" }
+        if host.contains("teams.microsoft") || host.contains("teams.live") { return "Teams" }
+        if host.hasSuffix("webex.com") { return "Webex" }
+        return nil
     }
 }
 
