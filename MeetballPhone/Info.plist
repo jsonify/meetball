@@ -37,6 +37,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Meetball works out the drive to your games, parties and appointments from where you are, so it can tell you when to leave.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Echo records a short voice note after a meeting, only while you're recording.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>

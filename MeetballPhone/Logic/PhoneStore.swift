@@ -1,4 +1,5 @@
 import BackgroundTasks
+import CoreLocation
 import EventKit
 import Foundation
 import UIKit
@@ -45,6 +46,10 @@ final class PhoneStore: ObservableObject {
     @Published private(set) var echoNotes: [EchoNote] = []
     /// The meeting to open the Echo recorder for (the Echo nudge was tapped).
     @Published var echoRequest: EchoRequest?
+    /// Drive times to upcoming trips, by event uid (worked out by refreshes, kept across launches).
+    @Published private(set) var etas: [String: TripETA] = [:]
+    /// Location access, which drive times need.
+    @Published private(set) var locationStatus: CLAuthorizationStatus = .notDetermined
     /// Calendars quick add can write to.
     @Published private(set) var writableCalendars: [GCalendar] = []
     @Published var settings: PhoneSettings {
@@ -56,6 +61,7 @@ final class PhoneStore: ObservableObject {
     }
 
     private let client = AppleCalendarClient()
+    private let travel = TravelTimes()
     private var started = false
     private var debounce: Task<Void, Never>?
     /// Meetings deleted on this phone (an event's id prefix, the earliest start it covers, and when), so refreshes in the
@@ -71,6 +77,7 @@ final class PhoneStore: ObservableObject {
         static let cards = "phone.changeCards"
         static let pendingCelebration = "phone.pendingCelebration"
         static let echoNotes = "phone.echoNotes"
+        static let etas = "phone.tripETAs"
     }
 
     private init() {
@@ -79,7 +86,10 @@ final class PhoneStore: ObservableObject {
         lastBackgroundRefresh = defaults.object(forKey: Key.lastBackground) as? Date
         changeCards = defaults.data(forKey: Key.cards).flatMap { try? JSONDecoder().decode([ChangeCard].self, from: $0) } ?? []
         echoNotes = defaults.data(forKey: Key.echoNotes).flatMap { try? JSONDecoder().decode([EchoNote].self, from: $0) } ?? []
+        etas = defaults.data(forKey: Key.etas).flatMap { try? JSONDecoder().decode([String: TripETA].self, from: $0) } ?? [:]
         updateAccess()
+        locationStatus = travel.authorization
+        travel.onAuthorizationChange = { [weak self] in self?.locationChanged() }
     }
 
     /// First launch: asks for calendar and notification access, then refreshes. Later calls just refresh.
@@ -145,9 +155,11 @@ final class PhoneStore: ObservableObject {
         StoredEventSnapshot(snapshot, savedAt: now).save()
 
         upcoming = ReminderPlanner.meetings(events, settings: settings, now: now)
-        scheduled = ReminderPlanner.plan(events, settings: settings, moved: Set(moved.keys), now: now)
+        if settings.driveTimes { await updateDriveTimes(events, now: now) }
+        scheduled = ReminderPlanner.plan(events, settings: settings, moved: Set(moved.keys),
+                                         etas: settings.driveTimes ? etas : [:], now: now)
         let echoes = ReminderPlanner.echoes(events, settings: settings, now: now, room: ReminderPlanner.maxPending - scheduled.count)
-        await PhoneNotifications.apply(scheduled + echoes)
+        await PhoneNotifications.apply(scheduled + echoes, directions: settings.directionsApp)
         LiveActivityController.updateWidgets(upcoming: upcoming, now: now)
         await LiveActivityController.reconcile(upcoming: upcoming.filter(settings.alerts(for:)), enabled: settings.liveActivity, now: now)
         lastRefresh = now
@@ -245,6 +257,57 @@ final class PhoneStore: ObservableObject {
     /// Driving directions to `destination` in the app chosen in Settings (Google Maps unless changed).
     func openDirections(to destination: String) {
         if let url = settings.directionsApp.url(to: destination) { UIApplication.shared.open(url) }
+    }
+
+    /// The drive time to `event`'s place (`place` when it was just picked and the event hasn't reloaded yet). Nil
+    /// when drive times are off or not worked out for that place.
+    func eta(for event: CalendarEvent, place: String? = nil) -> TripETA? {
+        guard settings.driveTimes, let eta = etas[event.uid],
+              eta.destination == (place ?? TravelPlanner.physicalLocation(event)) else { return nil }
+        return eta
+    }
+
+    /// When to leave for `event`: its start, less the drive and the time to park (Settings › Trips).
+    func leaveBy(for event: CalendarEvent, place: String? = nil) -> Date? {
+        eta(for: event, place: place).map { TravelPlanner.leaveBy(event, travel: $0.travelTime, bufferMinutes: settings.leaveBufferMinutes) }
+    }
+
+    /// Asks for location access (While Using), for drive times.
+    func requestLocation() { travel.requestAccess() }
+
+    /// Works out drive times for the next trips that have none, or an old one (every 10 minutes in the two hours before,
+    /// so traffic is current), and drops those for trips that have gone. Asks for location the first time there's a trip
+    /// while Meetball is open.
+    private func updateDriveTimes(_ events: [CalendarEvent], now: Date) async {
+        let trips = TravelPlanner.tripsNeedingTimes(events, now: now)
+        var next = etas.filter { entry in trips.contains { $0.uid == entry.key } }
+        defer { setETAs(next) }
+        guard !trips.isEmpty else { return }
+        if travel.authorization == .notDetermined {
+            if UIApplication.shared.applicationState == .active { travel.requestAccess() }
+            return
+        }
+        let stale = trips.filter { !TravelPlanner.isFresh(next[$0.uid], for: $0, now: now) }
+        guard !stale.isEmpty, let origin = await travel.currentLocation() else { return }
+        for e in stale {
+            guard let place = TravelPlanner.physicalLocation(e) else { continue }
+            // Traffic for when you'd leave: from the last drive time, or a guess of half an hour.
+            let depart = TravelPlanner.leaveBy(e, travel: next[e.uid]?.travelTime ?? 30 * 60, bufferMinutes: settings.leaveBufferMinutes)
+            if let time = await travel.travelTime(to: e, place: place, from: origin, departure: max(depart, now)) {
+                next[e.uid] = TripETA(destination: place, travelTime: time, computedAt: now)
+            }
+        }
+    }
+
+    private func setETAs(_ new: [String: TripETA]) {
+        guard new != etas else { return }
+        etas = new
+        if let data = try? JSONEncoder().encode(new) { defaults.set(data, forKey: Key.etas) }
+    }
+
+    private func locationChanged() {
+        locationStatus = travel.authorization
+        Task { await refresh() }
     }
 
     // MARK: Pre-flight and Echo

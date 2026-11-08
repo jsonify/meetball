@@ -61,6 +61,15 @@ struct TripPlace: Equatable, Hashable {
     }
 }
 
+/// A drive time to a meeting's place, worked out from where the iPhone was (with traffic expected at the time you'd
+/// leave).
+struct TripETA: Codable, Equatable {
+    /// The location text it was worked out for; a changed place needs a new one.
+    var destination: String
+    var travelTime: TimeInterval
+    var computedAt: Date
+}
+
 /// Which meetings are trips: a place to drive to (Directions), or a game, party or appointment with no place yet
 /// (Where's this?). Video calls, meeting rooms and work rituals are left alone.
 enum TravelPlanner {
@@ -160,6 +169,46 @@ enum TravelPlanner {
         let from = calendar.date(byAdding: .day, value: -lookbackDays, to: day) ?? day
         let to = calendar.date(byAdding: .day, value: lookaheadDays, to: day) ?? day
         return DateInterval(start: from, end: to)
+    }
+
+    // MARK: Drive times
+
+    /// How far ahead drive times are worked out (later trips are picked up by a later refresh).
+    static let etaWindow: TimeInterval = 24 * 3600
+    /// At most this many trips are looked up per refresh, nearest first: Apple's directions service throttles.
+    static let maxETAs = 6
+    static let bufferChoices = [0, 5, 10, 15]
+
+    /// Upcoming trips to work out drive times for: a place to drive to, not started, within `etaWindow`, nearest first.
+    static func tripsNeedingTimes(_ events: [CalendarEvent], now: Date) -> [CalendarEvent] {
+        let end = now.addingTimeInterval(etaWindow)
+        var seen = Set<String>()
+        return events
+            .filter { !$0.isAllDay && !$0.isDeclined && $0.start > now && $0.start <= end && physicalLocation($0) != nil }
+            .sorted { $0.start < $1.start }
+            .filter { seen.insert($0.uid).inserted }
+            .prefix(maxETAs).map { $0 }
+    }
+
+    /// When to leave for `e`: its start, less the drive and `bufferMinutes` to park and walk in, on a whole minute.
+    static func leaveBy(_ e: CalendarEvent, travel: TimeInterval, bufferMinutes: Int) -> Date {
+        let raw = e.start.addingTimeInterval(-travel - Double(bufferMinutes) * 60)
+        return Date(timeIntervalSince1970: (raw.timeIntervalSince1970 / 60).rounded(.down) * 60)
+    }
+
+    /// A drive time worth keeping for `e`: for its current place, and recent enough for traffic (every 10 minutes in
+    /// the two hours before it, every 30 before that).
+    static func isFresh(_ eta: TripETA?, for e: CalendarEvent, now: Date) -> Bool {
+        guard let eta, eta.destination == physicalLocation(e) else { return false }
+        let maxAge: TimeInterval = e.start.timeIntervalSince(now) < 2 * 3600 ? 10 * 60 : 30 * 60
+        return now.timeIntervalSince(eta.computedAt) < maxAge
+    }
+
+    /// "24 min drive", "1 hr 5 min drive".
+    static func driveText(_ travel: TimeInterval) -> String {
+        let m = max(1, Int((travel / 60).rounded(.up)))
+        if m < 60 { return "\(m) min drive" }
+        return m % 60 == 0 ? "\(m / 60) hr drive" : "\(m / 60) hr \(m % 60) min drive"
     }
 
     // MARK: Patterns

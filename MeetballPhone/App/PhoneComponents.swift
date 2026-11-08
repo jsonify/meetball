@@ -85,6 +85,7 @@ struct PhoneHeroCard: View {
                         if let loc = event.location, !loc.isEmpty, event.meetURL == nil || !loc.contains("http") {
                             Label(loc, systemImage: "mappin.and.ellipse").font(.caption).foregroundStyle(.secondary).lineLimit(1)
                         }
+                        PhoneLeaveLine(event: event, now: now)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())

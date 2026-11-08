@@ -113,4 +113,79 @@ final class TravelPlannerTests: XCTestCase {
         let unknown = try JSONDecoder().decode(PhoneSettings.self, from: Data(#"{"directionsApp": "mapquest"}"#.utf8))
         XCTAssertEqual(unknown.directionsApp, .googleMaps)
     }
+
+    // MARK: Drive times
+
+    func testLeaveByTakesOffTheDriveAndTimeToPark() {
+        let game = ev("Soccer game", location: "Riverside Park", inDays: 1)
+        let leave = TravelPlanner.leaveBy(game, travel: 24 * 60 + 20, bufferMinutes: 5)
+        // 24m20s + 5m before the start, rounded down to the minute.
+        XCTAssertEqual(game.start.timeIntervalSince(leave), 30 * 60)
+    }
+
+    func testTripsNeedingTimes() {
+        let soon = ev("Soccer game", location: "Riverside Park", inDays: 0.1)
+        let later = ev("Dinner", location: "Luigi's, 12 Main St", inDays: 0.5)
+        let tooFar = ev("Wedding", location: "Town Hall", inDays: 2)
+        let call = ev("Design review", location: "https://zoom.us/j/1", inDays: 0.2)
+        let started = ev("Practice", location: "Gym B", inDays: -0.01)
+        XCTAssertEqual(TravelPlanner.tripsNeedingTimes([later, tooFar, call, started, soon], now: now).map(\.title),
+                       ["Soccer game", "Dinner"])
+    }
+
+    func testDriveTimeFreshness() {
+        let soon = ev("Soccer game", location: "Riverside Park", inDays: 1.0 / 24)    // in an hour
+        let later = ev("Dinner", location: "Luigi's", inDays: 0.5)
+        let eta = { (place: String, minutesAgo: Double) in
+            TripETA(destination: place, travelTime: 1200, computedAt: now.addingTimeInterval(-minutesAgo * 60))
+        }
+        XCTAssertTrue(TravelPlanner.isFresh(eta("Riverside Park", 5), for: soon, now: now))
+        XCTAssertFalse(TravelPlanner.isFresh(eta("Riverside Park", 12), for: soon, now: now))
+        XCTAssertTrue(TravelPlanner.isFresh(eta("Luigi's", 20), for: later, now: now))
+        XCTAssertFalse(TravelPlanner.isFresh(eta("Somewhere else", 1), for: later, now: now))
+        XCTAssertFalse(TravelPlanner.isFresh(nil, for: later, now: now))
+    }
+
+    func testDriveText() {
+        XCTAssertEqual(TravelPlanner.driveText(23 * 60 + 5), "24 min drive")
+        XCTAssertEqual(TravelPlanner.driveText(60 * 60), "1 hr drive")
+        XCTAssertEqual(TravelPlanner.driveText(65 * 60), "1 hr 5 min drive")
+        XCTAssertEqual(TravelPlanner.driveText(10), "1 min drive")
+    }
+
+    func testLeaveNowAlertIsPlanned() {
+        let game = ev("Soccer game", location: "Riverside Park", inDays: 0.25)
+        let eta = TripETA(destination: "Riverside Park", travelTime: 24 * 60, computedAt: now)
+        let settings = PhoneSettings()
+        let plan = ReminderPlanner.plan([game], settings: settings, etas: [game.uid: eta], now: now)
+        let leave = plan.first { $0.kind == .leave }
+        XCTAssertEqual(leave?.fireDate, game.start.addingTimeInterval(-29 * 60))
+        XCTAssertEqual(leave?.title, "Leave now for Soccer game")
+        XCTAssertEqual(leave?.body, "24 min drive to Riverside Park · starts \(game.start.shortTime)")
+        XCTAssertTrue(plan.contains { $0.kind == .lead })
+    }
+
+    func testNoLeaveAlertWhenOffStaleOrPast() {
+        let game = ev("Soccer game", location: "Riverside Park", inDays: 0.25)
+        let eta = TripETA(destination: "Riverside Park", travelTime: 24 * 60, computedAt: now)
+        var off = PhoneSettings()
+        off.leaveAlerts = false
+        XCTAssertNil(ReminderPlanner.leaveAlert(game, settings: off, eta: eta, now: now))
+        var noTimes = PhoneSettings()
+        noTimes.driveTimes = false
+        XCTAssertNil(ReminderPlanner.leaveAlert(game, settings: noTimes, eta: eta, now: now))
+        // The place changed since the drive time was worked out.
+        var moved = game
+        moved.location = "Hawks Field"
+        XCTAssertNil(ReminderPlanner.leaveAlert(moved, settings: PhoneSettings(), eta: eta, now: now))
+        // Already past the leave-by time.
+        XCTAssertNil(ReminderPlanner.leaveAlert(game, settings: PhoneSettings(), eta: eta, now: game.start.addingTimeInterval(-10 * 60)))
+    }
+
+    func testDriveSettingsDefaults() throws {
+        let old = try JSONDecoder().decode(PhoneSettings.self, from: Data(#"{"leadMinutes": 5}"#.utf8))
+        XCTAssertTrue(old.driveTimes)
+        XCTAssertTrue(old.leaveAlerts)
+        XCTAssertEqual(old.leaveBufferMinutes, 5)
+    }
 }

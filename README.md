@@ -135,6 +135,15 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   to the event's location, with coordinates so Calendar shows its map and travel time (for a repeating event: this one
   only, or every one after it). **Not a trip** stops it asking for that series or title (Settings › Trips › Ask again
   undoes it). On the read-only work feed a pick opens directions but can't be saved. `TravelPlanner` holds the rules.
+- **Leave-by times and Leave now alerts**: for trips in the next day, Meetball works out the drive from where you are
+  with Apple's directions (MapKit, with the traffic expected when you'd leave; no API key) and shows "Leave by 5:36 ·
+  24 min drive" on the Up next card, "leave 5:36" on the Day grid's strip, and the drive on the event screen. At the
+  leave-by time a Time Sensitive **Leave now** alert fires (Siri reads it in CarPlay); tapping it, or its Directions
+  action, starts the drive in your maps app. Drive times are checked every 10 minutes in the two hours before a trip
+  (every 30 before that) whenever Meetball runs, at most six trips at a time. Settings › Trips: Leave-by times, Leave now
+  alert, and Time to park (0–15 min added to the drive, 5 by default). Needs location While Using the App (asked the
+  first time there's a trip); a background refresh uses the last location iOS has, so open Meetball before you set off
+  from somewhere new.
 - Needs iOS 18 or later.
 
 ### Alerts and CarPlay

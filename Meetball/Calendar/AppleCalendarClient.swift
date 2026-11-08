@@ -68,7 +68,9 @@ final class AppleCalendarClient {
                                  timeZoneID: e.timeZone?.identifier,
                                  externalID: e.calendarItemExternalIdentifier,
                                  organizerEmail: e.organizer.flatMap { Self.attendee($0).email },
-                                 occurrenceDate: e.hasRecurrenceRules ? e.occurrenceDate : nil)
+                                 occurrenceDate: e.hasRecurrenceRules ? e.occurrenceDate : nil,
+                                 locationLatitude: e.structuredLocation?.geoLocation?.coordinate.latitude,
+                                 locationLongitude: e.structuredLocation?.geoLocation?.coordinate.longitude)
         }
     }
 

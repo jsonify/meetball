@@ -39,6 +39,25 @@ struct PhoneTripKey: View {
     }
 }
 
+/// "Leave by 5:36 · 24 min drive" (orange "Leave now" once it's time), for the Up next card. Nothing until a drive
+/// time is worked out.
+struct PhoneLeaveLine: View {
+    let event: CalendarEvent
+    let now: Date
+    @EnvironmentObject private var store: PhoneStore
+
+    var body: some View {
+        if event.start > now, let eta = store.eta(for: event), let leave = store.leaveBy(for: event) {
+            let late = leave <= now
+            Label((late ? "Leave now" : "Leave by \(leave.shortTime)") + " · " + TravelPlanner.driveText(eta.travelTime),
+                  systemImage: "car.fill")
+                .font(.callout.weight(.semibold))
+                .foregroundStyle(late ? Color(sk1Hex: SK1.orange) : .secondary)
+                .lineLimit(1)
+        }
+    }
+}
+
 /// The event screen's Where: the place with Directions, or Where's this? with the places earlier meetings like it were
 /// at, a search, and Not a trip. Other locations (a room, a link) are shown as they are.
 struct TripWhereSection: View {
@@ -83,6 +102,7 @@ struct TripWhereSection: View {
                         Button("Change") { searching = true }.buttonStyle(.sk1Key(size: .small))
                     }
                 }
+                driveRow(place, now: Date())
             }
             // The screen's one orange key, unless the meeting has a Join key.
             Button { store.openDirections(to: place) } label: {
@@ -90,6 +110,45 @@ struct TripWhereSection: View {
             }
             .buttonStyle(.sk1Key(event.meetURL == nil ? .orange : .cream, size: .large))
         }
+    }
+
+    /// "24 min drive" / "Leave by 5:36 PM, with 5 min to park", or what drive times need (location access).
+    @ViewBuilder
+    private func driveRow(_ place: String, now: Date) -> some View {
+        if store.settings.driveTimes, !event.isAllDay, event.start > now {
+            if let eta = store.eta(for: event, place: place), let leave = store.leaveBy(for: event, place: place) {
+                SKRow(title: TravelPlanner.driveText(eta.travelTime), subtitle: leaveText(leave, eta: eta, now: now)) {
+                    SKLamp(color: leave <= now ? .orange : .teal, lit: true, label: leave <= now ? "Leave now" : "On time")
+                        .frame(width: 24)
+                }
+            } else {
+                switch store.locationStatus {
+                case .notDetermined:
+                    SKRow(title: "Leave-by time", subtitle: "Meetball works out the drive from where you are, with traffic.") {
+                        Button("Allow") { store.requestLocation() }.buttonStyle(.sk1Key(size: .small))
+                    }
+                case .denied, .restricted:
+                    SKRow(title: "Leave-by time", subtitle: "Needs location: Settings › Apps › Meetball › Location › While Using the App.") {
+                        Button("Settings") {
+                            if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                        }
+                        .buttonStyle(.sk1Key(size: .small))
+                    }
+                default:
+                    // Within a day of the trip, the next refresh works it out.
+                    if event.start.timeIntervalSince(now) <= TravelPlanner.etaWindow {
+                        SKRow(title: "Leave-by time", subtitle: "Working out the drive…") { EmptyView() }
+                    }
+                }
+            }
+        }
+    }
+
+    private func leaveText(_ leave: Date, eta: TripETA, now: Date) -> String {
+        let buffer = store.settings.leaveBufferMinutes
+        let when = leave <= now ? "Leave now" : "Leave by \(leave.shortTime)"
+        let park = buffer > 0 ? ", with \(buffer) min to park" : ""
+        return "\(when)\(park). Checked \(eta.computedAt.shortTime)."
     }
 
     private var askGroup: some View {

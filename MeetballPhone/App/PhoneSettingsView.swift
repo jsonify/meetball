@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -57,16 +58,42 @@ struct PhoneSettingsView: View {
 
     private var tripsGroup: some View {
         SKGroup(caption: "Trips",
-                note: "Games, parties and appointments get a Directions key. When one has no place, Meetball asks where it is (suggesting where it was last time) and saves your pick to the event.") {
+                note: "Games, parties and appointments get a Directions key. When one has no place, Meetball asks where it is (suggesting where it was last time) and saves your pick to the event. Drive times come from Apple Maps; your location stays on the iPhone and Apple's directions service.") {
             SKRow(title: "Directions in", subtitle: "Google Maps and Waze open their app if it's installed, or the website if not.") {
                 SKSegmented(selection: $store.settings.directionsApp,
                             options: DirectionsApp.allCases.map { .init($0, $0.shortTitle, help: $0.title) })
+            }
+            SKRow(title: "Leave-by times", subtitle: locationSubtitle) {
+                HStack(spacing: 10) {
+                    if store.locationStatus == .notDetermined && store.settings.driveTimes {
+                        Button("Allow") { store.requestLocation() }.buttonStyle(.sk1Key(size: .small))
+                    } else if (store.locationStatus == .denied || store.locationStatus == .restricted) && store.settings.driveTimes {
+                        Button("Settings") { openURL(URL(string: UIApplication.openSettingsURLString)!) }.buttonStyle(.sk1Key(size: .small))
+                    }
+                    Toggle("Leave-by times", isOn: $store.settings.driveTimes).labelsHidden().toggleStyle(.sk1Switch)
+                }
+            }
+            SKRow(title: "Leave now alert", subtitle: "At the leave-by time; tap it, or Directions, to start the drive. Siri reads it in CarPlay.") {
+                Toggle("Leave now alert", isOn: $store.settings.leaveAlerts).labelsHidden().toggleStyle(.sk1Switch)
+                    .disabled(!store.settings.driveTimes)
+            }
+            SKRow(title: "Time to park", subtitle: "Added to the drive.") {
+                SKSegmented(selection: $store.settings.leaveBufferMinutes,
+                            options: TravelPlanner.bufferChoices.map { .init($0, "\($0)m", help: "\($0) minutes to park and walk in") })
             }
             if !store.settings.notTrips.isEmpty {
                 SKRow(title: "Not a trip", subtitle: "\(store.settings.notTrips.count) skipped by Where's this?") {
                     Button("Ask again") { store.settings.notTrips = [] }.buttonStyle(.sk1Key(size: .small))
                 }
             }
+        }
+    }
+
+    private var locationSubtitle: String {
+        switch store.locationStatus {
+        case .notDetermined: return "The drive from where you are, with traffic, for trips in the next day. Needs location access."
+        case .denied, .restricted: return "Location is off for Meetball. Turn on While Using the App in Settings › Apps › Meetball › Location."
+        default: return "The drive from where you are, with traffic, for trips in the next day, checked every 10 minutes in the two hours before."
         }
     }
 
