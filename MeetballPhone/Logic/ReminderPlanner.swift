@@ -31,6 +31,10 @@ struct PhoneSettings: Codable, Equatable {
     var alertOnEvents: [String: Date] = [:]
     /// Meetings on any other calendar whose alerts were turned off, keyed by event uid, valued by the meeting's end.
     var mutedEvents: [String: Date] = [:]
+    /// The app Directions opens for a meeting's place.
+    var directionsApp: DirectionsApp = .googleMaps
+    /// Meetings Where's this? stops asking about (`TravelPlanner.tripKey`: a series, or a title like "Soccer").
+    var notTrips: Set<String> = []
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -86,7 +90,10 @@ extension PhoneSettings {
                   showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab,
                   silencedCalendars: try c.decodeIfPresent(Set<String>.self, forKey: .silencedCalendars) ?? d.silencedCalendars,
                   alertOnEvents: try c.decodeIfPresent([String: Date].self, forKey: .alertOnEvents) ?? d.alertOnEvents,
-                  mutedEvents: try c.decodeIfPresent([String: Date].self, forKey: .mutedEvents) ?? d.mutedEvents)
+                  mutedEvents: try c.decodeIfPresent([String: Date].self, forKey: .mutedEvents) ?? d.mutedEvents,
+                  // An app name this build doesn't know (from a newer one) falls back to the default.
+                  directionsApp: (try? c.decodeIfPresent(DirectionsApp.self, forKey: .directionsApp)) ?? d.directionsApp,
+                  notTrips: try c.decodeIfPresent(Set<String>.self, forKey: .notTrips) ?? d.notTrips)
     }
 }
 

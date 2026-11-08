@@ -214,6 +214,39 @@ final class PhoneStore: ObservableObject {
         return writableCalendars.first { $0.id == id } ?? writableCalendars.first
     }
 
+    // MARK: Trips
+
+    /// Whether `event` is somewhere to drive to (Directions), looks like one with no place yet (Where's this?), or
+    /// neither.
+    func tripStatus(for event: CalendarEvent, now: Date = Date()) -> TravelPlanner.Status {
+        TravelPlanner.status(event, notTrips: settings.notTrips, now: now)
+    }
+
+    /// Places earlier or later meetings like `event` were at, nearest in time first.
+    func placeSuggestions(for event: CalendarEvent) -> [String] {
+        TravelPlanner.suggestions(for: event, history: events(in: TravelPlanner.historyRange(for: event)))
+    }
+
+    /// Whether a place picked for `event` can be saved to it (not on a read-only feed such as the work calendar).
+    func canSavePlace(for event: CalendarEvent) -> Bool { client.editableEvent(for: event) != nil }
+
+    /// Saves `place` as `event`'s location (and, with `futureToo`, the rest of its series'), then refreshes.
+    func savePlace(_ place: TripPlace, for event: CalendarEvent, futureToo: Bool) throws {
+        try client.setLocation(place.locationText, latitude: place.latitude, longitude: place.longitude,
+                               for: event, futureToo: futureToo)
+        Task { await refresh() }
+    }
+
+    /// Where's this? stops asking about `event` and meetings like it.
+    func markNotTrip(_ event: CalendarEvent) {
+        settings.notTrips.insert(TravelPlanner.tripKey(event))
+    }
+
+    /// Driving directions to `destination` in the app chosen in Settings (Google Maps unless changed).
+    func openDirections(to destination: String) {
+        if let url = settings.directionsApp.url(to: destination) { UIApplication.shared.open(url) }
+    }
+
     // MARK: Pre-flight and Echo
 
     /// The pre-flight brief for `event`: its people and links, and the last meeting like it in the past 90 days.

@@ -1,5 +1,6 @@
 import EventKit
 import CoreGraphics
+import CoreLocation
 
 /// Reads calendars through EventKit, i.e. whatever accounts are already configured in macOS Calendar
 /// (Exchange, iCloud, Google, ...). No OAuth, so org admins can't block it per-app. Read-only.
@@ -90,6 +91,22 @@ final class AppleCalendarClient {
     func deleteEvent(_ event: CalendarEvent, futureToo: Bool) throws {
         guard let e = editableEvent(for: event) else { throw CocoaError(.featureUnsupported) }
         try store.remove(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
+    }
+
+    /// Writes a place to `event` (the iPhone's Where's this?). With coordinates it's saved as a structured location too,
+    /// which gives Calendar its map and travel time. `futureToo` also changes the later meetings of a repeating series.
+    /// Throws when the calendar is read-only or the event is gone.
+    func setLocation(_ text: String, latitude: Double?, longitude: Double?, for event: CalendarEvent, futureToo: Bool) throws {
+        guard let e = editableEvent(for: event) else { throw CocoaError(.featureUnsupported) }
+        if let latitude, let longitude {
+            let place = EKStructuredLocation(title: text)
+            place.geoLocation = CLLocation(latitude: latitude, longitude: longitude)
+            e.structuredLocation = place
+        } else {
+            e.structuredLocation = nil
+        }
+        e.location = text
+        try store.save(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
     }
 
     /// Identifiers of the calendars new events can be added to (the iPhone app's quick add).

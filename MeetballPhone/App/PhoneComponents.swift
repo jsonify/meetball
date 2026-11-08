@@ -54,6 +54,7 @@ struct PhoneHeroCard: View {
     /// Other meetings at the same time (`MenuAgendaBuilder.overlapping`), listed under the Join key.
     var overlapping: [CalendarEvent] = []
     var open: (CalendarEvent) -> Void = { _ in }
+    @EnvironmentObject private var store: PhoneStore
 
     var body: some View {
         let inProgress = event.start <= now
@@ -91,6 +92,9 @@ struct PhoneHeroCard: View {
                 .buttonStyle(.plain)
                 if event.meetURL != nil {
                     PhoneJoinButton(event: event, variant: .orange, size: .large, fillsWidth: true)
+                } else if store.tripStatus(for: event, now: now) != .none {
+                    // Somewhere to drive to: Directions, or Where's this? when the event has no place yet.
+                    PhoneTripKey(event: event, variant: .orange, size: .large, fillsWidth: true, ask: open)
                 } else {
                     Text("No video link").sk1Hint()
                 }

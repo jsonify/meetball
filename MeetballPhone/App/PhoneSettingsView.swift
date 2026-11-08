@@ -18,6 +18,7 @@ struct PhoneSettingsView: View {
             statusGroup
             alertsGroup
             prepGroup
+            tripsGroup
             funGroup
             appearanceGroup
             upcomingGroup
@@ -48,6 +49,23 @@ struct PhoneSettingsView: View {
             }
             if !store.echoNotes.isEmpty {
                 SKRow(title: "Echo notes", subtitle: "\(store.echoNotes.count) saved. Each one shows on its meeting.") { EmptyView() }
+            }
+        }
+    }
+
+    // MARK: Trips
+
+    private var tripsGroup: some View {
+        SKGroup(caption: "Trips",
+                note: "Games, parties and appointments get a Directions key. When one has no place, Meetball asks where it is (suggesting where it was last time) and saves your pick to the event.") {
+            SKRow(title: "Directions in", subtitle: "Google Maps and Waze open their app if it's installed, or the website if not.") {
+                SKSegmented(selection: $store.settings.directionsApp,
+                            options: DirectionsApp.allCases.map { .init($0, $0.shortTitle, help: $0.title) })
+            }
+            if !store.settings.notTrips.isEmpty {
+                SKRow(title: "Not a trip", subtitle: "\(store.settings.notTrips.count) skipped by Where's this?") {
+                    Button("Ask again") { store.settings.notTrips = [] }.buttonStyle(.sk1Key(size: .small))
+                }
             }
         }
     }

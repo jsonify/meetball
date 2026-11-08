@@ -234,6 +234,7 @@ struct DayGridUpNext: View {
                 }
                 .buttonStyle(.plain)
                 PhoneJoinButton(event: event, size: .small)
+                if event.meetURL == nil { PhoneTripKey(event: event, size: .small, ask: open) }
             }
             .padding(8)
             if !overlapping.isEmpty {
