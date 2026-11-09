@@ -195,8 +195,8 @@ enum DayGridMetrics {
 
 // MARK: - Up next
 
-/// The Today tab's "Up next" card, slimmed to one row for the top of the grid: the countdown on an LCD, the title and
-/// time, and the Join key. Its edge warms from teal to a glowing orange as the meeting nears (`HeroUrgency`).
+/// The Today tab's "Up next" card, slimmed for the top of the grid: the countdown on an LCD and the Join (or Directions /
+/// Where?) key, with the title, time, leave-by time and place across the full width under them. Its edge warms from teal to a glowing orange as the meeting nears (`HeroUrgency`).
 struct DayGridUpNext: View {
     let event: CalendarEvent
     let now: Date
@@ -213,29 +213,45 @@ struct DayGridUpNext: View {
         let shape = RoundedRectangle(cornerRadius: SK1.Metrics.wellRadius, style: .continuous)
         SKWell {
           VStack(spacing: 0) {
-            HStack(spacing: 10) {
-                SK1CountdownLCD(caption: inProgress ? "Ends in" : "Up next",
-                                digits: countdown.digits, unit: countdown.unit, live: inProgress,
-                                lamp: urgency.lamp, lampBlinking: urgency.lampBlinks, height: 44,
-                                accessibilityText: (inProgress ? "On now, ends " : "Up next, starts ")
-                                    + RelativeTimeFormatter.string(for: target, relativeTo: now))
-                    // As wide as its caption, digits and unit need ("UP NEXT  1:05 HR"); the title takes the rest.
-                    .fixedSize(horizontal: true, vertical: false)
+            VStack(alignment: .leading, spacing: 8) {
+                // The countdown and the keys on top; the meeting gets the full width under them, so its title and
+                // time aren't cut short.
+                HStack(spacing: 10) {
+                    SK1CountdownLCD(caption: inProgress ? "Ends in" : "Up next",
+                                    digits: countdown.digits, unit: countdown.unit, live: inProgress,
+                                    lamp: urgency.lamp, lampBlinking: urgency.lampBlinks, height: 44,
+                                    accessibilityText: (inProgress ? "On now, ends " : "Up next, starts ")
+                                        + RelativeTimeFormatter.string(for: target, relativeTo: now))
+                        // As wide as its caption, digits and unit need ("UP NEXT  1:05 HR").
+                        .fixedSize(horizontal: true, vertical: false)
+                    Spacer(minLength: 0)
+                    PhoneJoinButton(event: event, size: .small)
+                    if event.meetURL == nil { PhoneTripKey(event: event, size: .small, ask: open).fixedSize() }
+                }
                 Button { open(event) } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        HStack(spacing: 5) {
-                            Circle().fill(Color(hex: event.colorHex)).frame(width: 7, height: 7)
-                            Text(event.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    VStack(alignment: .leading, spacing: 3) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Circle().fill(Color(hex: event.colorHex)).frame(width: 8, height: 8)
+                            Text(event.title).font(.subheadline.weight(.semibold)).lineLimit(2)
+                                .multilineTextAlignment(.leading)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
-                        Text(when).font(.system(size: 11, weight: .medium, design: .monospaced))
-                            .foregroundStyle(.secondary).lineLimit(1)
+                        Text(when).font(.system(size: 12, weight: .medium, design: .monospaced))
+                            .foregroundStyle(.secondary).lineLimit(1).minimumScaleFactor(0.8)
+                        if let place = TravelPlanner.physicalLocation(event) {
+                            Label(place, systemImage: "mappin.and.ellipse")
+                                .font(.caption).foregroundStyle(.secondary).lineLimit(1)
+                        } else if event.meetURL == nil && store.tripStatus(for: event, now: now) == .ask {
+                            // Why the Where? key is there, and what picking a place gets you.
+                            Text("No place yet. Tap Where? to pick it for directions and a leave-by time.")
+                                .font(.caption).foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                PhoneJoinButton(event: event, size: .small)
-                if event.meetURL == nil { PhoneTripKey(event: event, size: .small, ask: open) }
             }
             .padding(8)
             if !overlapping.isEmpty {
