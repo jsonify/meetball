@@ -46,7 +46,7 @@ enum MeetingChangeCardPanel {
     }
 
     private static func present() {
-        let host = NSHostingView(rootView: MeetingChangeCard(changes: showing, now: Date(), dismiss: { dismiss() }))
+        let host = AlertHostingView(rootView: MeetingChangeCard(changes: showing, now: Date(), dismiss: { dismiss() }))
         let screen = MeetingGuardianManager.activeScreen
         let size = host.fittingSize
         let area = screen.visibleFrame
@@ -62,16 +62,7 @@ enum MeetingChangeCardPanel {
                                         .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 
-    private static func makePanel() -> NSPanel {
-        let p = AlertPanel(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        p.level = .floating
-        p.isOpaque = false; p.backgroundColor = .clear
-        p.hasShadow = false
-        p.isReleasedWhenClosed = false
-        p.hidesOnDeactivate = false
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
-        return p
-    }
+    private static func makePanel() -> NSPanel { AlertPanel.make(level: .floating) }
 }
 
 struct MeetingChangeCard: View {
