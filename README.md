@@ -214,7 +214,8 @@ One-time setup:
    (it's listed once Xcode has registered it, step 3 above), any SKU. Under the app's **TestFlight** tab, add an
    Internal Testing group with yourself in it.
 2. **API key.** App Store Connect › Users and Access › Integrations › App Store Connect API › Team Keys › **+**, role
-   **Admin** (Xcode's automatic signing needs it to create the App Store provisioning profiles). Download the `.p8` (only offered once) and note its Key ID and the Issuer ID.
+   **Admin** (each run creates fresh App Store provisioning profiles, named "Meetball CI <bundle ID>", through the
+   API with `Scripts/appstore-profiles.py`; they replace the previous run's). Download the `.p8` (only offered once) and note its Key ID and the Issuer ID.
 3. **Distribution certificate.** On the Mac: Xcode › Settings › Accounts › your team › Manage Certificates › **+** ›
    Apple Distribution (skip if you already have one). Then in Keychain Access, under My Certificates, right-click
    "Apple Distribution: …" › Export, save as `.p12` with a password, and `base64 -i dist.p12 | pbcopy`.
