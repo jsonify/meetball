@@ -127,4 +127,32 @@ final class ReminderPlannerTests: XCTestCase {
         s.setAlerts(false, for: recital)
         XCTAssertTrue(s.alertOnEvents.isEmpty && s.mutedEvents.keys.sorted() == [standup.uid])
     }
+
+    func testEventFiltersDecideWhatAlerts() {
+        var s = PhoneSettings()
+        let standup = ev("standup", in: 60)
+        let lunch = ev("lunch", "Team Lunch", in: 90)
+        let focus = ev("focus", "Focus time", in: 120, url: nil)
+        let events = [standup, lunch, focus]
+        XCTAssertEqual(ReminderPlanner.meetings(events, settings: s, now: now).count, 3, "default rules hide nothing here")
+
+        s.filters.rules.ignoredKeywords = ["lunch"]
+        s.filters.rules.hideWithoutLink = true
+        XCTAssertEqual(ReminderPlanner.meetings(events, settings: s, now: now).map(\.uid), [standup.uid])
+        XCTAssertEqual(Set(ReminderPlanner.plan(events, settings: s, now: now).map(\.event.uid)), [standup.uid])
+
+        // A source set to show everything ignores the rules.
+        s.filters.sources["Apple · iCloud"] = SourceFilterRule(mode: .showAll)
+        XCTAssertEqual(ReminderPlanner.meetings(events, settings: s, now: now).count, 3)
+    }
+
+    func testSettingsWithoutFiltersKeepDefaultRules() throws {
+        let s = try JSONDecoder().decode(PhoneSettings.self, from: Data(#"{"leadMinutes": 5}"#.utf8))
+        XCTAssertEqual(s.leadMinutes, 5)
+        XCTAssertEqual(s.filters, EventFilterSettings())
+        var round = PhoneSettings()
+        round.filters.rules.hideSolo = true
+        round.filters.sources["Apple · Work"] = SourceFilterRule(mode: .custom)
+        XCTAssertEqual(try JSONDecoder().decode(PhoneSettings.self, from: JSONEncoder().encode(round)), round)
+    }
 }

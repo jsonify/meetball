@@ -207,7 +207,8 @@ struct PhoneRootView: View {
         if store.settings.echoMode {
             TimelineView(.periodic(from: .now, by: 30)) { tl in
                 let now = tl.date
-                let today = store.events(from: now, days: 1) + store.events(from: now.addingTimeInterval(-Echo.offerWindow), days: 1)
+                let today = store.meetingFeed(store.events(from: now, days: 1)
+                                              + store.events(from: now.addingTimeInterval(-Echo.offerWindow), days: 1)).shown
                 if let e = Echo.justEnded(today, notes: store.echoNotes, dismissed: dismissedEchoes, now: now) {
                     EchoBanner(event: e, record: { openEcho(e) }, dismiss: { withAnimation { _ = dismissedEchoes.insert(e.uid) } })
                         .transition(.move(edge: .bottom).combined(with: .opacity))

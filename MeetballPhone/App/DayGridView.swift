@@ -52,7 +52,7 @@ struct DayGridView: View {
         return VStack(spacing: 12) {
             header(now: now, days: days)
                 .padding(.horizontal, 16)
-            let soon = store.events(from: now, days: 2)
+            let soon = store.meetingFeed(store.events(from: now, days: 2)).shown
             if let next = MenuAgendaBuilder.hero(soon, now: now, horizon: 24 * 3600) {
                 DayGridUpNext(event: next, now: now, overlapping: MenuAgendaBuilder.overlapping(next, in: soon, now: now), open: open)
                     .padding(.horizontal, 10)

@@ -140,10 +140,14 @@ struct PhoneAgendaRow: View {
     let event: CalendarEvent
     let now: Date
     var open: (CalendarEvent) -> Void = { _ in }
+    /// Set by Today, so a tentative meeting is faded and one shown by "Show anyway" says why it's normally hidden.
+    @Environment(\.eventFilterSettings) private var filters
 
     var body: some View {
         let ended = event.end <= now
         let inProgress = event.start <= now && !ended
+        let tentativeDimmed = filters.map { EventFilter.isDimmed(event, settings: $0) } ?? false
+        let hideReason = filters.flatMap { EventFilter.hideReason(event, settings: $0) }
         HStack(spacing: 10) {
             Button { open(event) } label: {
                 HStack(spacing: 10) {
@@ -161,6 +165,11 @@ struct PhoneAgendaRow: View {
                             if let u = event.meetURL {
                                 Image(systemName: MeetingService.detect(u).symbol).foregroundStyle(MeetingService.detect(u).tint)
                             }
+                            if let hideReason {
+                                Text("· hidden: \(hideReason.label.lowercased())")
+                            } else if tentativeDimmed {
+                                Text("· maybe")
+                            }
                         }
                         .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
@@ -172,7 +181,7 @@ struct PhoneAgendaRow: View {
             if !ended && !event.isDeclined { PhoneJoinButton(event: event, size: .small) }
         }
         .padding(.vertical, 3)
-        .opacity(ended || event.isDeclined ? 0.5 : 1)
+        .opacity(ended || event.isDeclined || tentativeDimmed || hideReason != nil ? 0.5 : 1)
     }
 }
 

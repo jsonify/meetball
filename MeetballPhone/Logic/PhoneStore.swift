@@ -136,7 +136,9 @@ final class PhoneStore: ObservableObject {
                 locallyRemoved.contains { e.uid.hasPrefix($0.prefix) && e.start >= $0.from }
             }.map(\.uid))
             locallyRemoved.removeAll { now.timeIntervalSince($0.at) > 600 }
+            // As on the Mac, changes to meetings the event filters leave out aren't reported.
             let changes = MeetingChangeDetector.diff(old: previous, new: snapshot, now: now, ignoring: ignoring)
+                .filter { !settings.isFiltered($0.event) }
             moved = ReminderPlanner.movedUIDs(moved, changes: changes, now: now)
             if !changes.isEmpty {
                 setCards(ChangeCard.merged(changeCards, changes.map { ChangeCard($0, now: now) }, now: now))
@@ -176,6 +178,18 @@ final class PhoneStore: ObservableObject {
         if rangeCache.count > 32 { rangeCache.removeAll() }
         rangeCache[key] = loaded
         return loaded
+    }
+
+    /// Sources (Apple Calendar accounts) that have calendars, in Settings order, for the per-source filter rules.
+    var sources: [String] {
+        var seen: [String] = []
+        for c in calendars where !seen.contains(c.accountEmail) { seen.append(c.accountEmail) }
+        return seen
+    }
+
+    /// `events` split by the event filters (Settings › Events).
+    func meetingFeed(_ events: [CalendarEvent]) -> EventFilterResult {
+        EventFilter.apply(events, settings: settings.filters)
     }
 
     /// Events from the start of `day` for `days` days.
