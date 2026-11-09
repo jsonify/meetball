@@ -15,9 +15,39 @@ public final class HardAlertSoundPlayer: MeetingGuardianSoundPlaying {
     }
 }
 
-/// Borderless panels can't become key by default; alerts need to so Esc and Return reach their buttons.
+/// The floating alert cards' panel. Borderless panels can't become key by default; alerts need to so Esc and Return
+/// reach their buttons. A click anywhere on the card makes it key, so it works even when the card came up without focus
+/// ("Still joining?", the change card) while another app is in front.
 final class AlertPanel: NSPanel {
     override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+
+    /// A borderless, transparent panel over every Space at `level`, taking clicks itself rather than letting them fall
+    /// through its transparent pixels to the window underneath.
+    static func make(frame: NSRect = .zero, level: NSWindow.Level) -> AlertPanel {
+        let p = AlertPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        p.level = level
+        p.isOpaque = false; p.backgroundColor = .clear
+        p.hasShadow = false // the SwiftUI views draw their own
+        p.isReleasedWhenClosed = false
+        p.hidesOnDeactivate = false
+        // Left to itself, a clear window lets clicks on its see-through pixels reach whatever is behind it.
+        p.ignoresMouseEvents = false
+        p.becomesKeyOnlyIfNeeded = false
+        // Every Space, including over full-screen apps, and stays put when Spaces switch.
+        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        return p
+    }
+
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .leftMouseDown || event.type == .rightMouseDown, !isKeyWindow { makeKey() }
+        super.sendEvent(event)
+    }
+}
+
+/// Hosts an alert card: its keys take the first click, without one click to focus the panel and another to press.
+final class AlertHostingView<Content: View>: NSHostingView<Content> {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }
 
 /// What the overlay buttons do. Previews get closures that only close the overlay.
@@ -274,7 +304,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
     }
 
     private func present(view: AnyView, on screen: NSScreen, fullscreen: Bool, key: Bool) {
-        let host = NSHostingView(rootView: view)
+        let host = AlertHostingView(rootView: view)
         let frame: NSRect
         if fullscreen {
             frame = screen.frame
@@ -284,14 +314,7 @@ public final class MeetingGuardianManager: NSObject, ObservableObject {
             let area = screen.visibleFrame
             frame = NSRect(x: area.maxX - size.width - 8, y: area.maxY - size.height - 8, width: size.width, height: size.height)
         }
-        let p = AlertPanel(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-        p.level = fullscreen ? .screenSaver : .floating
-        p.isOpaque = false; p.backgroundColor = .clear
-        p.hasShadow = false // the SwiftUI views draw their own
-        p.isReleasedWhenClosed = false
-        p.hidesOnDeactivate = false
-        // Every Space, including over full-screen apps, and stays put when Spaces switch.
-        p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        let p = AlertPanel.make(frame: frame, level: fullscreen ? .screenSaver : .floating)
         p.contentView = host
         p.setFrame(frame, display: false)
         if key {
