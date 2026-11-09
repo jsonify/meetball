@@ -39,6 +39,8 @@ jobs:
     timeout-minutes: 45
     env:
       TEAM_ID: TS339TNM5P
+      APP_ID: app.meetball.MeetballPhone
+      WIDGETS_ID: app.meetball.MeetballPhone.Widgets
       KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
       ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
       KEY: ${{ secrets.APP_STORE_CONNECT_KEY }}
@@ -81,8 +83,8 @@ jobs:
         if: steps.secrets.outputs.ready == 'true'
         run: xcodebuild -project Meetball.xcodeproj -resolvePackageDependencies
 
-      # The distribution certificate goes in a throwaway keychain; the API key lets Xcode create and download the
-      # App Store provisioning profiles for the app and the widgets (automatic signing, -allowProvisioningUpdates).
+      # The distribution certificate goes in a throwaway keychain, and the API key is written where xcodebuild and
+      # Scripts/appstore-profiles.py can read it.
       - name: Install signing certificate and API key
         if: steps.secrets.outputs.ready == 'true'
         shell: bash
@@ -99,11 +101,24 @@ jobs:
           security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
           rm "$RUNNER_TEMP/dist.p12"
           security find-identity -v -p codesigning "$keychain"
+          serial=$(security find-certificate -c "Apple Distribution" -p "$keychain" | openssl x509 -noout -serial | cut -d= -f2)
+          test -n "$serial" || { echo "::error::DISTRIBUTION_CERTIFICATE_P12 holds no Apple Distribution certificate"; exit 1; }
+          echo "CERT_SERIAL=$serial" >> "$GITHUB_ENV"
 
           mkdir -p "$RUNNER_TEMP/keys"
           key_path="$RUNNER_TEMP/keys/AuthKey_$KEY_ID.p8"
           printf '%s\n' "$KEY" > "$key_path"
           echo "KEY_PATH=$key_path" >> "$GITHUB_ENV"
+
+      # Signing is manual: Xcode's automatic signing only signs for development when archiving and would need a
+      # development certificate here. Instead, fresh App Store profiles ("Meetball CI <bundle ID>") come from the
+      # App Store Connect API and the archive is signed with the distribution certificate directly.
+      - name: Create App Store provisioning profiles
+        if: steps.secrets.outputs.ready == 'true'
+        env:
+          ASC_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+        run: ASC_KEY_PATH="$KEY_PATH" python3 -I Scripts/appstore-profiles.py "$CERT_SERIAL" "$APP_ID" "$WIDGETS_ID"
 
       - name: Archive
         if: steps.secrets.outputs.ready == 'true'
@@ -114,17 +129,26 @@ jobs:
           commit=$(git rev-parse --short HEAD)
           build_date=$(date -u +%Y-%m-%dT%H:%M:%SZ)
           echo "BUILD_NUMBER=$build_number" >> "$GITHUB_ENV"
+          # Each target picks its own profile by name; targets with none (the SK1Kit packages) get an empty one.
+          cat > "$RUNNER_TEMP/signing.xcconfig" <<EOF
+          CODE_SIGN_STYLE = Manual
+          CODE_SIGN_IDENTITY = Apple Distribution
+          CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
+          DEVELOPMENT_TEAM = $TEAM_ID
+          MEETBALL_PROFILE_MeetballPhone = Meetball CI $APP_ID
+          MEETBALL_PROFILE_MeetballWidgets = Meetball CI $WIDGETS_ID
+          PROVISIONING_PROFILE_SPECIFIER = \$(MEETBALL_PROFILE_\$(TARGET_NAME))
+          EOF
+          cat "$RUNNER_TEMP/signing.xcconfig"
           echo "Archiving build $build_number ($commit)"
           xcodebuild -project Meetball.xcodeproj -scheme MeetballPhone -configuration Release \
             -destination 'generic/platform=iOS' -archivePath "$RUNNER_TEMP/MeetballPhone.xcarchive" \
+            -xcconfig "$RUNNER_TEMP/signing.xcconfig" \
             CURRENT_PROJECT_VERSION="$build_number" MEETBALL_COMMIT="$commit" MEETBALL_BUILD_DATE="$build_date" \
-            CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" DEVELOPMENT_TEAM="$TEAM_ID" \
-            -allowProvisioningUpdates -authenticationKeyPath "$KEY_PATH" \
-            -authenticationKeyID "$KEY_ID" -authenticationKeyIssuerID "$ISSUER_ID" \
             archive 2>&1 | tee "$RUNNER_TEMP/archive.log" | grep -E "error:|warning:|ARCHIVE (SUCCEEDED|FAILED)" || true
           grep -q "ARCHIVE SUCCEEDED" "$RUNNER_TEMP/archive.log"
 
-      # destination=upload: the export sends the build straight to App Store Connect.
+      # destination=upload: the export sends the build straight to App Store Connect, using the API key.
       - name: Upload to TestFlight
         if: steps.secrets.outputs.ready == 'true'
         shell: bash
@@ -138,7 +162,13 @@ jobs:
             <key>method</key><string>app-store-connect</string>
             <key>destination</key><string>upload</string>
             <key>teamID</key><string>$TEAM_ID</string>
-            <key>signingStyle</key><string>automatic</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>$APP_ID</key><string>Meetball CI $APP_ID</string>
+              <key>$WIDGETS_ID</key><string>Meetball CI $WIDGETS_ID</string>
+            </dict>
             <key>manageAppVersionAndBuildNumber</key><false/>
             <key>uploadSymbols</key><true/>
           </dict>
