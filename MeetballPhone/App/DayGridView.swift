@@ -203,6 +203,7 @@ struct DayGridUpNext: View {
     /// Other meetings at the same time: one slim row each under the main one.
     var overlapping: [CalendarEvent] = []
     let open: (CalendarEvent) -> Void
+    @EnvironmentObject private var store: PhoneStore
 
     var body: some View {
         let inProgress = event.start <= now
@@ -234,6 +235,7 @@ struct DayGridUpNext: View {
                 }
                 .buttonStyle(.plain)
                 PhoneJoinButton(event: event, size: .small)
+                if event.meetURL == nil { PhoneTripKey(event: event, size: .small, ask: open) }
             }
             .padding(8)
             if !overlapping.isEmpty {
@@ -278,7 +280,8 @@ struct DayGridUpNext: View {
 
     private var when: String {
         let day = Calendar.app.isDate(event.start, inSameDayAs: now) ? "" : PhoneAgenda.dayTitle(event.start, now: now) + " "
-        return "\(day)\(event.start.shortTime) – \(event.end.shortTime)"
+        let leave = event.start > now ? store.leaveBy(for: event).map { $0 <= now ? " · leave now" : " · leave \($0.shortTime)" } : nil
+        return "\(day)\(event.start.shortTime) – \(event.end.shortTime)\(leave ?? "")"
     }
 }
 

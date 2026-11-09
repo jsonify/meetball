@@ -50,6 +50,10 @@ public struct CalendarEvent: Identifiable, Hashable {
     public var organizerEmail: String? = nil
     /// A recurring occurrence's original start (EventKit `occurrenceDate`), which still names the instance after it moved.
     public var occurrenceDate: Date? = nil
+    /// The place's coordinates when the source has them (an EventKit structured location, as Calendar saves for a place
+    /// picked from its map), so drive times needn't look the address up.
+    public var locationLatitude: Double? = nil
+    public var locationLongitude: Double? = nil
     public var uid: String { "\(accountEmail)|\(calendarID)|\(id)" }
     public var calendarKey: String { "\(accountEmail)|\(calendarID)" }
 

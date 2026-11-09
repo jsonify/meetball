@@ -31,7 +31,8 @@ struct EventDetailSheet: View {
                 }
                 whenGroup
                 if !event.isAllDay && event.end > Date() { alertsGroup }
-                if let loc = event.location, !loc.isEmpty { whereGroup(loc) }
+                // The place with Directions, Where's this? for a trip with no place, or a room or link as it is.
+                TripWhereSection(event: event)
                 if !event.participants.isEmpty { peopleGroup }
                 if let notes = event.notes.map(EventNotesFormatter.plainText), !notes.isEmpty { notesGroup(notes) }
                 // Pre-flight: the last meeting like this one and the invite's links (people and notes are above).
@@ -216,24 +217,6 @@ struct EventDetailSheet: View {
         case .weekly: return "Every week"
         default: return "On a schedule"
         }
-    }
-
-    private func whereGroup(_ loc: String) -> some View {
-        SKGroup(caption: "Where") {
-            SKRow(title: loc) {
-                if let url = mapsURL(loc), !loc.lowercased().hasPrefix("http") {
-                    Button { UIApplication.shared.open(url) } label: { Image(systemName: "map") }
-                        .buttonStyle(.sk1Key(size: .small))
-                        .accessibilityLabel("Open in Maps")
-                }
-            }
-        }
-    }
-
-    private func mapsURL(_ loc: String) -> URL? {
-        var c = URLComponents(string: "maps://")
-        c?.queryItems = [URLQueryItem(name: "q", value: loc)]
-        return c?.url
     }
 
     private var peopleGroup: some View {

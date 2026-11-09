@@ -13,6 +13,9 @@ enum PhoneNotifications {
     static let echoStartKey = "echoStart"
     static let echoEndKey = "echoEnd"
     static let echoTitleKey = "echoTitle"
+    static let leaveCategory = "meetball.leave"
+    static let directionsAction = "meetball.directions"
+    static let directionsURLKey = "directionsURL"
     static let changePrefix = "meetball.change|"
     static let testID = "meetball.test"
 
@@ -27,6 +30,11 @@ enum PhoneNotifications {
                                                                   options: [.foreground],
                                                                   icon: UNNotificationActionIcon(systemImageName: "mic.fill"))],
                                    intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: leaveCategory,
+                                   actions: [UNNotificationAction(identifier: directionsAction, title: "Directions",
+                                                                  options: [.foreground],
+                                                                  icon: UNNotificationActionIcon(systemImageName: "car.fill"))],
+                                   intentIdentifiers: [], options: []),
         ])
     }
 
@@ -38,13 +46,19 @@ enum PhoneNotifications {
 
     static func settings() async -> UNNotificationSettings { await center.notificationSettings() }
 
-    /// Replaces every scheduled meeting reminder with `plan`.
-    static func apply(_ plan: [PlannedReminder]) async {
+    /// Replaces every scheduled meeting reminder with `plan`. `directions` opens a trip's place in the chosen maps app
+    /// (from a Leave now alert).
+    static func apply(_ plan: [PlannedReminder], directions: DirectionsApp = .googleMaps) async {
         let pending = await center.pendingNotificationRequests()
         let stale = pending.map(\.identifier).filter { $0.hasPrefix(ReminderPlanner.idPrefix) }
         center.removePendingNotificationRequests(withIdentifiers: stale)
         for r in plan {
-            let c = r.kind == .echo ? echoContent(r) : content(title: r.title, body: r.body, joinURL: r.event.meetURL)
+            let c: UNMutableNotificationContent
+            switch r.kind {
+            case .echo: c = echoContent(r)
+            case .leave: c = leaveContent(r, directions: directions)
+            case .lead, .start: c = content(title: r.title, body: r.body, joinURL: r.event.meetURL)
+            }
             c.threadIdentifier = r.event.uid
             let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: r.fireDate)
             let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
@@ -79,6 +93,17 @@ enum PhoneNotifications {
         c.categoryIdentifier = echoCategory
         c.userInfo = [echoUIDKey: r.event.uid, echoStartKey: r.event.start.timeIntervalSince1970,
                       echoEndKey: r.event.end.timeIntervalSince1970, echoTitleKey: r.event.title]
+        return c
+    }
+
+    /// Leave now: Time Sensitive like a meeting reminder (Siri reads it in CarPlay); tapping it, or Directions, opens
+    /// the drive in the maps app.
+    static func leaveContent(_ r: PlannedReminder, directions: DirectionsApp) -> UNMutableNotificationContent {
+        let c = content(title: r.title, body: r.body, joinURL: nil)
+        if let place = TravelPlanner.physicalLocation(r.event), let url = directions.url(to: place) {
+            c.categoryIdentifier = leaveCategory
+            c.userInfo = [directionsURLKey: url.absoluteString]
+        }
         return c
     }
 

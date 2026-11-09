@@ -138,6 +138,8 @@ targets:
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         NSCalendarsFullAccessUsageDescription: Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.
         # Echo: a short voice note after a meeting, transcribed on the iPhone, optionally added to Reminders.
+        # Trips: the drive time and leave-by time to a meeting's place (While Using only).
+        NSLocationWhenInUseUsageDescription: Meetball works out the drive to your games, parties and appointments from where you are, so it can tell you when to leave.
         NSMicrophoneUsageDescription: Echo records a short voice note after a meeting, only while you're recording.
         NSSpeechRecognitionUsageDescription: Echo turns your voice note into text on your iPhone, so it can become a follow-up reminder.
         NSRemindersFullAccessUsageDescription: Echo adds your after-meeting notes to Reminders as follow-ups.

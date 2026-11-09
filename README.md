@@ -129,6 +129,24 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **Delete**: the event screen's **Delete Event** key asks once (for a repeating meeting: this one only, or every one
   after it) and closes; Meetball doesn't then announce your own delete as a cancellation. Deleting from inside Apple's
   editor (Edit) works too. Shown for calendars the iPhone can change; the read-only work feed is edited in Google Calendar.
+- **Trips**: a meeting at a real place (an address or a venue, not a link, a call or a meeting room) gets a
+  **Directions** key on the event screen, the Up next card and the Day grid's next-meeting strip. It opens driving
+  directions in Google Maps by default (Settings › Trips › Directions in: Google, Apple or Waze; Google Maps and Waze
+  open their website when the app isn't installed). A game, match, party or appointment with no place gets
+  **Where's this?** instead: it suggests where meetings like it were (same series, or the same title without the
+  opponent, so "U12 Soccer vs Eagles" finds "U12 Soccer @ Hawks"), searches Apple's maps as you type, and saves the pick
+  to the event's location, with coordinates so Calendar shows its map and travel time (for a repeating event: this one
+  only, or every one after it). **Not a trip** stops it asking for that series or title (Settings › Trips › Ask again
+  undoes it). On the read-only work feed a pick opens directions but can't be saved. `TravelPlanner` holds the rules.
+- **Leave-by times and Leave now alerts**: for trips in the next day, Meetball works out the drive from where you are
+  with Apple's directions (MapKit, with the traffic expected when you'd leave; no API key) and shows "Leave by 5:36 ·
+  24 min drive" on the Up next card, "leave 5:36" on the Day grid's strip, and the drive on the event screen. At the
+  leave-by time a Time Sensitive **Leave now** alert fires (Siri reads it in CarPlay); tapping it, or its Directions
+  action, starts the drive in your maps app. Drive times are checked every 10 minutes in the two hours before a trip
+  (every 30 before that) whenever Meetball runs, at most six trips at a time. Settings › Trips: Leave-by times, Leave now
+  alert, and Time to park (0–15 min added to the drive, 5 by default). Needs location While Using the App (asked the
+  first time there's a trip); a background refresh uses the last location iOS has, so open Meetball before you set off
+  from somewhere new.
 - Needs iOS 18 or later.
 
 ### Alerts and CarPlay

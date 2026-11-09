@@ -43,7 +43,7 @@ struct MeetballPhoneApp: App {
     }
 }
 
-/// Shows alerts while Meetball is open, and opens the meeting for the Join action.
+/// Shows alerts while Meetball is open, opens the meeting for the Join action, and the drive for Leave now.
 final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication,
                      didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
@@ -61,6 +61,11 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         let info = response.notification.request.content.userInfo
         if response.actionIdentifier == PhoneNotifications.joinAction,
            let link = info[PhoneNotifications.joinURLKey] as? String, let url = URL(string: link) {
+            DispatchQueue.main.async { UIApplication.shared.open(url) }
+        } else if response.notification.request.content.categoryIdentifier == PhoneNotifications.leaveCategory,
+                  response.actionIdentifier != UNNotificationDismissActionIdentifier,
+                  let link = info[PhoneNotifications.directionsURLKey] as? String, let url = URL(string: link) {
+            // Leave now: tapping it (or Directions) starts the drive in the maps app.
             DispatchQueue.main.async { UIApplication.shared.open(url) }
         } else if response.notification.request.content.categoryIdentifier == PhoneNotifications.echoCategory,
                   response.actionIdentifier != UNNotificationDismissActionIdentifier,

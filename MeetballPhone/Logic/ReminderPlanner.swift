@@ -31,6 +31,16 @@ struct PhoneSettings: Codable, Equatable {
     var alertOnEvents: [String: Date] = [:]
     /// Meetings on any other calendar whose alerts were turned off, keyed by event uid, valued by the meeting's end.
     var mutedEvents: [String: Date] = [:]
+    /// The app Directions opens for a meeting's place.
+    var directionsApp: DirectionsApp = .googleMaps
+    /// Meetings Where's this? stops asking about (`TravelPlanner.tripKey`: a series, or a title like "Soccer").
+    var notTrips: Set<String> = []
+    /// Drive times and leave-by times for trips, from where the iPhone is (needs location access).
+    var driveTimes: Bool = true
+    /// A "Leave now" alert at each trip's leave-by time, with a Directions action.
+    var leaveAlerts: Bool = true
+    /// Minutes added to the drive to park and walk in.
+    var leaveBufferMinutes: Int = 5
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -86,13 +96,19 @@ extension PhoneSettings {
                   showTodayTab: try c.decodeIfPresent(Bool.self, forKey: .showTodayTab) ?? d.showTodayTab,
                   silencedCalendars: try c.decodeIfPresent(Set<String>.self, forKey: .silencedCalendars) ?? d.silencedCalendars,
                   alertOnEvents: try c.decodeIfPresent([String: Date].self, forKey: .alertOnEvents) ?? d.alertOnEvents,
-                  mutedEvents: try c.decodeIfPresent([String: Date].self, forKey: .mutedEvents) ?? d.mutedEvents)
+                  mutedEvents: try c.decodeIfPresent([String: Date].self, forKey: .mutedEvents) ?? d.mutedEvents,
+                  // An app name this build doesn't know (from a newer one) falls back to the default.
+                  directionsApp: (try? c.decodeIfPresent(DirectionsApp.self, forKey: .directionsApp)) ?? d.directionsApp,
+                  notTrips: try c.decodeIfPresent(Set<String>.self, forKey: .notTrips) ?? d.notTrips,
+                  driveTimes: try c.decodeIfPresent(Bool.self, forKey: .driveTimes) ?? d.driveTimes,
+                  leaveAlerts: try c.decodeIfPresent(Bool.self, forKey: .leaveAlerts) ?? d.leaveAlerts,
+                  leaveBufferMinutes: try c.decodeIfPresent(Int.self, forKey: .leaveBufferMinutes) ?? d.leaveBufferMinutes)
     }
 }
 
 /// One local notification to schedule ahead of a meeting.
 struct PlannedReminder: Equatable, Identifiable {
-    enum Kind: String { case lead, start, echo }
+    enum Kind: String { case lead, start, echo, leave }
 
     var kind: Kind
     var event: CalendarEvent
@@ -141,9 +157,12 @@ enum ReminderPlanner {
         meetings(events, settings: settings, now: now, horizon: horizon).filter(settings.alerts(for:))
     }
 
-    static func plan(_ events: [CalendarEvent], settings: PhoneSettings, moved: Set<String> = [], now: Date) -> [PlannedReminder] {
+    /// `etas` holds drive times by event uid: a trip with one also gets a "Leave now" alert at its leave-by time.
+    static func plan(_ events: [CalendarEvent], settings: PhoneSettings, moved: Set<String> = [],
+                     etas: [String: TripETA] = [:], now: Date) -> [PlannedReminder] {
         var out: [PlannedReminder] = []
         for e in alerting(events, settings: settings, now: now) where e.start > now {
+            if let leave = leaveAlert(e, settings: settings, eta: etas[e.uid], now: now) { out.append(leave) }
             let lead = e.start.addingTimeInterval(-Double(settings.leadMinutes) * 60)
             if lead > now {
                 out.append(PlannedReminder(kind: .lead, event: e, fireDate: lead, title: e.title,
@@ -156,6 +175,17 @@ enum ReminderPlanner {
         }
 
         return Array(out.sorted { $0.fireDate < $1.fireDate }.prefix(maxPending))
+    }
+
+    /// "Leave now for Soccer" / "24 min drive to Riverside Park · starts 6:00 PM", at the trip's leave-by time. Nil when
+    /// leave alerts are off, there's no drive time for the event's current place, or the time has passed.
+    static func leaveAlert(_ e: CalendarEvent, settings: PhoneSettings, eta: TripETA?, now: Date) -> PlannedReminder? {
+        guard settings.driveTimes, settings.leaveAlerts, let eta, let place = TravelPlanner.physicalLocation(e),
+              eta.destination == place else { return nil }
+        let at = TravelPlanner.leaveBy(e, travel: eta.travelTime, bufferMinutes: settings.leaveBufferMinutes)
+        guard at > now else { return nil }
+        return PlannedReminder(kind: .leave, event: e, fireDate: at, title: "Leave now for \(e.title)",
+                               body: "\(TravelPlanner.driveText(eta.travelTime)) to \(place) · starts \(e.start.shortTime)")
     }
 
     /// "Starts in 10 min · 1:00 PM", or "Moved to 1:00 PM · Starts in 10 min" for a rescheduled meeting (which Siri
