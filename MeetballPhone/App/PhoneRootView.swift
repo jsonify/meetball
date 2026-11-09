@@ -2,8 +2,8 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-/// The app's screens, switched by a row of SK-1 keys along the bottom, with the event and quick-add sheets and the
-/// cancellation confetti over everything.
+/// The app's screens, switched from the floating dock in the bottom corner (its quick menu lists them), with the event
+/// and quick-add sheets and the cancellation confetti over everything.
 struct PhoneRootView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case today, day, week, month, settings
@@ -44,6 +44,8 @@ struct PhoneRootView: View {
     @State private var dismissedMoments: Set<String> = []
     /// A day picked on the Month tab, for the Day grid to open on.
     @State private var dayJump: Date?
+    /// The dock's quick menu, open.
+    @State private var menuOpen = false
 
     /// The tab showing: Today falls back to Day while it's switched off in Settings.
     private var tab: Tab {
@@ -79,11 +81,26 @@ struct PhoneRootView: View {
                 .scrollDismissesKeyboard(.interactively)
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            VStack(spacing: 0) {
-                echoBanner
-                tabBar
+        // Content runs under the floating dock, and scrolls far enough to clear it.
+        .contentMargins(.bottom, PhoneDock.clearance, for: .scrollContent)
+        .overlay {
+            if menuOpen {
+                Color.black.opacity(0.12)
+                    .ignoresSafeArea()
+                    .contentShape(Rectangle())
+                    .onTapGesture { menuOpen = false }
+                    .transition(.opacity)
+                    .accessibilityLabel("Close the menu")
+                    .accessibilityAddTraits(.isButton)
             }
+        }
+        .animation(.easeInOut(duration: 0.2), value: menuOpen)
+        .overlay(alignment: .bottom) {
+            VStack(spacing: 8) {
+                if !menuOpen { echoBanner }
+                dock
+            }
+            .padding(.bottom, 4)
         }
         .sk1Chassis()
         .sheet(item: $detail) { e in
@@ -184,7 +201,7 @@ struct PhoneRootView: View {
         }
     }
 
-    /// For half an hour after a meeting ends: its Echo key, above the tab bar.
+    /// For half an hour after a meeting ends: its Echo key, above the dock.
     @ViewBuilder
     private var echoBanner: some View {
         if store.settings.echoMode {
@@ -212,24 +229,17 @@ struct PhoneRootView: View {
         }
     }
 
-    private var tabBar: some View {
-        VStack(spacing: 0) {
-            SKGroove()
-            HStack(spacing: 0) {
-                // Adding comes first, apart from the screens, and no bigger than them.
-                SKCaptionedKey("Add", systemImage: "plus", variant: .orange) { compose = ComposeRequest(start: nil) }
-                    .frame(maxWidth: .infinity)
-                    .accessibilityLabel("Add an event")
-                ForEach(tabs) { t in
-                    SKCaptionedKey(t.title, systemImage: t.symbol, lamp: tab == t) { tab = t }
-                        .frame(maxWidth: .infinity)
-                }
+    private var dock: some View {
+        HStack {
+            Spacer(minLength: 0)
+            PhoneDock(tab: Binding(get: { tab }, set: { tab = $0 }), tabs: tabs, menuOpen: $menuOpen) {
+                compose = ComposeRequest(start: nil)
             }
-            .padding(.top, 10)
-            .padding(.bottom, 2)
         }
-        .sk1Chassis()
+        .padding(.horizontal, 16)
+        .frame(maxWidth: 700)
         .sensoryFeedback(.selection, trigger: tab)
+        .onChange(of: tab) { _, _ in menuOpen = false }
     }
 }
 

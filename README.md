@@ -86,6 +86,9 @@ calendars in the iPhone's Calendar app through EventKit (a work Google calendar 
 Mac app's calendar client, change detector, layout builders, quick-add parser, countdown LCD, "Starts in" urgency
 styling and confetti (the shared files are listed under `MeetballPhone` in `project.yml` and must stay AppKit-free).
 
+- **The dock**: a small rounded plate in the bottom corner, floating over the screen, with the screen key and the
+  orange + key. The screen key opens a quick menu of the screens (Today, Day, Week, Month, then Settings); swipe it
+  sideways to step to the next or previous screen.
 - **Today**: the MB-1 display (next meeting, meetings left today), the "Starts in" card that turns orange, glows and
   blinks as the meeting nears, with a big Join key, cards for moved/re-linked/cancelled meetings until you dismiss
   them, and the rest of today and tomorrow.
@@ -118,7 +121,7 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   like it in the past 90 days (same series, else same title, else mostly the same people) and your Echo note from then,
   and the invite's links and notes without the dial-in boilerplate. The event screen shows the same "Last time" and
   links, and so does the Mac's event popover.
-- **Echo**: when a meeting ends, a banner above the tab bar (for half an hour) and a notification offer one tap to record
+- **Echo**: when a meeting ends, a banner above the dock (for half an hour) and a notification offer one tap to record
   a 20-second voice note. It's transcribed on the iPhone (Speech framework, on-device only), can be fixed up, and is
   saved in Meetball against that meeting (the work calendar is a read-only feed, so nothing is written to it) and, unless
   switched off in Settings, added to Reminders due the next working morning. Notes show on the event screen and in the

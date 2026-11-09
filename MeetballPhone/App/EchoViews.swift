@@ -152,7 +152,7 @@ struct EchoSheet: View {
 }
 
 /// After a meeting ends (for half an hour, while Meetball is open): "Design review just ended" and the Echo key,
-/// above the tab bar on every screen.
+/// above the dock on every screen.
 struct EchoBanner: View {
     let event: CalendarEvent
     let record: () -> Void
