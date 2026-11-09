@@ -137,6 +137,8 @@ targets:
         CFBundleDisplayName: Meetball
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Only HTTPS and Apple's own encryption, which is exempt: TestFlight then skips the export-compliance question.
+        ITSAppUsesNonExemptEncryption: false
         NSCalendarsFullAccessUsageDescription: Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.
         # Echo: a short voice note after a meeting, transcribed on the iPhone, optionally added to Reminders.
         # Trips: the drive time and leave-by time to a meeting's place (While Using only).

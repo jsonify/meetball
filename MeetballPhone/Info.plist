@@ -35,6 +35,8 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

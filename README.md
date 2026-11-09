@@ -74,6 +74,7 @@ build fails, the errors are printed and the full log is at `build/dist.log`.
 secrets) on every push and pull request, and runs `Scripts/sk1-audit.sh` on Linux. The build and test logs and the
 `.xcresult` are uploaded as the `meetball-ci-logs` artifact. The `ios` job builds `MeetballPhone` for a device (unsigned) and runs
 `MeetballPhoneTests` on the newest iPhone simulator (`meetball-ios-ci-logs`).
+`.github/workflows/testflight.yml` uploads MeetballPhone to TestFlight (see "TestFlight" under Meetball for iPhone).
 
 ### SK-1 look
 `Scripts/sk1-audit.sh Meetball` lists anything still drawn natively (it should report nothing; a native control kept on
@@ -198,6 +199,39 @@ Wi-Fi, builds, installs and opens Meetball. Keep the phone unlocked. The build l
 7. Tap **Test alert in 10 s**, then lock the phone (or start it just before you get in the car) to hear how it sounds.
 
 With a paid developer account the install lasts a year; reinstall from Xcode after that (or after any update you pull).
+
+### TestFlight (no Mac build needed)
+`.github/workflows/testflight.yml` archives MeetballPhone on a GitHub macOS runner, signs it for the App Store and
+uploads it to TestFlight. It runs on every push to `main` that touches the iPhone app (its folders, the shared files
+listed under `MeetballPhone` in `project.yml`, or `project.yml` itself), and by hand from Actions › TestFlight › Run
+workflow. The build number is the commit count, so each upload is newer than the last. Install the **TestFlight** app
+on the iPhone; new builds then arrive (and install automatically, if you turn that on) about 10 minutes after a run.
+TestFlight builds expire after 90 days, and nothing is submitted for App Store review: internal testing skips it.
+
+One-time setup:
+1. **App record.** In [App Store Connect](https://appstoreconnect.apple.com) › Apps › **+** › New App: platform iOS,
+   any name not already taken on the App Store (it isn't shown to anyone but you), bundle ID `app.meetball.MeetballPhone`
+   (it's listed once Xcode has registered it, step 3 above), any SKU. Under the app's **TestFlight** tab, add an
+   Internal Testing group with yourself in it.
+2. **API key.** App Store Connect › Users and Access › Integrations › App Store Connect API › Team Keys › **+**, role
+   **Admin** (Xcode's automatic signing needs it to create the App Store provisioning profiles). Download the `.p8` (only offered once) and note its Key ID and the Issuer ID.
+3. **Distribution certificate.** On the Mac: Xcode › Settings › Accounts › your team › Manage Certificates › **+** ›
+   Apple Distribution (skip if you already have one). Then in Keychain Access, under My Certificates, right-click
+   "Apple Distribution: …" › Export, save as `.p12` with a password, and `base64 -i dist.p12 | pbcopy`.
+4. **Secrets.** GitHub › the repo › Settings › Secrets and variables › Actions › New repository secret:
+
+   | Secret | Value |
+   | --- | --- |
+   | `APP_STORE_CONNECT_KEY_ID` | the key's Key ID |
+   | `APP_STORE_CONNECT_ISSUER_ID` | the Issuer ID |
+   | `APP_STORE_CONNECT_KEY` | the whole `.p8` file, `-----BEGIN PRIVATE KEY-----` lines included |
+   | `DISTRIBUTION_CERTIFICATE_P12` | the base64 from step 3 |
+   | `DISTRIBUTION_CERTIFICATE_PASSWORD` | the `.p12` password |
+
+5. Run the workflow from the Actions tab. Until every secret is set, a run warns and uploads nothing.
+
+`ITSAppUsesNonExemptEncryption` is `false` in the Info.plist (the app uses only HTTPS), so builds don't wait on the
+export-compliance question. If a run fails, `meetball-testflight-logs` has the archive and upload logs.
 
 ## Configuration (use your own credentials)
 Copy `Config/Secrets.example.xcconfig` to `Config/Secrets.xcconfig` (gitignored; never commit it) and set `GOOGLE_CLIENT_ID` (a Google Cloud "Desktop app" OAuth client, Calendar API enabled),
