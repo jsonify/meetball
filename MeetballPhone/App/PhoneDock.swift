@@ -2,8 +2,9 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-/// The floating dock in the bottom corner, in place of a full-width row of keys: a rounded chassis plate holding the
-/// screen key (the screen showing, its name and a chevron) and the orange Add key. The screen key opens the quick
+/// The floating dock in the bottom corner, in place of a full-width row of keys: a small rounded chassis plate holding
+/// the screen key (the showing screen's symbol and a chevron; its name is in the menu) and the orange Add key, both
+/// standard-size keys (they still take taps in 44 pt). The screen key opens the quick
 /// menu above it; a sideways swipe on it steps straight to the next or previous screen.
 struct PhoneDock: View {
     typealias Tab = PhoneRootView.Tab
@@ -14,39 +15,39 @@ struct PhoneDock: View {
     @Binding var menuOpen: Bool
     let add: () -> Void
 
-    /// Height of the plate: a large key and the plate's rim either side.
-    static let height: CGFloat = SK1KeySize.large.height + 2 * rim
+    /// Height of the plate: a key and the plate's rim either side.
+    static let height: CGFloat = SK1KeySize.regular.height + 2 * rim
     /// How far scrolling content needs to clear the dock to be reached: the dock, its gap above the home indicator
     /// and a little air.
-    static let clearance: CGFloat = height + 20
-    private static let rim: CGFloat = 7
+    static let clearance: CGFloat = height + 16
+    private static let rim: CGFloat = 6
     private static let radius: CGFloat = height / 2
 
     var body: some View {
         SKPlate(radius: Self.radius) {
-            HStack(spacing: 8) {
+            HStack(spacing: 6) {
                 screenKey
                 Button {
                     menuOpen = false
                     add()
                 } label: {
-                    Image(systemName: "plus").font(.system(size: 22, weight: .bold))
+                    Image(systemName: "plus").font(.system(size: 14, weight: .bold))
                 }
-                .buttonStyle(.sk1Key(.orange, size: .large))
+                .buttonStyle(.sk1Key(.orange))
                 .accessibilityLabel("Add an event")
             }
             .padding(Self.rim)
-            .padding(.horizontal, 3)
+            .padding(.horizontal, 2)
             .fixedSize()
         }
-        .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
+        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
         .overlay(alignment: .bottomTrailing) {
             if menuOpen {
                 PhoneQuickMenu(tab: tab, tabs: tabs) { picked in
                     tab = picked
                     menuOpen = false
                 }
-                .padding(.bottom, Self.height + 10)
+                .padding(.bottom, Self.height + 8)
                 .transition(.scale(scale: 0.85, anchor: .bottomTrailing).combined(with: .opacity))
             }
         }
@@ -57,17 +58,15 @@ struct PhoneDock: View {
         Button {
             menuOpen.toggle()
         } label: {
-            HStack(spacing: 7) {
-                Image(systemName: tab.symbol)
-                Text(tab.title)
+            HStack(spacing: 5) {
+                Image(systemName: tab.symbol).font(.system(size: 14, weight: .semibold))
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 11, weight: .heavy))
+                    .font(.system(size: 8, weight: .heavy))
                     .rotationEffect(.degrees(menuOpen ? 180 : 0))
                     .opacity(0.55)
             }
-            .padding(.horizontal, 4)
         }
-        .buttonStyle(.sk1Key(isOn: menuOpen, size: .large))
+        .buttonStyle(.sk1Key(isOn: menuOpen))
         .simultaneousGesture(swipe)
         .accessibilityLabel("Screens")
         .accessibilityValue(Text(tab.title))
