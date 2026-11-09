@@ -40,6 +40,8 @@ struct EventDetailPopover: View {
     /// Pre-flight: the last meeting like this one in what's loaded, and the invite's links.
     @State private var brief: PreFlightBrief?
     @AppStorage(AppPreferences.Key.showEventTimeZone) private var showEventTimeZone = true
+    /// The details' natural height, measured once laid out.
+    @State private var contentHeight: CGFloat?
 
     private var isApple: Bool { AppleCalendarClient.isApple(event.accountEmail) }
     private var calendarName: String? { store.calendars.first { $0.key == event.calendarKey }?.summary }
@@ -47,12 +49,14 @@ struct EventDetailPopover: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Grow with the content; scroll only once it would be taller than the cap.
-            ViewThatFits(in: .vertical) {
-                content
-                ScrollView { content }.frame(height: maxContentHeight)
+            // Exactly as tall as the content, measured, up to the cap; it scrolls only past that. (A flexible
+            // `maxHeight` frame let the popover grow to the cap and float short content in blank space.)
+            ScrollView {
+                content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
             }
-            .frame(maxHeight: maxContentHeight)
+            .frame(height: contentHeight.map { min($0, maxContentHeight) } ?? 1)
+            .scrollBounceBehavior(.basedOnSize)
+            .scrollIndicators((contentHeight ?? 0) > maxContentHeight ? .automatic : .hidden)
             SKGroove()
             actions.padding(.horizontal, 10).padding(.vertical, 8)
         }
