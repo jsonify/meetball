@@ -13,6 +13,12 @@ struct SettingsSidebar: View {
             tray(SettingsTab.navigation)
             Spacer(minLength: 0)
             tray([.about])
+            // The build, always in view whichever pane is showing.
+            Text(AppVersion.current.short)
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .accessibilityLabel(Text("Meetball \(AppVersion.current.short)"))
         }
         .padding(.leading, 14)
         .padding(.trailing, 12)

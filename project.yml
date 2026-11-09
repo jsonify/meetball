@@ -110,6 +110,7 @@ targets:
       - Meetball/Calendar/EchoNotes.swift
       - Meetball/Calendar/EventFilter.swift
       - Meetball/Utilities/AppPreferences.swift
+      - Meetball/Utilities/AppVersion.swift
       - Meetball/Utilities/Formatters.swift
       - Meetball/Utilities/MeetingService.swift
       - Meetball/DesignSystem/EventChip.swift
@@ -137,6 +138,9 @@ targets:
         CFBundleDisplayName: Meetball
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Stamped by make phone and the TestFlight workflow; shown in Settings › About.
+        MeetballCommit: "$(MEETBALL_COMMIT)"
+        MeetballBuildDate: "$(MEETBALL_BUILD_DATE)"
         # Only HTTPS and Apple's own encryption, which is exempt: TestFlight then skips the export-compliance question.
         ITSAppUsesNonExemptEncryption: false
         NSCalendarsFullAccessUsageDescription: Meetball shows your calendars, reminds you before meetings, tells you when one moves or is cancelled, and adds the events you type into quick add.

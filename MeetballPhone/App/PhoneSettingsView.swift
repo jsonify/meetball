@@ -5,33 +5,95 @@ import UserNotifications
 import SK1Tokens
 import SK1UI
 
-/// Settings: whether alerts can reach CarPlay, alert timing, the alert schedule, recent changes, which events to hide
-/// or fade, which calendars to watch, the theme and the fun.
+/// The sections of the iPhone's Settings, as the Mac's Settings window has them: a key for each in a tray under the
+/// settings LCD, which names the section showing and the build that's running.
+enum PhoneSettingsSection: String, CaseIterable, Identifiable {
+    case general, alerts, events, calendars, prep, trips, style, about
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .general: return "General"
+        case .alerts: return "Alerts"
+        case .events: return "Events"
+        case .calendars: return "Calendars"
+        case .prep: return "Prep"
+        case .trips: return "Trips"
+        case .style: return "Style"
+        case .about: return "About"
+        }
+    }
+    /// What the section covers, under the LCD.
+    var detail: String {
+        switch self {
+        case .general: return "Calendar access, whether alerts reach the car, and a test alert."
+        case .alerts: return "When you're reminded, the alert schedule and recent changes."
+        case .events: return "Which events Today, alerts, widgets and Siri hide or fade."
+        case .calendars: return "Which calendars show, and which stay quiet."
+        case .prep: return "The pre-flight card before a meeting and Echo notes after it."
+        case .trips: return "Directions, drive times and Leave now alerts."
+        case .style: return "Theme, the Today tab and the fun."
+        case .about: return "Which build of Meetball is running."
+        }
+    }
+    var symbol: String {
+        switch self {
+        case .general: return "gearshape.fill"
+        case .alerts: return "bell.badge.fill"
+        case .events: return "line.3.horizontal.decrease.circle.fill"
+        case .calendars: return "calendar"
+        case .prep: return "checklist"
+        case .trips: return "car.fill"
+        case .style: return "paintpalette.fill"
+        case .about: return "info.circle.fill"
+        }
+    }
+}
+
+/// Settings: the settings LCD (the section showing and the version), a tray of keys for the sections, and the
+/// section's groups.
 struct PhoneSettingsView: View {
+    @Binding var section: PhoneSettingsSection
     @EnvironmentObject private var store: PhoneStore
     @Environment(\.openURL) private var openURL
     @AppStorage(AppPreferences.Key.theme) private var themeRaw = AppTheme.system.rawValue
 
     var body: some View {
         VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
-            PhoneScreenHeader(title: "Settings", detail: "Meetball \(version)") { EmptyView() }
-            if store.calendarAccess != .granted { accessCard }
-            statusGroup
-            alertsGroup
-            prepGroup
-            tripsGroup
-            funGroup
-            appearanceGroup
-            upcomingGroup
-            if !store.recentChanges.isEmpty { changesGroup }
-            PhoneEventFilterGroups()
-            calendarsGroup
-            keys
+            PhoneScreenHeader(title: "Settings", detail: "Meetball \(AppVersion.current.short)") { EmptyView() }
+            VStack(alignment: .leading, spacing: 8) {
+                PhoneSettingsLCD(section: section, version: AppVersion.current.short)
+                PhoneSettingsKeys(selection: $section)
+                Text(section.detail).sk1Hint()
+            }
+            if store.calendarAccess != .granted && section != .about { accessCard }
+            content
         }
+        .sensoryFeedback(.selection, trigger: section)
     }
 
-    private var version: String {
-        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? ""
+    @ViewBuilder private var content: some View {
+        switch section {
+        case .general:
+            statusGroup
+            keys
+        case .alerts:
+            alertsGroup
+            upcomingGroup
+            if !store.recentChanges.isEmpty { changesGroup }
+        case .events:
+            PhoneEventFilterGroups()
+        case .calendars:
+            calendarsGroup
+        case .prep:
+            prepGroup
+        case .trips:
+            tripsGroup
+        case .style:
+            appearanceGroup
+            funGroup
+        case .about:
+            PhoneAboutGroups()
+        }
     }
 
     // MARK: Pre-flight and Echo
@@ -191,7 +253,7 @@ struct PhoneSettingsView: View {
                 Toggle("Countdown on the Lock Screen", isOn: $store.settings.liveActivity).labelsHidden().toggleStyle(.sk1Switch)
             }
             SKRow(title: "Moves, new links, cancellations",
-                  subtitle: "Checked whenever Meetball runs; see Background checks above.") {
+                  subtitle: "Checked whenever Meetball runs; see Background checks in General.") {
                 Toggle("Moves, new links, cancellations", isOn: $store.settings.notifyChanges).labelsHidden().toggleStyle(.sk1Switch)
             }
         }

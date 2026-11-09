@@ -97,8 +97,10 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **Month**: dots per day, trips and on-call stretches as ribbons, and the chosen day's meetings. Swipe to change month.
 - **Quick add** (the + key): one line of plain English, read back on an LCD as you type, saved to a calendar you pick. Lengths can be spelled out ("for about three minutes", "an hour and a half").
 - **Confetti** when a meeting is cancelled (shown the next time you open Meetball if it was found in the background).
-- **Settings**: everything from the notifier below, the theme (System/Light/Dark) and the fun switches.
-- **Event filters** (Settings › Events): the Mac's meeting-first rules (hide declined, all-day, no join link, only you,
+- **Settings**: in sections, picked from a tray of keys under the settings LCD: General (calendar access, can alerts
+  reach the car, test alert), Alerts, Events, Calendars, Prep (pre-flight and Echo), Trips, Style (theme, Today tab,
+  the fun) and About. The LCD always shows the version and build; About adds the commit, the build time and a Copy key.
+- **Event filters** (Settings › Events, or the filter key on Today): the Mac's meeting-first rules (hide declined, all-day, no join link, only you,
   titles with ignored keywords; fade tentative) with per-source overrides (default rules, custom rules or show
   everything), using the same `EventFilter` code. They apply to Today, Up next, alerts, change alerts, the Live
   Activity, widgets and Siri; the Day, Week and Month grids show everything. **Show anyway** on Today lists what was

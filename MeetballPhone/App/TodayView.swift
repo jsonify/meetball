@@ -7,6 +7,8 @@ struct TodayView: View {
     @EnvironmentObject private var store: PhoneStore
     var open: (CalendarEvent) -> Void
     var quickAdd: () -> Void
+    /// Opens Settings › Events, where the filters are set.
+    var filters: () -> Void = {}
     /// "Show anyway": the events the filters (Settings › Events) leave out are listed too.
     @State private var showHidden = false
 
@@ -29,6 +31,9 @@ struct TodayView: View {
         let line = MeetingStatusText.line(events, now: now)
         return VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
             PhoneScreenHeader(title: "Today", detail: now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
+                Button(action: filters) { Image(systemName: "line.3.horizontal.decrease") }
+                    .buttonStyle(.sk1Key())
+                    .accessibilityLabel("Filter events")
                 Button(action: quickAdd) { Image(systemName: "plus") }
                     .buttonStyle(.sk1Key())
                     .accessibilityLabel("Add an event")
