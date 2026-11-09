@@ -30,6 +30,7 @@ struct PhoneRootView: View {
 
     @EnvironmentObject private var store: PhoneStore
     @SceneStorage("tab") private var storedTab: Tab = .day
+    @SceneStorage("settingsSection") private var settingsSection: PhoneSettingsSection = .general
     @State private var detail: CalendarEvent?
     /// The composer, open; `start` when a slot on the day grid picked the time.
     @State private var compose: ComposeRequest?
@@ -222,12 +223,18 @@ struct PhoneRootView: View {
         let open: (CalendarEvent) -> Void = { detail = $0 }
         let add: () -> Void = { compose = ComposeRequest(start: nil) }
         switch tab {
-        case .today: TodayView(open: open, quickAdd: add)
+        case .today: TodayView(open: open, quickAdd: add, filters: showFilters)
         case .day: EmptyView()   // drawn outside the scroll view, in body
         case .week: WeekView(open: open, quickAdd: add)
         case .month: EmptyView()   // drawn outside the scroll view, in body
-        case .settings: PhoneSettingsView()
+        case .settings: PhoneSettingsView(section: $settingsSection)
         }
+    }
+
+    /// Settings › Events, from Today's filter key.
+    private func showFilters() {
+        settingsSection = .events
+        tab = .settings
     }
 
     private var dock: some View {
