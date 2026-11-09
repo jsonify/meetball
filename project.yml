@@ -108,6 +108,7 @@ targets:
       - Meetball/Calendar/MeetingComposer.swift
       - Meetball/Calendar/PreFlight.swift
       - Meetball/Calendar/EchoNotes.swift
+      - Meetball/Calendar/EventFilter.swift
       - Meetball/Utilities/AppPreferences.swift
       - Meetball/Utilities/Formatters.swift
       - Meetball/Utilities/MeetingService.swift

@@ -5,8 +5,8 @@ import UserNotifications
 import SK1Tokens
 import SK1UI
 
-/// Settings: whether alerts can reach CarPlay, alert timing, the alert schedule, recent changes, which calendars to
-/// watch, the theme and the fun.
+/// Settings: whether alerts can reach CarPlay, alert timing, the alert schedule, recent changes, which events to hide
+/// or fade, which calendars to watch, the theme and the fun.
 struct PhoneSettingsView: View {
     @EnvironmentObject private var store: PhoneStore
     @Environment(\.openURL) private var openURL
@@ -24,6 +24,7 @@ struct PhoneSettingsView: View {
             appearanceGroup
             upcomingGroup
             if !store.recentChanges.isEmpty { changesGroup }
+            PhoneEventFilterGroups()
             calendarsGroup
             keys
         }

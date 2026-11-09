@@ -41,6 +41,13 @@ struct PhoneSettings: Codable, Equatable {
     var leaveAlerts: Bool = true
     /// Minutes added to the drive to park and walk in.
     var leaveBufferMinutes: Int = 5
+    /// The Mac's meeting-first rules (hide declined, all-day, no link, only you, ignored keywords; fade tentative), with
+    /// per-source overrides. They decide what Today, Up next, alerts, widgets and the Live Activity care about; the Day,
+    /// Week and Month grids still show everything.
+    var filters = EventFilterSettings()
+
+    /// Whether the meeting-first rules leave `e` out.
+    func isFiltered(_ e: CalendarEvent) -> Bool { EventFilter.hideReason(e, settings: filters) != nil }
 
     static let leadChoices = [1, 5, 10, 15]
     static let storageKey = "phone.settings"
@@ -102,7 +109,8 @@ extension PhoneSettings {
                   notTrips: try c.decodeIfPresent(Set<String>.self, forKey: .notTrips) ?? d.notTrips,
                   driveTimes: try c.decodeIfPresent(Bool.self, forKey: .driveTimes) ?? d.driveTimes,
                   leaveAlerts: try c.decodeIfPresent(Bool.self, forKey: .leaveAlerts) ?? d.leaveAlerts,
-                  leaveBufferMinutes: try c.decodeIfPresent(Int.self, forKey: .leaveBufferMinutes) ?? d.leaveBufferMinutes)
+                  leaveBufferMinutes: try c.decodeIfPresent(Int.self, forKey: .leaveBufferMinutes) ?? d.leaveBufferMinutes,
+                  filters: (try? c.decodeIfPresent(EventFilterSettings.self, forKey: .filters)) ?? d.filters)
     }
 }
 
@@ -135,14 +143,16 @@ enum ReminderPlanner {
     /// iOS keeps at most 64 pending notifications per app; leave room for change alerts and the test alert.
     static let maxPending = 48
 
-    /// Timed, accepted (not declined) meetings on visible calendars that start within `horizon`, earliest first, with a
-    /// meeting that shows up on two calendars (a work calendar mirrored into iCloud, say) kept once.
+    /// Timed, accepted (not declined) meetings on visible calendars that start within `horizon` and pass the event
+    /// filters, earliest first, with a meeting that shows up on two calendars (a work calendar mirrored into iCloud, say)
+    /// kept once.
     static func meetings(_ events: [CalendarEvent], settings: PhoneSettings, now: Date,
                          horizon: TimeInterval = horizon) -> [CalendarEvent] {
         let end = now.addingTimeInterval(horizon)
         var seen = Set<String>()
         return events
             .filter { !$0.isAllDay && !$0.isDeclined && !settings.hiddenCalendars.contains($0.calendarKey) && $0.end > now && $0.start <= end }
+            .filter { !settings.isFiltered($0) }
             .sorted { ($0.start, $0.title) < ($1.start, $1.title) }
             .filter { e in
                 let key = "\(Int(e.start.timeIntervalSince1970))|\(MeetingChangeDetector.normalizedTitle(e.title))"

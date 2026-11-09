@@ -97,6 +97,11 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **Quick add** (the + key): one line of plain English, read back on an LCD as you type, saved to a calendar you pick. Lengths can be spelled out ("for about three minutes", "an hour and a half").
 - **Confetti** when a meeting is cancelled (shown the next time you open Meetball if it was found in the background).
 - **Settings**: everything from the notifier below, the theme (System/Light/Dark) and the fun switches.
+- **Event filters** (Settings › Events): the Mac's meeting-first rules (hide declined, all-day, no join link, only you,
+  titles with ignored keywords; fade tentative) with per-source overrides (default rules, custom rules or show
+  everything), using the same `EventFilter` code. They apply to Today, Up next, alerts, change alerts, the Live
+  Activity, widgets and Siri; the Day, Week and Month grids show everything. **Show anyway** on Today lists what was
+  hidden, faded, with the reason.
 
 - **Widgets** (MeetballWidgets extension): the next meeting on an MB-1 LCD for the Home Screen (small, medium) and the
   Lock Screen (rectangular, circular, inline). Tapping joins a meeting that's on or starts within 10 minutes. The small

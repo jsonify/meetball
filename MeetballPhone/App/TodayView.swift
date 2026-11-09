@@ -7,6 +7,8 @@ struct TodayView: View {
     @EnvironmentObject private var store: PhoneStore
     var open: (CalendarEvent) -> Void
     var quickAdd: () -> Void
+    /// "Show anyway": the events the filters (Settings › Events) leave out are listed too.
+    @State private var showHidden = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { tl in
@@ -15,11 +17,15 @@ struct TodayView: View {
     }
 
     private func content(now: Date) -> some View {
-        let events = store.events(from: now, days: 2)
+        let all = store.events(from: now, days: 2)
+        let feed = store.meetingFeed(all)
+        // The display and Up next always follow the filters; "Show anyway" only adds the hidden events to the lists.
+        let events = feed.shown
+        let hiddenCount = feed.hidden.filter { $0.end > now }.count
         let hero = MenuAgendaBuilder.hero(events, now: now, horizon: 24 * 3600)
         let overlapping = hero.map { MenuAgendaBuilder.overlapping($0, in: events, now: now) } ?? []
         let shownInHero = Set(([hero].compactMap { $0 } + overlapping).map(\.uid))
-        let groups = MenuAgendaBuilder.build(events: events, now: now, days: 2, limit: 40, excluding: shownInHero)
+        let groups = MenuAgendaBuilder.build(events: showHidden ? all : events, now: now, days: 2, limit: 40, excluding: shownInHero)
         let line = MeetingStatusText.line(events, now: now)
         return VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
             PhoneScreenHeader(title: "Today", detail: now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
@@ -45,7 +51,9 @@ struct TodayView: View {
             ForEach(groups) { g in
                 PhoneDaySection(group: g, now: now, title: title(for: g, now: now), open: open)
             }
+            HiddenEventsToggle(count: hiddenCount, showing: $showHidden)
         }
+        .environment(\.eventFilterSettings, store.settings.filters)
     }
 
     private func title(for g: AgendaDayGroup, now: Date) -> String {
