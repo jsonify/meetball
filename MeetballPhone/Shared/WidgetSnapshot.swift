@@ -198,6 +198,14 @@ extension WidgetSnapshot {
     /// Until when this snapshot knows the calendar.
     var coversUntil: Date { savedAt.addingTimeInterval(Self.horizon) }
 
+    /// Where the tape should start so it has something to show: now while the next meeting is today, else an hour
+    /// before the first meeting of the day it's on (so the evening shows tomorrow's shape, not an empty night).
+    func tapeStart(at now: Date, calendar: Calendar = .current) -> Date {
+        guard let m = current(at: now), !calendar.isDate(m.start, inSameDayAs: now) else { return now }
+        let first = meetings.filter { $0.end > now && calendar.isDate($0.start, inSameDayAs: m.start) }.map(\.start).min() ?? m.start
+        return max(now, first.addingTimeInterval(-3600))
+    }
+
     /// The hours ahead in `slots` steps of `length`, from the step `now` is in: which are taken, and by what.
     func tape(from now: Date, slots: Int, length: TimeInterval = 1800) -> [WidgetTapeSlot] {
         let first = (now.timeIntervalSinceReferenceDate / length).rounded(.down) * length
