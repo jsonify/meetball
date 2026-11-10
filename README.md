@@ -90,6 +90,10 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **The dock**: a small rounded plate in the bottom corner, floating over the screen, with the screen key and the
   orange + key. The screen key opens a quick menu of the screens (Today, Day, Week, Month, then Settings); swipe it
   sideways to step to the next or previous screen.
+- **Moving between screens**: Day, Week and Month are the same days seen closer or further off, so going between
+  them zooms in or out (tap a day on Month and the Day grid grows out of that day). Today comes down over the calendar
+  like a lid and lifts off again, and Settings is on the back of the chassis: the screen turns over to reach it. With
+  Reduce Motion on, screens cross-fade instead.
 - **Today**: the MB-1 display (next meeting, meetings left today), the "Starts in" card that turns orange, glows and
   blinks as the meeting nears, with a big Join key, cards for moved/re-linked/cancelled meetings until you dismiss
   them, and the rest of today and tomorrow.

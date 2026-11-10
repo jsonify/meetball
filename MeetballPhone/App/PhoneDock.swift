@@ -60,6 +60,8 @@ struct PhoneDock: View {
         } label: {
             HStack(spacing: 5) {
                 Image(systemName: tab.symbol).font(.system(size: 14, weight: .semibold))
+                    .contentTransition(.symbolEffect(.replace))
+                    .animation(.snappy(duration: 0.3), value: tab)
                 Image(systemName: "chevron.up")
                     .font(.system(size: 8, weight: .heavy))
                     .rotationEffect(.degrees(menuOpen ? 180 : 0))

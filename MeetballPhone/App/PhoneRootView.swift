@@ -3,7 +3,8 @@ import SK1Tokens
 import SK1UI
 
 /// The app's screens, switched from the floating dock in the bottom corner (its quick menu lists them), with the event
-/// and quick-add sheets and the cancellation confetti over everything.
+/// and quick-add sheets and the cancellation confetti over everything. One screen gives way to the next by what they
+/// are to each other (`ScreenMove`): the calendar screens zoom, Today comes down as a lid, Settings is a flip away.
 struct PhoneRootView: View {
     enum Tab: String, CaseIterable, Identifiable {
         case today, day, week, month, settings
@@ -47,41 +48,33 @@ struct PhoneRootView: View {
     @State private var dayJump: Date?
     /// The dock's quick menu, open.
     @State private var menuOpen = false
+    /// The move between screens under way.
+    @State private var course = ScreenCourse()
 
     /// The tab showing: Today falls back to Day while it's switched off in Settings.
     private var tab: Tab {
         get { storedTab == .today && !store.settings.showTodayTab ? .day : storedTab }
-        nonmutating set { storedTab = newValue }
+        nonmutating set {
+            course.plan(from: tab, to: newValue)
+            storedTab = newValue
+        }
     }
 
     private var tabs: [Tab] { Tab.allCases.filter { $0 != .today || store.settings.showTodayTab } }
 
     var body: some View {
-        Group {
-            if tab == .day {
-                // The time grid scrolls itself, under its pinned dates and all-day strip.
-                DayGridView(open: { detail = $0 }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
-                    .frame(maxWidth: 700)
-                    .frame(maxWidth: .infinity)
-            } else if tab == .month {
-                // Months scroll on and on under the pinned header and weekday row.
-                MonthView { day in
-                    dayJump = day
-                    tab = .day
-                }
-            } else {
-                ScrollView {
-                    screen
-                        .padding(.horizontal, 16)
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
-                        .frame(maxWidth: 600)
-                        .frame(maxWidth: .infinity)
-                }
-                .refreshable { await store.refresh(fresh: true) }
-                .scrollDismissesKeyboard(.interactively)
-            }
+        ZStack {
+            page
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // Its own chassis, so a screen moves as one panel.
+                .sk1Chassis()
+                .id(tab)
+                .transition(ScreenTransition(course: course, lid: tab == .today))
+                // The lid stays over the calendar, going as well as coming.
+                .zIndex(tab == .today ? 1 : 0)
         }
+        .animation(course.animation, value: tab)
+        .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { course.stage = $0 }
         // Content runs under the floating dock, and scrolls far enough to clear it.
         .contentMargins(.bottom, PhoneDock.clearance, for: .scrollContent)
         .overlay {
@@ -218,15 +211,44 @@ struct PhoneRootView: View {
         }
     }
 
+    /// The screen showing, scrolling as it does.
+    @ViewBuilder
+    private var page: some View {
+        if tab == .day {
+            // The time grid scrolls itself, under its pinned dates and all-day strip.
+            DayGridView(open: { detail = $0 }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
+                .frame(maxWidth: 700)
+                .frame(maxWidth: .infinity)
+        } else if tab == .month {
+            // Months scroll on and on under the pinned header and weekday row.
+            MonthView { day, cell in
+                dayJump = day
+                course.tapped = cell
+                tab = .day
+            }
+        } else {
+            ScrollView {
+                screen
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: 600)
+                    .frame(maxWidth: .infinity)
+            }
+            .refreshable { await store.refresh(fresh: true) }
+            .scrollDismissesKeyboard(.interactively)
+        }
+    }
+
     @ViewBuilder
     private var screen: some View {
         let open: (CalendarEvent) -> Void = { detail = $0 }
         let add: () -> Void = { compose = ComposeRequest(start: nil) }
         switch tab {
         case .today: TodayView(open: open, quickAdd: add, filters: showFilters)
-        case .day: EmptyView()   // drawn outside the scroll view, in body
+        case .day: EmptyView()   // drawn outside the scroll view, in page
         case .week: WeekView(open: open, quickAdd: add)
-        case .month: EmptyView()   // drawn outside the scroll view, in body
+        case .month: EmptyView()   // drawn outside the scroll view, in page
         case .settings: PhoneSettingsView(section: $settingsSection)
         }
     }
