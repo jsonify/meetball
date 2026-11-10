@@ -14,7 +14,7 @@ struct PhoneEventFilterGroups: View {
         SKGroup(caption: "Events · calendar views",
                 note: "How the Day, Week and Month views show events these rules hide: Full shows them like any other, Hidden leaves them out.") {
             SKRow(title: "Filtered events") {
-                CalendarFadeSlider(fade: $store.settings.filters.calendarFade).frame(width: 190)
+                CalendarFadeKnob(fade: $store.settings.filters.calendarFade)
             }
         }
         SKGroup(caption: "Events · per source", note: "A source can follow the rules above, have its own, or show everything.") {

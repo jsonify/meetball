@@ -1,6 +1,5 @@
 import Foundation
 import SwiftUI
-import SK1Tokens
 import SK1UI
 
 /// Meeting-first rules (Settings › Events). They decide which events the menu bar title, the popover,
@@ -221,23 +220,18 @@ extension View {
     }
 }
 
-/// The calendar-views fade as a percentage slider (Settings › Events on the Mac and the iPhone).
-struct CalendarFadeSlider: View {
+/// The calendar-views fade as an SK-1 knob, in percent (Settings › Events on the Mac and the iPhone). Double-click
+/// goes back to Full.
+struct CalendarFadeKnob: View {
     @Binding var fade: Double
 
     var body: some View {
-        HStack(spacing: 8) {
-            Slider(value: $fade, in: 0...1, step: 0.05)
-                .tint(Color(sk1Hex: SK1.orange))
-                .accessibilityLabel("Filtered events in calendar views")
-                .accessibilityValue(Self.label(fade))
-            Text(Self.label(fade)).font(.callout.monospacedDigit()).foregroundStyle(.secondary)
-                .frame(width: 52, alignment: .trailing)
-        }
+        let percent = Binding<Int>(get: { Int((fade * 100).rounded()) }, set: { fade = Double($0) / 100 })
+        SKKnob("Filtered events", value: percent, in: 0...100, step: 5, defaultValue: 100, format: Self.label)
     }
 
-    static func label(_ fade: Double) -> String {
-        fade <= 0 ? "Hidden" : fade >= 1 ? "Full" : "\(Int((fade * 100).rounded()))%"
+    static func label(_ percent: Int) -> String {
+        percent <= 0 ? "Hidden" : percent >= 100 ? "Full" : "\(percent)%"
     }
 }
 
