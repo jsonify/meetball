@@ -113,15 +113,19 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
 - **Widgets** (MeetballWidgets extension): the MB-1 for the Home Screen (small, medium) and the Lock Screen
   (rectangular, circular, inline). Tapping joins a meeting that's on or starts within 10 minutes. The display shows
   the start time ("TOMORROW AT 8:00 AM") until a meeting is within the hour, then counts down, then counts down to its
-  end. The small widget is the instrument itself: the nameplate with how many are left today, the LCD with the title
-  on the glass, the tape (the next eight hours as half-hour LEDs, lit in each meeting's calendar colour, with an hour
-  scale), and a key: orange JOIN when it's time, else a meeting that clashes (+1), what comes next that day, or when
-  you're free. The Lock Screen rectangle is the same display on a glass plate in one colour, with a twelve-hour tape,
+  end. The small widget is the LCD itself, glass from edge to edge in a dark bezel: the lamp and caption, the digits as
+  big as they fit, the title, the tape (eight hours as half-hour LEDs with an hour scale, lit where there are
+  meetings), and a bottom line that counts to a far-off meeting by the second ("IN 9:51:07") beside JOIN when it's
+  time, a clash, or when the next one is. The tape starts now while the next meeting is today; otherwise it shows the
+  day that meeting is on, from an hour before its first. Medium is the instrument on its chassis with what comes
+  later. The Lock Screen rectangle is the same display on a glass plate in one colour, with a twelve-hour tape,
   and it always reads something: with nothing ahead it says all clear and when it last checked, and once what the
   app saved has run out it asks you to open Meetball. The circle rings the digits with twelve LED ticks. The app
   saves the next two days to the App Group `group.app.meetball.MeetballPhone` after each refresh; the widgets read that.
 - **Live Activity**: in the hour before a meeting, a countdown on the Lock Screen and in the Dynamic Island, counting up
-  once it starts, with a Join button. iOS only lets it start while Meetball is open, so open Meetball in that hour;
+  once it starts. The Lock Screen card is LCD glass in a dark bezel: the times, the title beside the timer, and two
+  bars that fill by themselves (the hour before, then the meeting, with the start marked between), over an orange
+  Join key. iOS only lets it start while Meetball is open, so open Meetball in that hour;
   background refreshes then keep it right (a moved meeting moves it, a cancelled one ends it). Switch it off in
   Settings › Alerts.
 

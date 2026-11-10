@@ -81,24 +81,14 @@ struct WidgetTape: View {
     }
 }
 
-/// A key on the chassis, as wide as the widget: cream and raised, or orange when it's the one to press.
-struct WidgetKey<Label: View>: View {
-    var lit = false
-    @ViewBuilder var label: () -> Label
-    @Environment(\.colorScheme) private var scheme
-
+/// The small widget's background: LCD glass to the edges inside a dark bezel, shaded under the bezel's top lip.
+struct WidgetGlassFace: View {
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
-        HStack(spacing: 4) { label() }
-            .lineLimit(1)
-            .foregroundStyle(lit ? Color.white : Color.primary)
-            .padding(.horizontal, 7)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: 20)
-            .background(lit ? WidgetStyle.orange : Color.white.opacity(scheme == .dark ? 0.1 : 0.6), in: shape)
-            .overlay(shape.strokeBorder(Color.black.opacity(0.14), lineWidth: 0.5))
-            // The key's front edge, below its top.
-            .background(Color.black.opacity(scheme == .dark ? 0.5 : 0.22), in: shape.offset(y: 2))
-            .padding(.bottom, 2)
+        ZStack {
+            Color(sk1Hex: 0x2b2a27)
+            ContainerRelativeShape().inset(by: 5).fill(WidgetStyle.glass)
+            ContainerRelativeShape().inset(by: 5)
+                .fill(LinearGradient(colors: [.black.opacity(0.18), .clear], startPoint: .top, endPoint: UnitPoint(x: 0.5, y: 0.16)))
+        }
     }
 }

@@ -174,4 +174,23 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(WidgetTapeSlot(start: nine.addingTimeInterval(6 * 3600)).label(calendar: utc, twentyFourHour: false), "3")
         XCTAssertEqual(WidgetTapeSlot(start: nine.addingTimeInterval(6 * 3600)).label(calendar: utc, twentyFourHour: true), "15")
     }
+
+    func testTapeStartsAtTheNextMeetingsDayWhenItIsNotToday() {
+        let noon = utc.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 12))!
+        func at(_ id: String, _ hours: Double) -> WidgetMeeting {
+            WidgetMeeting(id: id, title: id, start: noon.addingTimeInterval(hours * 3600),
+                          end: noon.addingTimeInterval(hours * 3600 + 1800), colorHex: "#E8743B", joinURL: nil)
+        }
+        let today = WidgetSnapshot(meetings: [at("a", 3), at("b", 22)], savedAt: noon)
+        XCTAssertEqual(today.tapeStart(at: noon, calendar: utc), noon)
+        // At 10 PM the next one is tomorrow at 9: the tape starts at 8, an hour before tomorrow's first.
+        let evening = noon.addingTimeInterval(10 * 3600)
+        let tomorrow = WidgetSnapshot(meetings: [at("late", 23), at("early", 21)], savedAt: noon)
+        XCTAssertEqual(tomorrow.tapeStart(at: evening, calendar: utc), noon.addingTimeInterval(20 * 3600))
+        XCTAssertNotNil(tomorrow.tape(from: tomorrow.tapeStart(at: evening, calendar: utc), slots: 16).first { $0.colorHex != nil })
+        // Just before midnight with one at half past: never earlier than now.
+        let late = noon.addingTimeInterval(11.9 * 3600)
+        XCTAssertEqual(WidgetSnapshot(meetings: [at("x", 12.5)], savedAt: noon).tapeStart(at: late, calendar: utc), late)
+        XCTAssertEqual(WidgetSnapshot(meetings: [], savedAt: noon).tapeStart(at: noon, calendar: utc), noon)
+    }
 }

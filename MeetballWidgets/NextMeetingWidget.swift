@@ -40,9 +40,10 @@ struct NextMeetingProvider: TimelineProvider {
     }
 }
 
-/// The MB-1 as a widget: its LCD (a lamp that turns orange as a meeting nears, seven-segment digits counting down
-/// inside the hour and showing the start time before that, the title on the glass), the tape of the hours ahead lit
-/// where there are meetings, and a key. Medium adds what comes after. The Lock Screen gets the same display in one
+/// The MB-1 as a widget. Small is the LCD itself, glass from edge to edge: a lamp that turns orange as a meeting nears,
+/// big seven-segment digits (the start time, then a countdown inside the hour), the title, the tape of the day lit
+/// where there are meetings, and a line that keeps count by the second. Medium is the instrument on its chassis, with
+/// what comes after. The Lock Screen gets the same display in one
 /// colour, and always reads something: all clear, or to open Meetball when what it knows has run out.
 struct NextMeetingWidget: Widget {
     var body: some WidgetConfiguration {
@@ -67,7 +68,13 @@ struct NextMeetingWidgetView: View {
 
     var body: some View {
         content
-            .containerBackground(for: .widget) { Color(sk1Hex: SK1.palette(for: scheme).chassis) }
+            .containerBackground(for: .widget) {
+                if family == .systemSmall {
+                    WidgetGlassFace()
+                } else {
+                    Color(sk1Hex: SK1.palette(for: scheme).chassis)
+                }
+            }
             .widgetURL(link)
     }
 
@@ -92,25 +99,115 @@ struct NextMeetingWidgetView: View {
 
     // MARK: Home Screen
 
-    /// The instrument, as much of it as the size has room for: the nameplate (how many are left today), the LCD, the
-    /// tape of the next eight hours in the calendars' colours, and the key (Join when it's time, else what clashes,
-    /// what comes after, or when you're free).
+    /// The whole widget as the LCD (its glass and bezel are the background, `WidgetGlassFace`), everything in LCD ink:
+    /// as much as the size has room for, the digits as big as they go.
     private var small: some View {
         ViewThatFits(in: .vertical) {
-            instrument(nameplate: true, lcd: 66, digit: 22, scale: true, key: true)
-            instrument(nameplate: false, lcd: 62, digit: 20, scale: true, key: true)
-            instrument(nameplate: false, lcd: 62, digit: 20, scale: false, key: true)
+            face(digit: 38, titleLines: 2, footer: true)
+            face(digit: 34, titleLines: 1, footer: true)
+            face(digit: 30, titleLines: 1, footer: false)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .foregroundStyle(WidgetStyle.lcdInk)
     }
 
-    private func instrument(nameplate: Bool, lcd: CGFloat, digit: CGFloat, scale: Bool, key: Bool) -> some View {
+    private func face(digit: CGFloat, titleLines: Int, footer: Bool) -> some View {
+        let r = entry.readout
+        return VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 4) {
+                Circle().fill(lampColor).frame(width: 6, height: 6)
+                Text(r.caption).font(.system(size: 9, weight: .heavy)).tracking(1).fixedSize()
+                Spacer(minLength: 0)
+            }
+            .frame(height: 11)
+            HStack(alignment: .bottom, spacing: 4) {
+                // A long time ("12:30") steps down a size rather than running off the glass.
+                ViewThatFits(in: .horizontal) {
+                    SKSevenSegment(r.digits, digitHeight: digit, spacing: 4, color: WidgetStyle.lcdInk)
+                    SKSevenSegment(r.digits, digitHeight: digit * 0.82, spacing: 3.5, color: WidgetStyle.lcdInk)
+                    SKSevenSegment(r.digits, digitHeight: digit * 0.66, spacing: 3, color: WidgetStyle.lcdInk)
+                }
+                Text(r.unit).font(.system(size: 10, weight: .heavy)).fixedSize()
+            }
+            Text(r.message).font(.system(size: 14, weight: .bold)).lineLimit(titleLines)
+                .fixedSize(horizontal: false, vertical: true)
+            WidgetTape(slots: tape(slots: 16), height: 6, scale: true,
+                       idle: WidgetStyle.lcdInk.opacity(0.16), lit: { _ in WidgetStyle.lcdInk })
+            if footer { faceFooter(r) }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Text("\(r.caption.capitalized) \(r.digits) \(r.unit.lowercased()), \(r.message)"))
+    }
+
+    /// The tape of the day the next meeting is on (see `WidgetSnapshot.tapeStart`).
+    private func tape(slots: Int) -> [WidgetTapeSlot] {
+        guard let snapshot = entry.snapshot else { return [] }
+        return snapshot.tape(from: snapshot.tapeStart(at: entry.date), slots: slots)
+    }
+
+    /// The bottom line of the glass. Left: the count to a meeting further off than an hour, ticking by the second
+    /// ("IN 9:51:07"), or its time once the digits count down. Right: JOIN when it's time, else a clash, what time the
+    /// next one is, or that it's the last.
+    private func faceFooter(_ r: WidgetReadout) -> some View {
+        HStack(spacing: 3) {
+            if let m = r.meeting {
+                switch r.phase {
+                case .later:
+                    footerLabel("IN")
+                    Text(m.start, style: .timer).font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .multilineTextAlignment(.leading).frame(width: 54, alignment: .leading)
+                case .live:
+                    footerLabel("TIL")
+                    footerValue(shortTime(m.end))
+                default:
+                    footerLabel("AT")
+                    footerValue(shortTime(m.start))
+                }
+                Spacer(minLength: 2)
+                let clashes = entry.snapshot?.overlapping(m, at: entry.date) ?? []
+                if m.joinURL != nil && m.start.timeIntervalSince(entry.date) < 10 * 60 {
+                    HStack(spacing: 2) {
+                        Image(systemName: "video.fill").font(.system(size: 7, weight: .bold))
+                        Text("JOIN").font(.system(size: 9, weight: .heavy)).tracking(0.6)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 6).frame(height: 14)
+                    .background(WidgetStyle.orange, in: Capsule())
+                } else if !clashes.isEmpty {
+                    footerLabel("+\(clashes.count) CLASH")
+                } else if let then = entry.snapshot?.following(m) {
+                    footerLabel("THEN")
+                    footerValue(shortTime(then.start))
+                } else {
+                    footerLabel("LAST ONE")
+                }
+            } else if r.phase == .clear, let saved = entry.snapshot?.savedAt {
+                footerLabel("CHECKED")
+                footerValue(dayTime(saved))
+            } else {
+                footerLabel("TAP TO OPEN")
+            }
+        }
+        .lineLimit(1)
+        .frame(height: 14)
+    }
+
+    private func footerLabel(_ text: String) -> some View {
+        Text(text).font(.system(size: 8, weight: .heavy)).tracking(0.8).opacity(0.7).fixedSize()
+    }
+
+    private func footerValue(_ text: String) -> some View {
+        Text(text).font(.system(size: 10, weight: .bold)).monospacedDigit().fixedSize()
+    }
+
+    /// The instrument on its chassis, for Medium: the nameplate (how many are left today), the LCD and the tape in
+    /// the calendars' colours.
+    private var instrument: some View {
         VStack(alignment: .leading, spacing: 6) {
-            if nameplate { self.nameplate }
-            display(height: lcd, digit: digit)
-            WidgetTape(slots: entry.snapshot?.tape(from: entry.date, slots: 16) ?? [], height: 6, scale: scale,
+            nameplate
+            display(height: 66, digit: 22)
+            WidgetTape(slots: tape(slots: 16), height: 6, scale: true,
                        idle: Color.primary.opacity(0.14), lit: { WidgetStyle.color($0) })
-            if key { self.key }
         }
     }
 
@@ -141,12 +238,6 @@ struct NextMeetingWidgetView: View {
                 HStack(spacing: 4) {
                     Circle().fill(lampColor).frame(width: 5, height: 5)
                     Text(r.caption).font(.system(size: 8.5, weight: .heavy)).tracking(1)
-                    if let m = r.meeting, r.phase == .later {
-                        Spacer(minLength: 2)
-                        // Further off than an hour, the digits are the start time; this keeps count beside them.
-                        Text(m.start, style: .relative).font(.system(size: 8.5, weight: .semibold)).monospacedDigit()
-                            .multilineTextAlignment(.trailing).opacity(0.75)
-                    }
                 }
                 .frame(height: 10)
                 HStack(alignment: .bottom, spacing: 3) {
@@ -162,60 +253,6 @@ struct NextMeetingWidgetView: View {
         .frame(height: height)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(r.caption.capitalized) \(r.digits) \(r.unit.lowercased()), \(r.message)"))
-    }
-
-    /// The key under the tape. Orange and lit when the meeting can be joined (tapping the widget joins it) or when
-    /// Meetball has to be opened; otherwise a cream key carrying what else there is to know.
-    @ViewBuilder private var key: some View {
-        let r = entry.readout
-        if let m = r.meeting {
-            if m.joinURL != nil && m.start.timeIntervalSince(entry.date) < 10 * 60 {
-                WidgetKey(lit: true) {
-                    Image(systemName: "video.fill").font(.system(size: 8, weight: .bold))
-                    Text(WidgetService.name(m.joinURL).map { "JOIN \($0.uppercased())" } ?? "JOIN")
-                        .font(.system(size: 9.5, weight: .heavy)).tracking(0.8)
-                    Spacer(minLength: 2)
-                    Text(m.start <= entry.date ? "til \(shortTime(m.end))" : shortTime(m.start))
-                        .font(.system(size: 9.5, weight: .semibold)).monospacedDigit()
-                }
-            } else {
-                WidgetKey { footerLine(m) }
-            }
-        } else if r.phase == .stale {
-            WidgetKey(lit: true) {
-                Text("OPEN MEETBALL").font(.system(size: 9.5, weight: .heavy)).tracking(0.8)
-                Spacer(minLength: 0)
-            }
-        } else if let saved = entry.snapshot?.savedAt {
-            WidgetKey {
-                Text("CHECKED").font(.system(size: 8, weight: .heavy)).tracking(0.8).foregroundStyle(.secondary)
-                Text(dayTime(saved)).font(.system(size: 10, weight: .semibold)).monospacedDigit()
-                Spacer(minLength: 0)
-            }
-        }
-    }
-
-    /// A clash first ("+1 Design sync"), else the next meeting that day ("THEN 1:1 with Sam 3:30"), else when the day
-    /// frees up ("FREE AFTER 2:30").
-    @ViewBuilder private func footerLine(_ m: WidgetMeeting) -> some View {
-        let clashes = entry.snapshot?.overlapping(m, at: entry.date) ?? []
-        if let first = clashes.first {
-            Image(systemName: "rectangle.on.rectangle").font(.system(size: 8, weight: .bold)).foregroundStyle(WidgetStyle.orange)
-            Text("+\(clashes.count)").font(.system(size: 9, weight: .heavy)).foregroundStyle(WidgetStyle.orange)
-            Text(first.title).font(.system(size: 10, weight: .semibold))
-            Spacer(minLength: 0)
-        } else if let then = entry.snapshot?.following(m) {
-            Text("THEN").font(.system(size: 8, weight: .heavy)).tracking(0.8).foregroundStyle(.secondary)
-            Circle().fill(WidgetStyle.color(then.colorHex)).frame(width: 5, height: 5)
-            Text(then.title).font(.system(size: 10, weight: .semibold))
-            Spacer(minLength: 2)
-            Text(shortTime(then.start)).font(.system(size: 10, weight: .medium)).monospacedDigit()
-                .foregroundStyle(.secondary).layoutPriority(1)
-        } else {
-            Text("FREE AFTER").font(.system(size: 8, weight: .heavy)).tracking(0.8).foregroundStyle(.secondary)
-            Text(shortTime(m.end)).font(.system(size: 10, weight: .semibold)).monospacedDigit()
-            Spacer(minLength: 0)
-        }
     }
 
     /// StandBy: the countdown as big as it goes, the title under it, like an MB-1 desk clock.
@@ -244,7 +281,7 @@ struct NextMeetingWidgetView: View {
 
     private var medium: some View {
         HStack(alignment: .top, spacing: 12) {
-            instrument(nameplate: true, lcd: 66, digit: 22, scale: true, key: false).frame(maxWidth: .infinity)
+            instrument.frame(maxWidth: .infinity)
             VStack(alignment: .leading, spacing: 6) {
                 Text("LATER").font(.system(size: 9, weight: .heavy)).tracking(1).foregroundStyle(.secondary)
                 let later = entry.snapshot?.later(than: entry.meeting, now: entry.date, limit: 3) ?? []
@@ -274,8 +311,8 @@ struct NextMeetingWidgetView: View {
     // MARK: Lock Screen
 
     /// The display on a glass plate, in the Lock Screen's one colour: the caption with today's count, the digits beside
-    /// the title and a second line (how long until it starts, or when it ends), and the tape of the next twelve hours
-    /// with its hour scale when there's room. Every state reads something, so the plate is never empty.
+    /// the title and a second line (how long until it starts, or when it ends), and the tape of the day (twelve hours of
+    /// it) with its hour scale when there's room. Every state reads something, so the plate is never empty.
     private var rectangular: some View {
         ViewThatFits(in: .vertical) {
             plate(scale: true)
@@ -317,7 +354,7 @@ struct NextMeetingWidgetView: View {
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            WidgetTape(slots: entry.snapshot?.tape(from: entry.date, slots: 24) ?? [], height: 5, scale: scale,
+            WidgetTape(slots: tape(slots: 24), height: 5, scale: scale,
                        idle: .white.opacity(0.28), lit: { _ in .white })
         }
         .padding(.horizontal, 7)
