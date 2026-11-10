@@ -66,6 +66,8 @@ struct CalendarContainerView: View {
                 }
             }
             .background(KeyEventMonitor(handler: handleKey))
+            // Events the filters hide are drawn at the fade from Settings › Events.
+            .environment(\.calendarFilterSettings, store.filters)
         }
     }
 
@@ -459,7 +461,7 @@ struct MonthGridView: View {
                                 Text(span.event.title).font(.caption2.weight(.medium)).lineLimit(1).padding(.horizontal, 4)
                                     .frame(width: colW * CGFloat(span.endColumn - span.startColumn + 1) - 7, height: laneH - 2, alignment: .leading)
                                     .eventChip(span.event.colorHex)
-                                    .opacity(span.event.isDeclined ? 0.5 : 1)
+                                    .calendarFade(span.event, otherwise: span.event.isDeclined ? 0.5 : 1)
                                     .eventDetailOnClick(span.event, arrowEdge: .bottom)
                                     .help(span.event.title)
                                     .offset(x: colW * CGFloat(span.startColumn) + 2, y: headerH + CGFloat(span.lane) * laneH)
@@ -490,6 +492,7 @@ struct MonthGridView: View {
             ForEach(timed.prefix(2)) { seg in
                 HStack(spacing: 3) { Circle().fill(Color(hex: seg.event.colorHex)).frame(width: 5, height: 5)
                     Text(seg.event.title).font(.caption2).lineLimit(1) }
+                    .calendarFade(seg.event)
             }
             if timed.count > 2 {
                 Text("+\(timed.count - 2) more").font(.caption2).foregroundStyle(.secondary)
@@ -560,7 +563,7 @@ struct DayEventsListView: View {
                         JoinButton(event: seg.event, size: .small, key: .cream)
                     }
                     .padding(.vertical, density.rowPadding)
-                    .opacity(seg.event.isDeclined ? 0.5 : 1)
+                    .calendarFade(seg.event, otherwise: seg.event.isDeclined ? 0.5 : 1)
                     .eventDetailOnClick(seg.event, arrowEdge: .leading)
                     .contextMenu {
                         MeetingSecondaryActions(event: seg.event)

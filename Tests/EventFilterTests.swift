@@ -96,6 +96,32 @@ final class EventFilterTests: XCTestCase {
         mine.organizerIsSelf = true
         XCTAssertFalse(mine.canRespond, "the organizer doesn't RSVP")
     }
+
+    func testCalendarFade() {
+        var s = EventFilterSettings()
+        s.rules.ignoredKeywords = ["lunch"]
+        let shown = ev("a"), hidden = ev("b", title: "Lunch")
+        XCTAssertEqual(EventFilter.calendarOpacity(shown, settings: s), 1)
+        XCTAssertEqual(EventFilter.calendarOpacity(hidden, settings: s), 1, "full by default, as before")
+        s.calendarFade = 0.3
+        XCTAssertEqual(EventFilter.calendarOpacity(hidden, settings: s), 0.3)
+        XCTAssertEqual(EventFilter.calendarOpacity(shown, settings: s), 1, "only filtered events fade")
+        XCTAssertEqual(EventFilter.calendarEvents([shown, hidden], settings: s).map(\.id), ["a", "b"], "faded, still laid out")
+        s.calendarFade = 0
+        XCTAssertEqual(EventFilter.calendarEvents([shown, hidden], settings: s).map(\.id), ["a"], "0 leaves them out")
+        s.sources["me@acme.com"] = SourceFilterRule(mode: .showAll)
+        XCTAssertEqual(EventFilter.calendarOpacity(hidden, settings: s), 1, "a show-everything source never fades")
+    }
+
+    func testFilterSettingsDecodeWithoutFade() throws {
+        var old = EventFilterSettings()
+        old.rules.hideAllDay = true
+        var json = try JSONSerialization.jsonObject(with: JSONEncoder().encode(old)) as! [String: Any]
+        json.removeValue(forKey: "calendarFade")
+        let decoded = try JSONDecoder().decode(EventFilterSettings.self, from: JSONSerialization.data(withJSONObject: json))
+        XCTAssertTrue(decoded.rules.hideAllDay, "saved rules survive the new setting")
+        XCTAssertEqual(decoded.calendarFade, 1)
+    }
 }
 
 /// Work calendars and "Work only" (#52).

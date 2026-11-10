@@ -9,8 +9,14 @@ struct EventFilterSettingsView: View {
     var body: some View {
         SK1SettingsPane {
             SKGroup(caption: "Hide or fade",
-                    note: "These rules apply to the menu bar title, the menu bar popover, the Upcoming view, the join shortcut and Meeting Guardian alerts. The Day, Week and Month views always show everything. Use \u{201C}Show anyway\u{201D} under a list to see what was hidden.") {
+                    note: "These rules apply to the menu bar title, the menu bar popover, the Upcoming view, the join shortcut and Meeting Guardian alerts. Use \u{201C}Show anyway\u{201D} under a list to see what was hidden.") {
                 EventFilterRulesEditor(rules: $calendar.filters.rules)
+            }
+            SKGroup(caption: "Calendar views",
+                    note: "How the Day, Week and Month views show events these rules hide: Full shows them like any other, Hidden leaves them out.") {
+                SKRow(title: "Filtered events") {
+                    CalendarFadeSlider(fade: $calendar.filters.calendarFade).frame(width: 240)
+                }
             }
             SKGroup(caption: "Per source", note: "A source can follow the rules above, have its own, or show everything.") {
                 if calendar.sources.isEmpty {

@@ -29,6 +29,8 @@ struct DayGridView: View {
         TimelineView(.periodic(from: .now, by: 30)) { tl in
             content(now: tl.date)
         }
+        // Events the filters hide are drawn at the fade from Settings › Events.
+        .environment(\.calendarFilterSettings, store.settings.filters)
         .onChange(of: span) { _, _ in pencil = nil; scrollRequest += 1 }
         .onChange(of: jump.wrappedValue, initial: true) { _, day in
             guard let day else { return }
@@ -42,7 +44,7 @@ struct DayGridView: View {
     private func content(now: Date) -> some View {
         let cal = Calendar.app
         let days = TimeGridLayoutBuilder.days(from: anchor, count: dayCount, calendar: cal)
-        let events = store.events(from: anchor, days: dayCount)
+        let events = EventFilter.calendarEvents(store.events(from: anchor, days: dayCount), settings: store.settings.filters)
         let range = DateInterval(start: days.first ?? anchor,
                                  end: cal.date(byAdding: .day, value: dayCount, to: anchor) ?? anchor)
         let derived = CalendarDerivedEventsBuilder.build(events: events, range: range, calendar: cal)
@@ -471,7 +473,7 @@ struct DayGridAllDayBar: View {
         .padding(.horizontal, 5)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
         .eventChip(e.colorHex)
-        .opacity(e.isDeclined ? 0.5 : 1)
+        .calendarFade(e, otherwise: e.isDeclined ? 0.5 : 1)
         .contentShape(Rectangle())
         .accessibilityLabel(Text("\(e.title), all day"))
     }
@@ -679,7 +681,7 @@ struct DayGridEventBlock: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 5))
-        .opacity(ended || e.isDeclined ? 0.55 : 1)
+        .calendarFade(e, otherwise: ended || e.isDeclined ? 0.55 : 1)
         .contentShape(Rectangle())
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(e.title), \(segment.timeRangeText())" + (live ? ", on now" : "")))

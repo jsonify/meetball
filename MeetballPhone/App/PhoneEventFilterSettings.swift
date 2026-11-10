@@ -8,8 +8,14 @@ struct PhoneEventFilterGroups: View {
 
     var body: some View {
         SKGroup(caption: "Events · hide or fade",
-                note: "These rules apply to Today, Up next, alerts, the Live Activity, widgets and Siri. The Day, Week and Month views always show everything. Use \u{201C}Show anyway\u{201D} on Today to see what was hidden.") {
+                note: "These rules apply to Today, Up next, alerts, the Live Activity, widgets and Siri. Use \u{201C}Show anyway\u{201D} on Today to see what was hidden.") {
             PhoneEventFilterRulesEditor(rules: $store.settings.filters.rules)
+        }
+        SKGroup(caption: "Events · calendar views",
+                note: "How the Day, Week and Month views show events these rules hide: Full shows them like any other, Hidden leaves them out.") {
+            SKRow(title: "Filtered events") {
+                CalendarFadeSlider(fade: $store.settings.filters.calendarFade).frame(width: 190)
+            }
         }
         SKGroup(caption: "Events · per source", note: "A source can follow the rules above, have its own, or show everything.") {
             if store.sources.isEmpty {
