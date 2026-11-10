@@ -67,6 +67,7 @@ enum ChangeLog {
     static let all: [Entry] = [
         Entry(day: "2026-11-10", changes: [
             new(.both, "A change log here in Settings › About, so you can see what's new."),
+            better(.iPhone, "Easier on the battery: refreshes no longer overlap, reminders are only rescheduled when they change, and places for drive times are looked up once."),
             better(.iPhone, "Editing an event uses Meetball's own SK-1 editor; More options opens Apple's for invitees, alerts and repeat."),
             new(.both, "Filtered events can fade in the calendar views instead of disappearing. Set how much with the fade knob."),
             new(.mac, "Change your RSVP (Yes, Maybe, No) right from the event popover."),

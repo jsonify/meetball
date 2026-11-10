@@ -9,8 +9,12 @@ import UIKit
 final class TravelTimes: NSObject, CLLocationManagerDelegate {
     private let manager = CLLocationManager()
     private var waiting: [CheckedContinuation<CLLocation?, Never>] = []
-    /// Places looked up by their location text, so each address is searched once per launch.
+    /// Places looked up by their location text, kept across launches (a background refresh is often a fresh launch),
+    /// so each address is searched once rather than on every refresh.
     private var coordinates: [String: CLLocationCoordinate2D] = [:]
+    private static let coordinatesKey = "phone.placeCoordinates"
+    /// More places than this and the saved list starts over; trips repeat, so it refills with the ones in use.
+    private static let maxSavedPlaces = 100
     private var lastStatus: CLAuthorizationStatus = .notDetermined
     /// Called when location access changes (granted or taken away in Settings).
     var onAuthorizationChange: (() -> Void)?
@@ -18,6 +22,7 @@ final class TravelTimes: NSObject, CLLocationManagerDelegate {
     override init() {
         super.init()
         lastStatus = manager.authorizationStatus
+        coordinates = Self.loadCoordinates()
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyHundredMeters
     }
@@ -70,8 +75,23 @@ final class TravelTimes: NSObject, CLLocationManagerDelegate {
         guard let item = try? await MKLocalSearch(request: request).start().mapItems.first else { return nil }
         let c = item.placemark.coordinate
         guard CLLocationCoordinate2DIsValid(c) else { return nil }
+        if coordinates.count >= Self.maxSavedPlaces { coordinates.removeAll() }
         coordinates[place] = c
+        saveCoordinates()
         return c
+    }
+
+    private static func loadCoordinates() -> [String: CLLocationCoordinate2D] {
+        let saved = UserDefaults.standard.dictionary(forKey: coordinatesKey) as? [String: [Double]] ?? [:]
+        return saved.compactMapValues { pair in
+            guard pair.count == 2 else { return nil }
+            let c = CLLocationCoordinate2D(latitude: pair[0], longitude: pair[1])
+            return CLLocationCoordinate2DIsValid(c) ? c : nil
+        }
+    }
+
+    private func saveCoordinates() {
+        UserDefaults.standard.set(coordinates.mapValues { [$0.latitude, $0.longitude] }, forKey: Self.coordinatesKey)
     }
 
     private func finish(_ location: CLLocation?) {

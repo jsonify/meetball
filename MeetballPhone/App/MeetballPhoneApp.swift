@@ -22,7 +22,7 @@ struct MeetballPhoneApp: App {
                     switch newPhase {
                     case .active:
                         store.showPendingCelebration()
-                        Task { await store.refresh(fresh: true) }
+                        Task { await store.refreshOnOpen() }
                     case .background: store.scheduleBackgroundRefresh()
                     default: break
                     }

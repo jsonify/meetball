@@ -48,22 +48,48 @@ enum PhoneNotifications {
 
     /// Replaces every scheduled meeting reminder with `plan`. `directions` opens a trip's place in the chosen maps app
     /// (from a Leave now alert).
+    ///
+    /// Only what changed is touched: reminders no longer planned are removed, new or changed ones are added (adding
+    /// under an existing identifier replaces it), and ones already scheduled exactly as planned are left alone. Most
+    /// refreshes change nothing, so this usually does no work at all instead of rescheduling up to 48 reminders.
     static func apply(_ plan: [PlannedReminder], directions: DirectionsApp = .googleMaps) async {
-        let pending = await center.pendingNotificationRequests()
-        let stale = pending.map(\.identifier).filter { $0.hasPrefix(ReminderPlanner.idPrefix) }
-        center.removePendingNotificationRequests(withIdentifiers: stale)
-        for r in plan {
-            let c: UNMutableNotificationContent
-            switch r.kind {
-            case .echo: c = echoContent(r)
-            case .leave: c = leaveContent(r, directions: directions)
-            case .lead, .start: c = content(title: r.title, body: r.body, joinURL: r.event.meetURL)
-            }
-            c.threadIdentifier = r.event.uid
-            let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: r.fireDate)
-            let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
-            try? await center.add(UNNotificationRequest(identifier: r.id, content: c, trigger: trigger))
+        let wanted = plan.map { request(for: $0, directions: directions) }
+        let pending = await center.pendingNotificationRequests().filter { $0.identifier.hasPrefix(ReminderPlanner.idPrefix) }
+        let wantedIDs = Set(wanted.map(\.identifier))
+        let stale = pending.map(\.identifier).filter { !wantedIDs.contains($0) }
+        if !stale.isEmpty { center.removePendingNotificationRequests(withIdentifiers: stale) }
+        let current = Dictionary(pending.map { ($0.identifier, $0) }, uniquingKeysWith: { first, _ in first })
+        for r in wanted {
+            if let existing = current[r.identifier], isSame(existing, r) { continue }
+            try? await center.add(r)
         }
+    }
+
+    static func request(for r: PlannedReminder, directions: DirectionsApp) -> UNNotificationRequest {
+        let c: UNMutableNotificationContent
+        switch r.kind {
+        case .echo: c = echoContent(r)
+        case .leave: c = leaveContent(r, directions: directions)
+        case .lead, .start: c = content(title: r.title, body: r.body, joinURL: r.event.meetURL)
+        }
+        c.threadIdentifier = r.event.uid
+        let comps = Calendar.current.dateComponents([.year, .month, .day, .hour, .minute, .second], from: r.fireDate)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: false)
+        return UNNotificationRequest(identifier: r.id, content: c, trigger: trigger)
+    }
+
+    /// Whether a pending request would fire at the same moment with the same alert. Anything not compared equal is
+    /// simply scheduled again, as every refresh used to do.
+    static func isSame(_ a: UNNotificationRequest, _ b: UNNotificationRequest) -> Bool {
+        guard a.identifier == b.identifier,
+              let ta = a.trigger as? UNCalendarNotificationTrigger, let tb = b.trigger as? UNCalendarNotificationTrigger,
+              ta.dateComponents == tb.dateComponents, ta.repeats == tb.repeats else { return false }
+        let ca = a.content, cb = b.content
+        return ca.title == cb.title && ca.body == cb.body
+            && ca.categoryIdentifier == cb.categoryIdentifier && ca.threadIdentifier == cb.threadIdentifier
+            && ca.interruptionLevel == cb.interruptionLevel && ca.relevanceScore == cb.relevanceScore
+            && (ca.sound == nil) == (cb.sound == nil)
+            && NSDictionary(dictionary: ca.userInfo).isEqual(to: cb.userInfo)
     }
 
     /// Shows a change alert now.

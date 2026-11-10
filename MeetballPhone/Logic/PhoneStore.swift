@@ -64,6 +64,12 @@ final class PhoneStore: ObservableObject {
     private let travel = TravelTimes()
     private var started = false
     private var debounce: Task<Void, Never>?
+    /// The refresh under way, and whether another was asked for meanwhile (see `refresh`).
+    private var refreshTask: Task<Void, Never>?
+    private var refreshAgain = false
+    private var refreshAgainFresh = false
+    /// Becoming active this soon after a refresh finished doesn't start another.
+    static let openRefreshGrace: TimeInterval = 5
     /// Meetings deleted on this phone (an event's id prefix, the earliest start it covers, and when), so refreshes in the
     /// next few minutes don't report their disappearance as a cancellation.
     private var locallyRemoved: [(prefix: String, from: Date, at: Date)] = []
@@ -113,11 +119,52 @@ final class PhoneStore: ObservableObject {
     }
 
     /// Loads the next two days, alerts on changes since the last check, and reschedules every reminder.
-    func refresh(fresh: Bool = false, now: Date = Date()) async {
+    ///
+    /// Refreshes never overlap: one asked for while another is running is folded into a single follow-up run (fresh if
+    /// any of the requests was), and every caller returns once a refresh that started after its request has finished.
+    /// Without this, opening the app ran two at once (launch and becoming active), each diffing against the same old
+    /// snapshot and rescheduling every reminder.
+    func refresh(fresh: Bool = false, now: Date? = nil) async {
+        if let running = refreshTask {
+            refreshAgain = true
+            refreshAgainFresh = refreshAgainFresh || fresh
+            await running.value
+            return
+        }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            var runFresh = fresh
+            var at = now
+            while true {
+                await self.performRefresh(fresh: runFresh, now: at ?? Date())
+                guard self.refreshAgain else { break }
+                runFresh = self.refreshAgainFresh
+                self.refreshAgain = false
+                self.refreshAgainFresh = false
+                at = nil
+            }
+            self.refreshTask = nil
+        }
+        refreshTask = task
+        await task.value
+    }
+
+    /// Meetball came to the front: a fresh refresh, unless one is already under way or has only just finished (on
+    /// launch, `start()` has already begun one).
+    func refreshOnOpen(now: Date = Date()) async {
+        if refreshTask != nil { return }
+        if let last = lastRefresh, now.timeIntervalSince(last) < Self.openRefreshGrace { return }
+        await refresh(fresh: true)
+    }
+
+    private func performRefresh(fresh: Bool, now: Date) async {
         updateAccess()
         notificationSettings = await PhoneNotifications.settings()
         guard client.isAuthorized else { return }
-        client.sync(fresh: fresh)
+        // Only a fresh refresh (opening Meetball, pull to refresh, a background refresh) asks iOS to sync the calendar
+        // accounts. The rest follow a change that has already landed in the Calendar database (a sync finishing, an edit
+        // made here, a setting), so asking again would only start more network syncs, and more change notifications.
+        if fresh { client.sync(fresh: true) }
 
         let all = client.calendars().sorted { ($0.accountEmail, $0.summary) < ($1.accountEmail, $1.summary) }
         calendars = all
