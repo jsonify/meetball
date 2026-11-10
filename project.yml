@@ -111,6 +111,8 @@ targets:
       - Meetball/Calendar/EventFilter.swift
       - Meetball/Utilities/AppPreferences.swift
       - Meetball/Utilities/AppVersion.swift
+      - Meetball/Utilities/ChangeLog.swift
+      - Meetball/Settings/ChangeLogView.swift
       - Meetball/Utilities/Formatters.swift
       - Meetball/Utilities/MeetingService.swift
       - Meetball/DesignSystem/EventChip.swift
