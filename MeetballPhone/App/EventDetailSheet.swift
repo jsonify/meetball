@@ -14,7 +14,7 @@ struct EventDetailSheet: View {
     /// The stored event when its calendar can be changed here; nil for a read-only feed such as the work calendar.
     @State private var editable: (event: EKEvent, store: EKEventStore)?
     @State private var editing = false
-    /// Set when Apple's editor saved or deleted: this screen closes once the editor has gone, not alongside it.
+    /// Set when the editor saved or deleted: this screen closes once the editor has gone, not alongside it.
     @State private var closeAfterEdit = false
     @State private var confirmingDelete = false
     @State private var deleteError: String?
@@ -69,12 +69,12 @@ struct EventDetailSheet: View {
         // goes first, then this screen (it shows the old details; the calendars reload from the change).
         .sheet(isPresented: $editing, onDismiss: { if closeAfterEdit { dismiss() } }) {
             if let editable {
-                EventEditor(event: editable.event, eventStore: editable.store) { action in
+                EventEditSheet(event: event, ekEvent: editable.event, eventStore: editable.store) { action in
                     if action == .deleted { store.noteDeleted(event) }
                     closeAfterEdit = action != .canceled
                     editing = false
                 }
-                .ignoresSafeArea()
+                .environmentObject(store)
             }
         }
     }
@@ -121,8 +121,8 @@ struct EventDetailSheet: View {
         }
     }
 
-    /// Edit: Apple's editor for calendars the phone can change, or the event's edit page in Google Calendar for the
-    /// read-only work feed.
+    /// Edit: the SK-1 editor (EventEditSheet) for calendars the phone can change, or the event's edit page in Google
+    /// Calendar for the read-only work feed.
     @ViewBuilder
     private var editKey: some View {
         if editable != nil {
