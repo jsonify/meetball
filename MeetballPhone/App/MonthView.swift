@@ -7,8 +7,8 @@ import SK1UI
 /// top of the scroll; ◀ and ▶ scroll a month back or on. Tapping a day opens it on the Day grid.
 struct MonthView: View {
     @EnvironmentObject private var store: PhoneStore
-    /// Opens a day on the Day grid.
-    var pick: (Date) -> Void
+    /// Opens a day on the Day grid; with it, where its cell is on the screen, for the grid to grow out of.
+    var pick: (Date, CGRect) -> Void
     /// The month at the top of the scroll (its first day).
     @State private var visible: Date?
     @State private var paged = 0
@@ -96,7 +96,7 @@ struct MonthBlock: View {
     let month: Date
     let now: Date
     let showsYear: Bool
-    let pick: (Date) -> Void
+    let pick: (Date, CGRect) -> Void
 
     var body: some View {
         let cal = Calendar.app
@@ -129,7 +129,8 @@ struct MonthWeekRow: View {
     let now: Date
     let ribbons: [MiniMonthRibbon]
     let dots: [Date: [String]]
-    let pick: (Date) -> Void
+    let pick: (Date, CGRect) -> Void
+    private static let cellHeight: CGFloat = 46
 
     var body: some View {
         let cal = Calendar.app
@@ -137,12 +138,16 @@ struct MonthWeekRow: View {
             HStack(spacing: 0) {
                 ForEach(week, id: \.self) { day in
                     if cal.isDate(day, equalTo: month, toGranularity: .month) {
-                        Button { pick(day) } label: { dayCell(day, cal: cal) }
-                            .buttonStyle(.plain)
-                            .frame(maxWidth: .infinity)
-                            .accessibilityHint("Opens the day")
+                        // The reader only tells the tap where the cell is; the cell is as tall as it ever was.
+                        GeometryReader { geo in
+                            Button { pick(day, geo.frame(in: .global)) } label: { dayCell(day, cal: cal) }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Opens the day")
+                        }
+                        .frame(maxWidth: .infinity)
+                        .frame(height: Self.cellHeight)
                     } else {
-                        Color.clear.frame(maxWidth: .infinity, minHeight: 46).accessibilityHidden(true)
+                        Color.clear.frame(maxWidth: .infinity, minHeight: Self.cellHeight).accessibilityHidden(true)
                     }
                 }
             }
@@ -188,7 +193,7 @@ struct MonthWeekRow: View {
             }
             .frame(height: 5)
         }
-        .frame(maxWidth: .infinity, minHeight: 46)
+        .frame(maxWidth: .infinity, minHeight: Self.cellHeight)
         .contentShape(Rectangle())
         .accessibilityLabel(Text(day.formatted(.dateTime.weekday(.wide).month(.wide).day()) + (colors.isEmpty ? "" : ", has meetings")))
     }
