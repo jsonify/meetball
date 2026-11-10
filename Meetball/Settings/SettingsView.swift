@@ -149,7 +149,7 @@ struct GeneralSettings: View {
     }
 }
 
-/// Settings › About: which build is running, to copy into a bug report.
+/// Settings › About: which build is running, to copy into a bug report, and what's changed lately.
 struct AboutSettings: View {
     var body: some View {
         SK1SettingsPane {
@@ -165,6 +165,7 @@ struct AboutSettings: View {
                     }
                 }
             }
+            ChangeLogGroup(platform: .mac)
         }
     }
 }

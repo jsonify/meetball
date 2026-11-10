@@ -93,7 +93,7 @@ private struct PhoneSettingsKey: View {
 }
 
 /// Settings › About: which build is running (version, build number, commit and when it was built), to copy into a
-/// bug report or to check against TestFlight.
+/// bug report or to check against TestFlight, and what's changed lately.
 struct PhoneAboutGroups: View {
     @State private var copied = 0
     private let version = AppVersion.current
@@ -121,6 +121,7 @@ struct PhoneAboutGroups: View {
         SKGroup(caption: "This iPhone") {
             SKRow(title: "iOS") { value(UIDevice.current.systemVersion) }
         }
+        ChangeLogGroup(platform: .iPhone, height: 340)
     }
 
     private func value(_ s: String) -> some View {
