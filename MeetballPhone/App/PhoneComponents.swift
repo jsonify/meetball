@@ -182,6 +182,8 @@ struct PhoneAgendaRow: View {
         }
         .padding(.vertical, 3)
         .opacity(ended || event.isDeclined || tentativeDimmed || hideReason != nil ? 0.5 : 1)
+        // The Week view's fade for events the filters hide (Today doesn't set one).
+        .calendarFade(event)
     }
 }
 

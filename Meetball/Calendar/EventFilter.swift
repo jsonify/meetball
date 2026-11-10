@@ -3,8 +3,8 @@ import SwiftUI
 import SK1UI
 
 /// Meeting-first rules (Settings › Events). They decide which events the menu bar title, the popover,
-/// the Upcoming dashboard, the join shortcut and Meeting Guardian alerts care about. The calendar grids
-/// still show everything.
+/// the Upcoming dashboard, the join shortcut and Meeting Guardian alerts care about. The calendar grids draw the
+/// events they'd hide at `EventFilterSettings.calendarFade` instead.
 public struct EventFilterRules: Codable, Equatable {
     public var hideDeclined = true
     public var hideAllDay = false
@@ -61,8 +61,21 @@ public struct EventFilterSettings: Codable, Equatable {
     public var rules = EventFilterRules()
     /// Per-source overrides, keyed by `CalendarEvent.accountEmail` (a Google email or "Apple · <account>").
     public var sources: [String: SourceFilterRule] = [:]
+    /// How strongly the Day, Week and Month views draw events the rules hide: 1 draws them like any other, 0 leaves
+    /// them out.
+    public var calendarFade: Double = 1
 
     public init() {}
+
+    enum CodingKeys: String, CodingKey { case rules, sources, calendarFade }
+
+    /// Missing keys keep their defaults, so adding a setting never resets someone's saved rules.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        rules = try c.decodeIfPresent(EventFilterRules.self, forKey: .rules) ?? rules
+        sources = try c.decodeIfPresent([String: SourceFilterRule].self, forKey: .sources) ?? sources
+        calendarFade = min(1, max(0, try c.decodeIfPresent(Double.self, forKey: .calendarFade) ?? calendarFade))
+    }
 
     public static let defaultsKey = "eventFilters"
 
@@ -132,6 +145,17 @@ public enum EventFilter {
         return EventFilterResult(shown: shown, hidden: hidden)
     }
 
+    /// How strongly a calendar grid draws `e`: 1 when no rule hides it, otherwise the Settings fade.
+    public static func calendarOpacity(_ e: CalendarEvent, settings: EventFilterSettings) -> Double {
+        hideReason(e, settings: settings) == nil ? 1 : settings.calendarFade
+    }
+
+    /// The events a calendar grid lays out: all of them, less the hidden ones when the fade is all the way down (so
+    /// they don't hold an empty slot).
+    public static func calendarEvents(_ events: [CalendarEvent], settings: EventFilterSettings) -> [CalendarEvent] {
+        settings.calendarFade > 0 ? events : events.filter { hideReason($0, settings: settings) == nil }
+    }
+
     static func matchesKeyword(_ title: String, _ keywords: [String]) -> Bool {
         keywords.contains { k in
             let k = k.trimmingCharacters(in: .whitespaces)
@@ -165,6 +189,49 @@ extension EnvironmentValues {
     var eventFilterSettings: EventFilterSettings? {
         get { self[EventFilterSettingsKey.self] }
         set { self[EventFilterSettingsKey.self] = newValue }
+    }
+}
+
+private struct CalendarFilterSettingsKey: EnvironmentKey { static let defaultValue: EventFilterSettings? = nil }
+
+extension EnvironmentValues {
+    /// Set by the calendar grids (Day, Week, Month) so their events can fade the ones the rules hide.
+    var calendarFilterSettings: EventFilterSettings? {
+        get { self[CalendarFilterSettingsKey.self] }
+        set { self[CalendarFilterSettingsKey.self] = newValue }
+    }
+}
+
+/// Draws an event at `base` opacity, or fainter when the filters hide it and a calendar grid set the fade.
+private struct CalendarFade: ViewModifier {
+    let event: CalendarEvent
+    let base: Double
+    @Environment(\.calendarFilterSettings) private var settings
+
+    func body(content: Content) -> some View {
+        content.opacity(min(base, settings.map { EventFilter.calendarOpacity(event, settings: $0) } ?? 1))
+    }
+}
+
+extension View {
+    /// Fades `event` in a calendar grid when the filters hide it; `base` is its opacity otherwise (declined, ended).
+    func calendarFade(_ event: CalendarEvent, otherwise base: Double = 1) -> some View {
+        modifier(CalendarFade(event: event, base: base))
+    }
+}
+
+/// The calendar-views fade as an SK-1 knob, in percent (Settings › Events on the Mac and the iPhone). Double-click
+/// goes back to Full.
+struct CalendarFadeKnob: View {
+    @Binding var fade: Double
+
+    var body: some View {
+        let percent = Binding<Int>(get: { Int((fade * 100).rounded()) }, set: { fade = Double($0) / 100 })
+        SKKnob("Filtered events", value: percent, in: 0...100, step: 5, defaultValue: 100, format: Self.label)
+    }
+
+    static func label(_ percent: Int) -> String {
+        percent <= 0 ? "Hidden" : percent >= 100 ? "Full" : "\(percent)%"
     }
 }
 

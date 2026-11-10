@@ -100,6 +100,7 @@ enum SettingsSearch {
         .init(title: "Pulse when a meeting is near", tab: .menuBar, group: "Icon", keywords: ["blink", "flash", "pulse"]),
         .init(title: "World clocks", tab: .menuBar, group: "World clocks", keywords: ["time zone", "timezone", "city", "clock"]),
         .init(title: "Hide or fade events", tab: .events, group: "Hide or fade", keywords: ["filter", "declined", "all-day", "focus", "ignore"]),
+        .init(title: "Fade filtered events in calendar views", tab: .events, group: "Calendar views", keywords: ["filter", "fade", "opacity", "dim", "transparency", "month", "week", "day"]),
         .init(title: "Rules per source", tab: .events, group: "Per source", keywords: ["filter", "account", "source"]),
         .init(title: "Google accounts", tab: .accounts, group: "Google accounts", keywords: ["sign in", "google", "account", "accent", "colour", "color"]),
         .init(title: "Notify when a meeting changes", tab: .alerts, group: "Meeting changes", keywords: ["moved", "rescheduled", "cancelled", "canceled", "link", "change"]),

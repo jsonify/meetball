@@ -21,6 +21,7 @@ struct MonthView: View {
         TimelineView(.periodic(from: .now, by: 60)) { tl in
             content(now: tl.date)
         }
+        .environment(\.calendarFilterSettings, store.settings.filters)
         .sensoryFeedback(.selection, trigger: paged)
     }
 
@@ -101,7 +102,7 @@ struct MonthBlock: View {
     var body: some View {
         let cal = Calendar.app
         let range = CalendarVisibleRangeBuilder.build(anchor: month, calendar: cal)
-        let events = store.events(in: range)
+        let events = EventFilter.calendarEvents(store.events(in: range), settings: store.settings.filters)
         let ribbons = MiniMonthRibbonBuilder.build(events: events, range: range, calendar: cal)
         let ribbonUIDs = MiniMonthRibbonBuilder.uids(ribbons)
         let dots = MenuAgendaBuilder.dots(events: events.filter { !ribbonUIDs.contains($0.uid) }, range: range, calendar: cal)
@@ -208,6 +209,7 @@ struct MonthWeekRow: View {
         .padding(.horizontal, 3)
         .frame(maxHeight: .infinity)
         .eventChip(r.event.colorHex, radius: 3)
+        .calendarFade(r.event)
         .accessibilityLabel(Text(r.event.title))
     }
 }

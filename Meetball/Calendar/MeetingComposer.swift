@@ -8,6 +8,16 @@ import Foundation
 public enum MeetingComposer {
     /// The length keys on the composer, in minutes.
     public static let lengthChoices = [15, 30, 45, 60]
+    /// The longest meeting the Ends picker offers, in minutes.
+    public static let longestEnd = 16 * 60
+
+    /// Lengths, in minutes, the composer's Ends picker offers: every quarter hour up to `longestEnd`, plus `current`
+    /// when it's off the quarter hours (a typed "for 50 min").
+    public static func endChoices(current: Int) -> [Int] {
+        var choices = Array(stride(from: 15, through: longestEnd, by: 15))
+        if current > 0, !choices.contains(current) { choices.append(current); choices.sort() }
+        return choices
+    }
     /// Free times start on a quarter hour.
     public static let slotStep: TimeInterval = 15 * 60
 

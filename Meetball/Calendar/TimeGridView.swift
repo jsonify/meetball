@@ -141,7 +141,7 @@ private struct AllDayBarView: View {
             .padding(.horizontal, 5)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
             .eventChip(e.colorHex)
-            .opacity(e.isDeclined ? 0.5 : 1)
+            .calendarFade(e, otherwise: e.isDeclined ? 0.5 : 1)
             .eventDetailOnClick(e, arrowEdge: .bottom)
             .contextMenu { MeetingSecondaryActions(event: e) }
             .help(e.title)
@@ -253,7 +253,7 @@ struct TimeGridEventBlock: View {
             if let u = e.meetURL, !ended { MeetingServiceBadge(url: u).padding(3) }
         }
         .clipShape(RoundedRectangle(cornerRadius: 5))
-        .opacity(ended || e.isDeclined ? 0.55 : 1)
+        .calendarFade(e, otherwise: ended || e.isDeclined ? 0.55 : 1)
         .eventDetailOnClick(e)
         .contextMenu {
             MeetingSecondaryActions(event: e)

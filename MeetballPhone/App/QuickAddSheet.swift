@@ -6,8 +6,8 @@ import SK1Tokens
 import SK1UI
 
 /// The new-meeting composer. One line of plain English ("1:1 with Sam fri 2pm") fills everything in, read back on an
-/// LCD as you type; then the day, start and length can be nudged with keys instead of retyped, the day's meetings show
-/// on a strip with any clash in red, and free times that fit are one tap away.
+/// LCD as you type; then the day, start and end (or a length key) can be nudged with keys instead of retyped, the day's
+/// meetings show on a strip with any clash in red, and free times that fit are one tap away.
 ///
 /// It saves to a calendar Meetball can write to, or, for a work Google calendar it can only read (a feed in Apple
 /// Calendar), opens Google Calendar's new-event page filled in, guests from the line included, optionally keeping a
@@ -149,6 +149,10 @@ struct QuickAddSheet: View {
             lengthOverride = new
             nudged += 1
         })
+        let endLabel = { (m: Int) -> String in
+            let end = start.addingTimeInterval(Double(m) * 60)
+            return cal.isDate(end.addingTimeInterval(-1), inSameDayAs: start) ? end.shortTime : "\(end.shortTime) +1"
+        }
         return SKGroup(caption: "When") {
             SKRow(title: "Day") {
                 ScrollingPicker(selection: dayBinding,
@@ -158,6 +162,11 @@ struct QuickAddSheet: View {
                 ScrollingPicker(selection: timeBinding,
                                 options: times.map { ($0, dayStart.addingTimeInterval(Double($0) * 60).shortTime) },
                                 name: "Starts")
+            }
+            SKRow(title: "Ends", subtitle: lengthLabel(minutes)) {
+                ScrollingPicker(selection: lengthBinding,
+                                options: MeetingComposer.endChoices(current: minutes).map { ($0, endLabel($0)) },
+                                name: "Ends")
             }
             SKRow(title: "Length") {
                 SKSegmented(selection: lengthBinding, options: lengths.map { SKSegmented<Int>.Option($0, lengthLabel($0)) })

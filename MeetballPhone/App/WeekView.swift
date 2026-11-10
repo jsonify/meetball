@@ -13,10 +13,11 @@ struct WeekView: View {
         TimelineView(.periodic(from: .now, by: 30)) { tl in
             content(now: tl.date)
         }
+        .environment(\.calendarFilterSettings, store.settings.filters)
     }
 
     private func content(now: Date) -> some View {
-        let events = store.events(from: now, days: 7)
+        let events = EventFilter.calendarEvents(store.events(from: now, days: 7), settings: store.settings.filters)
         let loads = MeetingLoadBuilder.build(events: events, from: now, days: 7)
         let groups = MenuAgendaBuilder.build(events: events, now: now, days: 7, limit: 400)
         let total = loads.reduce(0) { $0 + $1.hours }

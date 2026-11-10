@@ -157,7 +157,10 @@ public final class CalendarStore: ObservableObject {
         for c in calendars where !seen.contains(c.accountEmail) { seen.append(c.accountEmail) }
         return seen
     }
-    var derived: CalendarDerivedEvents { CalendarDerivedEventsBuilder.build(events: visibleEvents, range: visibleRange) }
+    /// What the Day, Week and Month views lay out: visible events, less those the filters hide when Settings fades
+    /// them all the way out.
+    var calendarEvents: [CalendarEvent] { EventFilter.calendarEvents(visibleEvents, settings: filters) }
+    var derived: CalendarDerivedEvents { CalendarDerivedEventsBuilder.build(events: calendarEvents, range: visibleRange) }
 
     func startAutoRefresh() {
         timer?.invalidate()

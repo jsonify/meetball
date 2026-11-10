@@ -114,4 +114,15 @@ final class MeetingComposerTests: XCTestCase {
         XCTAssertNil(GoogleEventLink.editURL(for: e, account: nil))
         XCTAssertNotNil(GoogleEventLink.searchURL(for: e, account: nil))
     }
+
+    func testEndChoicesAreQuarterHoursPlusATypedLength() {
+        let plain = MeetingComposer.endChoices(current: 30)
+        XCTAssertEqual(plain.first, 15)
+        XCTAssertEqual(plain.last, MeetingComposer.longestEnd)
+        XCTAssertEqual(plain.count, MeetingComposer.longestEnd / 15)
+        let typed = MeetingComposer.endChoices(current: 50)
+        XCTAssertTrue(typed.contains(50), "a typed length stays selectable")
+        XCTAssertEqual(typed, typed.sorted())
+        XCTAssertTrue(MeetingComposer.endChoices(current: 20 * 60).contains(20 * 60), "longer than the list still shows")
+    }
 }
