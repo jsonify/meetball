@@ -76,22 +76,6 @@ final class EventFilterTests: XCTestCase {
         let hidden = [ev("solo", others: []), ev("declined", declined: true), ev("allday", allDay: true)]
         XCTAssertEqual(UpcomingView.hiddenUpcoming(hidden, now: now), 1)
     }
-}
-
-/// Work calendars and "Work only" (#52).
-final class CalendarVisibilityTests: XCTestCase {
-    func testWorkOnly() {
-        let hidden: Set = ["me|old"], work: Set = ["me|work"]
-        func shown(_ k: String, workOnly: Bool, work: Set<String> = work) -> Bool {
-            CalendarVisibility.isShown(k, hidden: hidden, work: work, workOnly: workOnly)
-        }
-        XCTAssertTrue(shown("me|home", workOnly: false))
-        XCTAssertFalse(shown("me|home", workOnly: true))
-        XCTAssertTrue(shown("me|work", workOnly: true))
-        XCTAssertFalse(shown("me|old", workOnly: false), "hidden stays hidden")
-        XCTAssertFalse(shown("me|old", workOnly: true, work: ["me|old"]), "hidden wins over work")
-        XCTAssertTrue(shown("me|home", workOnly: true, work: []), "no work calendars marked: show everything")
-    }
 
     func testRespondingChangesOnlyYourReply() {
         let e = ev("a", me: .accepted)
@@ -111,5 +95,21 @@ final class CalendarVisibilityTests: XCTestCase {
         var mine = ev("b", me: .accepted)
         mine.organizerIsSelf = true
         XCTAssertFalse(mine.canRespond, "the organizer doesn't RSVP")
+    }
+}
+
+/// Work calendars and "Work only" (#52).
+final class CalendarVisibilityTests: XCTestCase {
+    func testWorkOnly() {
+        let hidden: Set = ["me|old"], work: Set = ["me|work"]
+        func shown(_ k: String, workOnly: Bool, work: Set<String> = work) -> Bool {
+            CalendarVisibility.isShown(k, hidden: hidden, work: work, workOnly: workOnly)
+        }
+        XCTAssertTrue(shown("me|home", workOnly: false))
+        XCTAssertFalse(shown("me|home", workOnly: true))
+        XCTAssertTrue(shown("me|work", workOnly: true))
+        XCTAssertFalse(shown("me|old", workOnly: false), "hidden stays hidden")
+        XCTAssertFalse(shown("me|old", workOnly: true, work: ["me|old"]), "hidden wins over work")
+        XCTAssertTrue(shown("me|home", workOnly: true, work: []), "no work calendars marked: show everything")
     }
 }
