@@ -44,6 +44,8 @@ struct EventDetailPopover: View {
     @State private var contentHeight: CGFloat?
 
     private var isApple: Bool { AppleCalendarClient.isApple(event.accountEmail) }
+    /// The event as last loaded, so a reply made here shows even though the popover was opened before it.
+    private var current: CalendarEvent { store.events.first { $0.uid == event.uid } ?? event }
     private var calendarName: String? { store.calendars.first { $0.key == event.calendarKey }?.summary }
     private var notes: String { event.notes.map(EventNotesFormatter.plainText) ?? "" }
 
@@ -73,6 +75,7 @@ struct EventDetailPopover: View {
             header
             details
             if let url = event.meetURL { joinRow(url) }
+            if current.canRespond { rsvpRow }
             if event.meetURL != nil, !event.isAllDay, event.end > Date() { autoJoinRow }
             if !people.isEmpty || event.organizer != nil { attendeesSection }
             if !notes.isEmpty { notesSection }
@@ -116,7 +119,7 @@ struct EventDetailPopover: View {
                 .accessibilityLabel("Location: \(loc)")
                 .accessibilityHint(isWebLink(loc) ? "Opens the link" : "Opens in Maps")
             }
-            if event.isDeclined {
+            if current.isDeclined && !current.canRespond {
                 Label("You declined", systemImage: "xmark.circle").foregroundStyle(.secondary)
             }
             if guardianStore.isMuted(event) {
@@ -140,6 +143,39 @@ struct EventDetailPopover: View {
                 .help("Copy meeting link").accessibilityLabel("Copy meeting link")
             Spacer(minLength: 0)
         }
+    }
+
+    /// Your reply: Going / Maybe / No. Google events change here (this occurrence only); EventKit can't change a
+    /// reply, so Apple Calendar events show it and point to Calendar.
+    private var rsvpRow: some View {
+        let options: [SKSegmented<String>.Option] = [.init(AttendeeResponse.accepted.rawValue, "Yes"),
+                                                     .init(AttendeeResponse.tentative.rawValue, "Maybe"),
+                                                     .init(AttendeeResponse.declined.rawValue, "No")]
+        let reply = current.selfResponse ?? .needsAction
+        let selection = Binding<String>(
+            get: { reply.rawValue },
+            set: { raw in
+                guard let r = AttendeeResponse(rawValue: raw) else { return }
+                Task { await store.respond(current, r) }
+            })
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                Label("Going?", systemImage: reply.symbol).font(.callout)
+                Spacer(minLength: 0)
+                if isApple {
+                    Text(reply.label).font(.callout).foregroundStyle(.secondary)
+                } else {
+                    SKSegmented(selection: selection, options: options).frame(width: 190)
+                }
+            }
+            if isApple {
+                Text("Change your reply in Calendar (EventKit can\u{2019}t send replies).").sk1Hint()
+            } else if current.recurrence.isRecurring || current.seriesID != nil {
+                Text("Applies to this meeting only.").sk1Hint()
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Your reply: \(reply.label)")
     }
 
     /// Auto-join (#24): off, this meeting, or (for a recurring one) every meeting in the series.

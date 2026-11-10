@@ -313,6 +313,23 @@ public final class CalendarStore: ObservableObject {
         catch { actionError = "Could not delete event: \(error.localizedDescription)" }
     }
 
+    /// Going / Maybe / Not going on a Google event. The change shows straight away and is undone if Google refuses it.
+    /// EventKit can't change a reply, so Apple Calendar events are answered in Calendar.
+    func respond(_ e: CalendarEvent, _ response: AttendeeResponse) async {
+        if AppleCalendarClient.isApple(e.accountEmail) { actionError = "Reply to Apple Calendar events in Calendar."; return }
+        guard e.canRespond, e.selfResponse != response else { return }
+        let before = events
+        events = events.map { $0.uid == e.uid ? $0.responding(response) : $0 }
+        do {
+            try await client.respond(e, response)
+            Toast.show(response.replyToast, systemImage: response.symbol)
+            refresh()
+        } catch {
+            events = before
+            actionError = "Could not update your reply: \(error.localizedDescription)"
+        }
+    }
+
     func shiftMonth(_ n: Int) {
         anchor = Calendar.app.date(byAdding: .month, value: n, to: anchor) ?? anchor
         refresh()

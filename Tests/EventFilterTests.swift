@@ -92,4 +92,24 @@ final class CalendarVisibilityTests: XCTestCase {
         XCTAssertFalse(shown("me|old", workOnly: true, work: ["me|old"]), "hidden wins over work")
         XCTAssertTrue(shown("me|home", workOnly: true, work: []), "no work calendars marked: show everything")
     }
+
+    func testRespondingChangesOnlyYourReply() {
+        let e = ev("a", me: .accepted)
+        XCTAssertTrue(e.canRespond)
+        let no = e.responding(.declined)
+        XCTAssertEqual(no.selfResponse, .declined)
+        XCTAssertTrue(no.isDeclined)
+        XCTAssertEqual(no.participants.filter { !$0.isSelf }.map(\.response), [.accepted], "other guests keep their replies")
+        let maybe = no.responding(.tentative)
+        XCTAssertEqual(maybe.selfResponse, .tentative)
+        XCTAssertFalse(maybe.isDeclined)
+        XCTAssertEqual(EventFilter.hideReason(no, settings: EventFilterSettings()), .declined, "declining hides it from Up Next")
+    }
+
+    func testOnlyGuestsCanRespond() {
+        XCTAssertFalse(ev("a").canRespond, "not on the guest list")
+        var mine = ev("b", me: .accepted)
+        mine.organizerIsSelf = true
+        XCTAssertFalse(mine.canRespond, "the organizer doesn't RSVP")
+    }
 }
