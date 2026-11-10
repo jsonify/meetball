@@ -93,4 +93,85 @@ final class WidgetSnapshotTests: XCTestCase {
         XCTAssertEqual(LiveActivityController.meeting(from: [ev(90), ev(45)], now: now)?.id, "45.0")
         XCTAssertEqual(LiveActivityController.meeting(from: [ev(-10)], now: now)?.id, "-10.0")
     }
+
+    // MARK: The readout and the tape
+
+    private var utc: Calendar {
+        var c = Calendar(identifier: .gregorian)
+        c.timeZone = TimeZone(identifier: "UTC")!
+        c.locale = Locale(identifier: "en_US")
+        return c
+    }
+
+    func testReadoutCountsDownInsideTheHourAndShowsTheTimeBefore() {
+        let s = WidgetSnapshot(meetings: [m("a", in: 42)], savedAt: now)
+        let soon = WidgetReadout.make(s, at: now, calendar: utc, twentyFourHour: false)
+        XCTAssertEqual(soon.phase, .soon)
+        XCTAssertEqual([soon.caption, soon.digits, soon.unit, soon.message], ["STARTS IN", "42", "MIN", "a"])
+
+        let live = WidgetReadout.make(s, at: now.addingTimeInterval(50 * 60), calendar: utc, twentyFourHour: false)
+        XCTAssertEqual(live.phase, .live)
+        XCTAssertEqual([live.digits, live.unit], ["22", "MIN"])
+
+        let far = WidgetSnapshot(meetings: [m("b", in: 180)], savedAt: now)
+        let later = WidgetReadout.make(far, at: now, calendar: utc, twentyFourHour: true)
+        let start = WidgetClock.digits(far.meetings[0].start, calendar: utc, twentyFourHour: true)
+        XCTAssertEqual(later.phase, .later)
+        XCTAssertEqual(later.digits, start.digits)
+        XCTAssertTrue(later.caption.hasSuffix(" AT"))
+    }
+
+    func testReadoutAlwaysHasSomethingToSay() {
+        let none = WidgetReadout.make(nil, at: now, calendar: utc)
+        XCTAssertEqual(none.phase, .stale)
+        XCTAssertFalse(none.message.isEmpty)
+
+        let empty = WidgetSnapshot(meetings: [], savedAt: now)
+        let clear = WidgetReadout.make(empty, at: now.addingTimeInterval(3600), calendar: utc)
+        XCTAssertEqual(clear.phase, .clear)
+        XCTAssertEqual([clear.caption, clear.digits, clear.unit], ["ALL CLEAR", "0", "LEFT"])
+        XCTAssertTrue(clear.message.hasPrefix("Nothing through "))
+
+        let old = WidgetReadout.make(empty, at: now.addingTimeInterval(WidgetSnapshot.horizon + 60), calendar: utc)
+        XCTAssertEqual(old.phase, .stale)
+    }
+
+    func testClockDigits() {
+        let nine = utc.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 9, minute: 5))!
+        let midnight = utc.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 0, minute: 30))!
+        let evening = utc.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 20, minute: 0))!
+        XCTAssertEqual(WidgetClock.digits(nine, calendar: utc, twentyFourHour: false).digits, "9:05")
+        XCTAssertEqual(WidgetClock.digits(nine, calendar: utc, twentyFourHour: false).unit, "AM")
+        XCTAssertEqual(WidgetClock.digits(midnight, calendar: utc, twentyFourHour: false).digits, "12:30")
+        XCTAssertEqual(WidgetClock.digits(evening, calendar: utc, twentyFourHour: false).unit, "PM")
+        XCTAssertEqual(WidgetClock.digits(evening, calendar: utc, twentyFourHour: true).digits, "20:00")
+        XCTAssertEqual(WidgetClock.digits(evening, calendar: utc, twentyFourHour: true).unit, "")
+    }
+
+    func testTapeLightsTheHalfHoursWithMeetings() {
+        // The tape starts at the half hour `now` is in; a meeting that's over lights nothing.
+        let s = WidgetSnapshot(meetings: [m("gone", in: -40, length: 30), m("a", in: 45, length: 60)], savedAt: now)
+        let tape = s.tape(from: now, slots: 6)
+        XCTAssertEqual(tape.count, 6)
+        XCTAssertLessThanOrEqual(tape[0].start, now)
+        XCTAssertLessThan(now.timeIntervalSince(tape[0].start), 1800)
+        XCTAssertEqual(tape[1].start.timeIntervalSince(tape[0].start), 1800)
+        let lit = tape.filter { $0.colorHex != nil }.map(\.start)
+        XCTAssertFalse(lit.isEmpty)
+        for slot in tape {
+            let end = slot.start.addingTimeInterval(1800)
+            let a = s.meetings[1]
+            XCTAssertEqual(slot.colorHex != nil, a.start < end && a.end > slot.start, "\(slot.start)")
+        }
+    }
+
+    func testTapeLabelsEveryThirdHour() {
+        let nine = utc.date(from: DateComponents(year: 2026, month: 11, day: 9, hour: 9))!
+        XCTAssertEqual(WidgetTapeSlot(start: nine).label(calendar: utc, twentyFourHour: false), "9")
+        XCTAssertNil(WidgetTapeSlot(start: nine.addingTimeInterval(1800)).label(calendar: utc, twentyFourHour: false))
+        XCTAssertNil(WidgetTapeSlot(start: nine.addingTimeInterval(3600)).label(calendar: utc, twentyFourHour: false))
+        XCTAssertEqual(WidgetTapeSlot(start: nine.addingTimeInterval(3 * 3600)).label(calendar: utc, twentyFourHour: false), "12")
+        XCTAssertEqual(WidgetTapeSlot(start: nine.addingTimeInterval(6 * 3600)).label(calendar: utc, twentyFourHour: false), "3")
+        XCTAssertEqual(WidgetTapeSlot(start: nine.addingTimeInterval(6 * 3600)).label(calendar: utc, twentyFourHour: true), "15")
+    }
 }

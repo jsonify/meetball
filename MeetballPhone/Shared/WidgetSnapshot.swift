@@ -104,6 +104,112 @@ struct WidgetSnapshot: Codable, Equatable {
     }
 }
 
+/// What the MB-1 display reads on a widget, whatever is or isn't coming: a caption, seven-segment digits with their
+/// unit, and a line of text. There is always something to show, so a widget is never blank.
+struct WidgetReadout: Equatable {
+    enum Phase: Equatable {
+        /// A meeting is on: the minutes until it ends.
+        case live
+        /// One starts within the hour: the minutes until it does.
+        case soon
+        /// The next one is further off: the time it starts.
+        case later
+        /// Nothing in the days the app saved.
+        case clear
+        /// The saved days have run out, or nothing was ever saved: Meetball has to be opened.
+        case stale
+    }
+
+    var phase: Phase
+    var caption: String
+    var digits: String
+    var unit: String
+    /// The meeting's title, or what to make of there being none.
+    var message: String
+    var meeting: WidgetMeeting?
+
+    /// A countdown takes over from the start time this long before a meeting.
+    static let soon: TimeInterval = 3600
+
+    static func make(_ snapshot: WidgetSnapshot?, at now: Date, calendar: Calendar = .current,
+                     twentyFourHour: Bool = WidgetClock.twentyFourHour) -> WidgetReadout {
+        guard let snapshot else {
+            return WidgetReadout(phase: .stale, caption: "MB-1", digits: "--", unit: "", message: "Open Meetball to set up")
+        }
+        guard let m = snapshot.current(at: now) else {
+            if now >= snapshot.coversUntil {
+                return WidgetReadout(phase: .stale, caption: "OUT OF DATE", digits: "--", unit: "", message: "Open Meetball to catch up")
+            }
+            let through = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: snapshot.coversUntil) - 1]
+            return WidgetReadout(phase: .clear, caption: "ALL CLEAR", digits: "0", unit: "LEFT", message: "Nothing through \(through)")
+        }
+        if m.start <= now {
+            let c = WidgetCountdown.digits(m.end.timeIntervalSince(now))
+            return WidgetReadout(phase: .live, caption: "ON NOW · ENDS IN", digits: c.digits, unit: c.unit, message: m.title, meeting: m)
+        }
+        if m.start.timeIntervalSince(now) <= soon {
+            let c = WidgetCountdown.digits(m.start.timeIntervalSince(now))
+            return WidgetReadout(phase: .soon, caption: "STARTS IN", digits: c.digits, unit: c.unit, message: m.title, meeting: m)
+        }
+        let c = WidgetClock.digits(m.start, calendar: calendar, twentyFourHour: twentyFourHour)
+        let day: String
+        if calendar.isDate(m.start, inSameDayAs: now) {
+            day = "NEXT"
+        } else if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now), calendar.isDate(m.start, inSameDayAs: tomorrow) {
+            day = "TOMORROW"
+        } else {
+            day = calendar.shortWeekdaySymbols[calendar.component(.weekday, from: m.start) - 1].uppercased()
+        }
+        return WidgetReadout(phase: .later, caption: "\(day) AT", digits: c.digits, unit: c.unit, message: m.title, meeting: m)
+    }
+}
+
+/// A time of day for the seven-segment LCD: "8:00" AM, or "20:00" on a 24-hour clock.
+enum WidgetClock {
+    static var twentyFourHour: Bool {
+        !(DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: .current) ?? "").contains("a")
+    }
+
+    static func digits(_ date: Date, calendar: Calendar = .current, twentyFourHour: Bool = WidgetClock.twentyFourHour) -> (digits: String, unit: String) {
+        let hour = calendar.component(.hour, from: date), minute = calendar.component(.minute, from: date)
+        if twentyFourHour { return (String(format: "%d:%02d", hour, minute), "") }
+        return (String(format: "%d:%02d", hour % 12 == 0 ? 12 : hour % 12, minute), hour < 12 ? "AM" : "PM")
+    }
+}
+
+/// One half hour on the tape: the strip of the hours ahead, lit where there's a meeting.
+struct WidgetTapeSlot: Equatable {
+    var start: Date
+    /// The colour of the meeting in it (the earliest, when they overlap); nil when it's free.
+    var colorHex: String?
+
+    /// The hour to print under the slot: every third hour, on the hour ("9", "12", "3"; "15" on a 24-hour clock).
+    func label(calendar: Calendar = .current, twentyFourHour: Bool = WidgetClock.twentyFourHour) -> String? {
+        let hour = calendar.component(.hour, from: start)
+        guard calendar.component(.minute, from: start) == 0, hour % 3 == 0 else { return nil }
+        return twentyFourHour ? "\(hour)" : "\(hour % 12 == 0 ? 12 : hour % 12)"
+    }
+}
+
+extension WidgetSnapshot {
+    /// How far ahead the app saves meetings.
+    static let horizon: TimeInterval = 2 * 24 * 3600
+
+    /// Until when this snapshot knows the calendar.
+    var coversUntil: Date { savedAt.addingTimeInterval(Self.horizon) }
+
+    /// The hours ahead in `slots` steps of `length`, from the step `now` is in: which are taken, and by what.
+    func tape(from now: Date, slots: Int, length: TimeInterval = 1800) -> [WidgetTapeSlot] {
+        let first = (now.timeIntervalSinceReferenceDate / length).rounded(.down) * length
+        return (0..<slots).map { i in
+            let start = Date(timeIntervalSinceReferenceDate: first + Double(i) * length)
+            let end = start.addingTimeInterval(length)
+            let taken = meetings.filter { $0.end > max(start, now) && $0.start < end }.min { $0.start < $1.start }
+            return WidgetTapeSlot(start: start, colorHex: taken?.colorHex)
+        }
+    }
+}
+
 /// Countdown digits for the seven-segment LCD: "42" MIN under an hour, "1:05" HR under a day, then "3" DAYS
 /// (the Mac's `SK1CountdownDigits`, here so the widgets needn't compile the Mac's formatters).
 enum WidgetCountdown {

@@ -41,3 +41,64 @@ struct WidgetLCD<Content: View>: View {
             .background(Color(sk1Hex: 0x2b2a27), in: RoundedRectangle(cornerRadius: radius, style: .continuous))
     }
 }
+
+/// The tape: the hours ahead as a strip of half-hour LEDs, lit where there's a meeting, with every third hour printed
+/// under it when `scale` is on. The first LED is the half hour it is now.
+struct WidgetTape: View {
+    let slots: [WidgetTapeSlot]
+    var height: CGFloat = 6
+    var scale = true
+    /// A free half hour.
+    let idle: Color
+    /// A taken one, from its meeting's colour.
+    let lit: (String) -> Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 1.5) {
+                ForEach(slots, id: \.start) { slot in
+                    RoundedRectangle(cornerRadius: 1, style: .continuous)
+                        .fill(slot.colorHex.map(lit) ?? idle)
+                        .frame(height: height)
+                }
+            }
+            if scale {
+                // The same columns as the LEDs, so each hour sits under its own.
+                HStack(spacing: 1.5) {
+                    ForEach(Array(slots.enumerated()), id: \.element.start) { i, slot in
+                        Color.clear.frame(height: 8).overlay(alignment: .leading) {
+                            // Not on the last LEDs, where it would run off the edge.
+                            if i < slots.count - 2, let label = slot.label() {
+                                Text(label).font(.system(size: 7.5, weight: .heavy)).monospacedDigit().fixedSize()
+                                    .opacity(0.65)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+/// A key on the chassis, as wide as the widget: cream and raised, or orange when it's the one to press.
+struct WidgetKey<Label: View>: View {
+    var lit = false
+    @ViewBuilder var label: () -> Label
+    @Environment(\.colorScheme) private var scheme
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        HStack(spacing: 4) { label() }
+            .lineLimit(1)
+            .foregroundStyle(lit ? Color.white : Color.primary)
+            .padding(.horizontal, 7)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: 20)
+            .background(lit ? WidgetStyle.orange : Color.white.opacity(scheme == .dark ? 0.1 : 0.6), in: shape)
+            .overlay(shape.strokeBorder(Color.black.opacity(0.14), lineWidth: 0.5))
+            // The key's front edge, below its top.
+            .background(Color.black.opacity(scheme == .dark ? 0.5 : 0.22), in: shape.offset(y: 2))
+            .padding(.bottom, 2)
+    }
+}
