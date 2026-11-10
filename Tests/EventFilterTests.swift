@@ -76,6 +76,26 @@ final class EventFilterTests: XCTestCase {
         let hidden = [ev("solo", others: []), ev("declined", declined: true), ev("allday", allDay: true)]
         XCTAssertEqual(UpcomingView.hiddenUpcoming(hidden, now: now), 1)
     }
+
+    func testRespondingChangesOnlyYourReply() {
+        let e = ev("a", me: .accepted)
+        XCTAssertTrue(e.canRespond)
+        let no = e.responding(.declined)
+        XCTAssertEqual(no.selfResponse, .declined)
+        XCTAssertTrue(no.isDeclined)
+        XCTAssertEqual(no.participants.filter { !$0.isSelf }.map(\.response), [.accepted], "other guests keep their replies")
+        let maybe = no.responding(.tentative)
+        XCTAssertEqual(maybe.selfResponse, .tentative)
+        XCTAssertFalse(maybe.isDeclined)
+        XCTAssertEqual(EventFilter.hideReason(no, settings: EventFilterSettings()), .declined, "declining hides it from Up Next")
+    }
+
+    func testOnlyGuestsCanRespond() {
+        XCTAssertFalse(ev("a").canRespond, "not on the guest list")
+        var mine = ev("b", me: .accepted)
+        mine.organizerIsSelf = true
+        XCTAssertFalse(mine.canRespond, "the organizer doesn't RSVP")
+    }
 }
 
 /// Work calendars and "Work only" (#52).

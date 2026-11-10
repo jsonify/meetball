@@ -70,6 +70,20 @@ public struct CalendarEvent: Identifiable, Hashable {
     public func isBarEvent(calendar: Calendar = .app) -> Bool {
         isAllDay || end.timeIntervalSince(start) >= 86400
     }
+
+    /// You're on the guest list (not the organizer), so you can say whether you're going.
+    public var canRespond: Bool { !organizerIsSelf && participants.contains { $0.isSelf && !$0.isOrganizer } }
+
+    /// This event as it reads once you've answered `response`: your guest entry and the declined flag change.
+    public func responding(_ response: AttendeeResponse) -> CalendarEvent {
+        var e = self
+        e.participants = participants.map { p in
+            guard p.isSelf else { return p }
+            var p = p; p.response = response; return p
+        }
+        e.isDeclined = response == .declined
+        return e
+    }
 }
 
 public enum EventRecurrence: String, Hashable, Codable {
@@ -95,6 +109,16 @@ public enum AttendeeResponse: String, Hashable {
         case .declined: return "Declined"
         case .tentative: return "Maybe"
         case .needsAction: return "Awaiting response"
+        }
+    }
+
+    /// Confirms a reply you just sent.
+    var replyToast: String {
+        switch self {
+        case .accepted: return "You\u{2019}re going"
+        case .declined: return "You\u{2019}re not going"
+        case .tentative: return "Replied maybe"
+        case .needsAction: return "Reply cleared"
         }
     }
 }

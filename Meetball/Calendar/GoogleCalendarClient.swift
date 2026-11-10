@@ -132,6 +132,23 @@ struct GoogleCalendarClient {
                               body: try JSONSerialization.data(withJSONObject: body))
     }
 
+    /// Sets your RSVP on `e` (this occurrence only, for a repeating meeting). Google replaces the whole guest list on a
+    /// PATCH, so it's read first and sent back with only your own entry changed; the organizer is told, as Google
+    /// Calendar does.
+    func respond(_ e: CalendarEvent, _ response: AttendeeResponse) async throws {
+        let enc = e.calendarID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)?.replacingOccurrences(of: "@", with: "%40") ?? e.calendarID
+        let path = "/calendars/\(enc)/events/\(e.id)"
+        let current = try await request(e.accountEmail, path, query: [.init(name: "fields", value: "attendees")])
+        let json = try JSONSerialization.jsonObject(with: current) as? [String: Any]
+        var attendees = json?["attendees"] as? [[String: Any]] ?? []
+        guard let me = attendees.firstIndex(where: { $0["self"] as? Bool == true }) else {
+            throw APIError.http(0, "You aren't on this event's guest list")
+        }
+        attendees[me]["responseStatus"] = response.rawValue
+        _ = try await request(e.accountEmail, path, method: "PATCH", query: [.init(name: "sendUpdates", value: "all")],
+                              body: try JSONSerialization.data(withJSONObject: ["attendees": attendees]))
+    }
+
     func delete(_ e: CalendarEvent) async throws {
         let enc = e.calendarID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)?.replacingOccurrences(of: "@", with: "%40") ?? e.calendarID
         _ = try await request(e.accountEmail, "/calendars/\(enc)/events/\(e.id)", method: "DELETE")
