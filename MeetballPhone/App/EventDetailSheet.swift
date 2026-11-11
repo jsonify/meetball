@@ -30,6 +30,8 @@ struct EventDetailSheet: View {
                     PhoneJoinButton(event: event, variant: .orange, size: .large, fillsWidth: true)
                 }
                 whenGroup
+                // Yes / Maybe / No for a meeting you were invited to.
+                if event.canRespond { ReplyGroup(event: event).environmentObject(store) }
                 if !event.isAllDay && event.end > Date() { alertsGroup }
                 // The place with Directions, Where's this? for a trip with no place, or a room or link as it is.
                 TripWhereSection(event: event)

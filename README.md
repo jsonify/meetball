@@ -147,6 +147,11 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   saved in Meetball against that meeting (the work calendar is a read-only feed, so nothing is written to it) and, unless
   switched off in Settings, added to Reminders due the next working morning. Notes show on the event screen and in the
   next pre-flight card for that meeting.
+- **Going?**: a meeting you were invited to shows Yes / Maybe / No on the event screen and in Edit, with the reply your
+  calendar holds now. iOS lets only Apple's own invite screen send a reply (EventKit can read one but not change it),
+  so picking an answer opens that screen with a prompt naming the button to tap (Accept, Maybe or Decline); the reply
+  is read back once it closes. Edit's **Invitees, alerts & repeat** key (Apple's editor) is shown only for your own
+  events: for an invitation it had nothing more to offer.
 - **Delete**: the event screen's **Delete Event** key asks once (for a repeating meeting: this one only, or every one
   after it) and closes; Meetball doesn't then announce your own delete as a cancellation. Deleting from inside Apple's
   editor (Edit) works too. Shown for calendars the iPhone can change; the read-only work feed is edited in Google Calendar.
