@@ -154,6 +154,8 @@ struct TodoAddLine: View {
 /// In place of the list until Meetball can use Reminders, where the list is kept.
 struct TodoAccessCard: View {
     @ObservedObject var todos: TodoStore = .shared
+    @Environment(\.openURL) private var openURL
+    @State private var asking = false
 
     var body: some View {
         SKWell {
@@ -162,14 +164,39 @@ struct TodoAccessCard: View {
                 Text(todos.access == .denied ? deniedText
                      : "Meetball keeps it as a list called \u{201C}Meetball\u{201D} in Reminders, so it syncs between your Mac and iPhone through iCloud.")
                     .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                if todos.access == .notDetermined {
-                    Button("Turn On To-do List") { Task { await todos.requestAccess() } }
+                if let why = todos.accessProblem {
+                    Text(why).font(.callout).foregroundStyle(Color(sk1Hex: SK1.recRed)).fixedSize(horizontal: false, vertical: true)
+                }
+                HStack(spacing: 8) {
+                    if todos.access == .notDetermined {
+                        Button(asking ? "Asking\u{2026}" : "Turn On To-do List") {
+                            asking = true
+                            Task {
+                                await todos.requestAccess()
+                                asking = false
+                            }
+                        }
                         .buttonStyle(.sk1Key(.orange))
+                        .disabled(asking)
+                    }
+                    if todos.access == .denied || todos.accessProblem != nil {
+                        Button("Open Settings") { openURL(Self.settingsURL) }.buttonStyle(.sk1Key())
+                        Button("Check Again") { todos.refresh() }.buttonStyle(.sk1Key())
+                    }
                 }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    /// Where Reminders access is turned on.
+    static var settingsURL: URL {
+        #if os(macOS)
+        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Reminders")!
+        #else
+        URL(string: "app-settings:")!
+        #endif
     }
 
     private var deniedText: String {
@@ -183,6 +210,7 @@ struct TodoListView: View {
     let openMeeting: (TodoMeeting) -> Void
     @ObservedObject var todos: TodoStore = .shared
     @AppStorage("todo.showDone") private var showDone = false
+    @State private var confirmingClear = false
 
     var body: some View {
         Group {
@@ -217,14 +245,27 @@ struct TodoListView: View {
             .onMove { todos.move(from: $0, to: $1) }
             .onDelete { offsets in offsets.map { open[$0] }.forEach { todos.delete($0) } }
             if !done.isEmpty {
-                Button {
-                    withAnimation(.snappy) { showDone.toggle() }
-                } label: {
-                    Label("Done (\(done.count))", systemImage: showDone ? "chevron.down" : "chevron.right")
+                HStack(spacing: 8) {
+                    Button {
+                        withAnimation(.snappy) { showDone.toggle() }
+                    } label: {
+                        Label("Done (\(done.count))", systemImage: showDone ? "chevron.down" : "chevron.right")
+                    }
+                    .buttonStyle(.sk1Key(isOn: showDone, size: .small))
+                    Spacer()
+                    Button("Clear Done") { confirmingClear = true }
+                        .buttonStyle(.sk1Key(size: .small))
+                        .accessibilityHint("Deletes the \(done.count) checked-off items")
                 }
-                .buttonStyle(.sk1Key(isOn: showDone, size: .small))
                 .padding(.top, 10)
                 .plainRow()
+                .confirmationDialog("Delete \(done.count) checked-off item\(done.count == 1 ? "" : "s")?",
+                                    isPresented: $confirmingClear, titleVisibility: .visible) {
+                    Button("Clear Done", role: .destructive) { withAnimation(.snappy) { todos.clearDone() } }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("They're removed from the Meetball list in Reminders too, on all your devices.")
+                }
                 if showDone {
                     ForEach(done) { item in
                         TodoRow(item: item, openMeeting: openMeeting).plainRow()
