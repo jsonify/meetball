@@ -247,6 +247,7 @@ enum MeetballLink {
     static let scheme = "meetball"
 
     enum Action: Equatable {
+        /// The Day grid on today, scrolled to the time now.
         case today
         case join(URL)
     }

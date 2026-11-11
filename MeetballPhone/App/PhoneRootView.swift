@@ -157,10 +157,27 @@ struct PhoneRootView: View {
         .onOpenURL { url in
             switch MeetballLink.parse(url) {
             case .join(let meeting): PhoneJoin.open(meeting)
-            case .today: tab = store.settings.showTodayTab ? .today : .day
+            case .today: openNow()
             case nil: break
             }
         }
+    }
+
+    /// Where a tap on a widget or the Live Activity lands: the Day grid on today, scrolled to the time now, with nothing
+    /// over it. The pre-flight card and countdown moment for a meeting about to start stay closed, so the tap never
+    /// ends at a Join key.
+    private func openNow() {
+        let now = Date()
+        for e in store.upcoming where e.start > now && e.start.timeIntervalSince(now) <= PreFlight.lead {
+            shownPreFlights.insert(e.uid)
+            dismissedMoments.insert(e.uid)
+        }
+        detail = nil
+        readout = false
+        preFlight = nil
+        moment = nil
+        dayJump = now
+        tab = .day
     }
 
     /// Opens the event screen, growing out of where the event was tapped.

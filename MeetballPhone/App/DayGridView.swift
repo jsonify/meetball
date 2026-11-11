@@ -36,6 +36,8 @@ struct DayGridView: View {
             guard let day else { return }
             anchor = Calendar.app.startOfDay(for: day)
             pencil = nil
+            // Scrolls even when the day was already showing (a widget tap while the grid sits on today).
+            scrollRequest += 1
             jump.wrappedValue = nil
         }
         .sensoryFeedback(.selection, trigger: paged)

@@ -12,7 +12,7 @@ struct MeetingLiveActivity: Widget {
             LockScreenMeetingView(state: context.state, stale: context.isStale)
                 .activityBackgroundTint(Color(sk1Hex: 0x2b2a27))
                 .activitySystemActionForegroundColor(.white)
-                .widgetURL(context.state.joinURL.map(MeetballLink.join) ?? MeetballLink.today)
+                .widgetURL(MeetballLink.today)
         } dynamicIsland: { context in
             let s = context.state
             return DynamicIsland {
@@ -63,7 +63,7 @@ struct MeetingLiveActivity: Widget {
             } minimal: {
                 Image(systemName: "calendar.badge.clock").foregroundStyle(WidgetStyle.orange)
             }
-            .widgetURL(s.joinURL.map(MeetballLink.join) ?? MeetballLink.today)
+            .widgetURL(MeetballLink.today)
             .keylineTint(WidgetStyle.orange)
         }
     }
@@ -72,7 +72,8 @@ struct MeetingLiveActivity: Widget {
 /// The Lock Screen card: a dark bezel around LCD glass as wide as the card. On the glass, the meeting's times, its
 /// title beside the timer, and the run: two bars that fill by themselves, the hour before the meeting and then the
 /// meeting, with the start marked between them, so the timer reads as "until" left of the mark and "into" right of it.
-/// Under the glass, the orange Join key when there's a link (tapping the card joins).
+/// Under the glass, the orange Join key when there's a link: only the key joins; tapping the rest of the card opens
+/// the Day grid at the time now.
 struct LockScreenMeetingView: View {
     let state: MeetingActivityAttributes.ContentState
     let stale: Bool
@@ -112,18 +113,19 @@ struct LockScreenMeetingView: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
             }
-            if state.joinURL != nil && !stale {
-                HStack(spacing: 6) {
-                    Image(systemName: "video.fill").font(.system(size: 11, weight: .bold))
-                    Text(WidgetService.name(state.joinURL).map { "JOIN \($0.uppercased())" } ?? "JOIN")
-                        .font(.system(size: 12, weight: .heavy)).tracking(1)
-                    Spacer(minLength: 0)
-                    Text("TAP").font(.system(size: 9, weight: .heavy)).tracking(1).opacity(0.8)
+            if let url = state.joinURL, !stale {
+                Link(destination: MeetballLink.join(url)) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "video.fill").font(.system(size: 11, weight: .bold))
+                        Text(WidgetService.name(url).map { "JOIN \($0.uppercased())" } ?? "JOIN")
+                            .font(.system(size: 12, weight: .heavy)).tracking(1)
+                        Spacer(minLength: 0)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 12)
+                    .frame(height: 26)
+                    .background(WidgetStyle.orange, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .foregroundStyle(.white)
-                .padding(.horizontal, 12)
-                .frame(height: 26)
-                .background(WidgetStyle.orange, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
         }
         // The whole card stays under the 160 points a Live Activity gets.
