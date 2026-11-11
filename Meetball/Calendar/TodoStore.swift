@@ -22,12 +22,15 @@ public final class TodoStore: ObservableObject {
     @Published public private(set) var loaded = false
     /// The last thing that went wrong saving, for the list to show.
     @Published public var problem: String?
+    /// Why asking for Reminders didn't work, when it didn't (no prompt came up, or it failed).
+    @Published public private(set) var accessProblem: String?
 
     public var open: [TodoItem] { Todos.arrange(items).open }
     public var done: [TodoItem] { Todos.arrange(items).done }
 
     private let store = EKEventStore()
     private var observer: NSObjectProtocol?
+    private var activeObservers: [NSObjectProtocol] = []
     private var reload: Task<Void, Never>?
     private let listKey = "todo.listIdentifier"
 
@@ -35,6 +38,13 @@ public final class TodoStore: ObservableObject {
         access = Self.currentAccess()
         observer = NotificationCenter.default.addObserver(forName: .EKEventStoreChanged, object: store, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.scheduleLoad() }
+        }
+        // Access granted in System Settings while Meetball was open shows up when it's next brought forward (the names
+        // of AppKit's and UIKit's notifications, so this file needs neither).
+        for name in ["NSApplicationDidBecomeActiveNotification", "UIApplicationDidBecomeActiveNotification"] {
+            activeObservers.append(NotificationCenter.default.addObserver(forName: Notification.Name(name), object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.refresh() }
+            })
         }
         if access == .granted { scheduleLoad(delay: 0) }
     }
@@ -50,18 +60,36 @@ public final class TodoStore: ObservableObject {
     /// Asks for Reminders the first time; true once Meetball has it.
     @discardableResult
     public func requestAccess() async -> Bool {
+        var failure: Error?
         if Self.currentAccess() != .granted {
-            _ = try? await store.requestFullAccessToReminders()
+            do { _ = try await store.requestFullAccessToReminders() } catch { failure = error }
         }
         access = Self.currentAccess()
-        if access == .granted { await load() }
+        switch access {
+        case .granted:
+            accessProblem = nil
+            // A store made before access was given can miss the lists; start it over.
+            store.reset()
+            await load()
+        case .notDetermined:
+            accessProblem = "No Reminders prompt came up"
+                + (failure.map { " (\($0.localizedDescription))" } ?? "")
+                + ". " + (Failure.denied.errorDescription ?? "")
+        case .denied:
+            accessProblem = nil
+        }
         return access == .granted
     }
 
     /// Reads the list again (opening the app, pull to refresh).
     public func refresh() {
+        let was = access
         access = Self.currentAccess()
         guard access == .granted else { return }
+        if was != .granted {
+            accessProblem = nil
+            store.reset()
+        }
         store.refreshSourcesIfNecessary()
         scheduleLoad(delay: 0)
     }
@@ -216,6 +244,23 @@ public final class TodoStore: ObservableObject {
                 let link = TodoLink.parse(r.url)
                 r.url = TodoLink.url(rank: rank, meeting: link.meeting)
             }
+        }
+    }
+
+    /// Deletes every checked-off item (Clear Done).
+    public func clearDone() {
+        let finished = items.filter(\.isDone)
+        items.removeAll(where: \.isDone)
+        guard Self.currentAccess() == .granted else { return }
+        do {
+            for item in finished {
+                if let r = store.calendarItem(withIdentifier: item.id) as? EKReminder { try store.remove(r, commit: false) }
+            }
+            try store.commit()
+        } catch {
+            store.reset()
+            problem = error.localizedDescription
+            scheduleLoad(delay: 0)
         }
     }
 
