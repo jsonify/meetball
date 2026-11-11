@@ -125,20 +125,15 @@ struct QuickAddSheet: View {
 
     private func tune(start: Date, minutes: Int, now: Date) -> some View {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: now)
         let dayStart = cal.startOfDay(for: start)
-        let offset = cal.dateComponents([.day], from: today, to: dayStart).day ?? 0
         let minuteOfDay = Int(start.timeIntervalSince(dayStart) / 60)
-        var dayOffsets = Array(0..<21)
-        if !dayOffsets.contains(offset) { dayOffsets.append(offset); dayOffsets.sort() }
         var times = Array(stride(from: 0, to: 24 * 60, by: 15))
         if !times.contains(minuteOfDay) { times.append(minuteOfDay); times.sort() }
         var lengths = MeetingComposer.lengthChoices
         if !lengths.contains(minutes) { lengths.append(minutes); lengths.sort() }
 
-        let dayBinding = Binding<Int>(get: { offset }, set: { new in
-            guard let moved = cal.date(byAdding: .day, value: new - offset, to: start) else { return }
-            startOverride = moved
+        let dayBinding = Binding<Date>(get: { start }, set: { new in
+            startOverride = new
             nudged += 1
         })
         let timeBinding = Binding<Int>(get: { minuteOfDay }, set: { new in
@@ -155,8 +150,7 @@ struct QuickAddSheet: View {
         }
         return SKGroup(caption: "When") {
             SKRow(title: "Day") {
-                ScrollingPicker(selection: dayBinding,
-                                options: dayOffsets.map { ($0, dayLabel($0, today: today)) }, name: "Day")
+                MonthDayPicker(selection: dayBinding, name: "Day")
             }
             SKRow(title: "Starts") {
                 ScrollingPicker(selection: timeBinding,
@@ -171,16 +165,6 @@ struct QuickAddSheet: View {
             SKRow(title: "Length") {
                 SKSegmented(selection: lengthBinding, options: lengths.map { SKSegmented<Int>.Option($0, lengthLabel($0)) })
             }
-        }
-    }
-
-    private func dayLabel(_ offset: Int, today: Date) -> String {
-        switch offset {
-        case 0: return "Today"
-        case 1: return "Tomorrow"
-        default:
-            let d = Calendar.current.date(byAdding: .day, value: offset, to: today) ?? today
-            return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
         }
     }
 

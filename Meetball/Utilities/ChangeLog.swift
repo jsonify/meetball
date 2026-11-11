@@ -66,6 +66,7 @@ enum ChangeLog {
 
     static let all: [Entry] = [
         Entry(day: "2026-11-11", changes: [
+            better(.both, "Picking a day for a meeting opens a square month calendar: page through months and tap any day, instead of scrolling a short list of dates."),
             new(.iPhone, "The event screen blooms out of the event you tap instead of sliding up as a sheet, and turns over to edit."),
             fixed(.iPhone, "Deleting a repeating meeting asks: only this one, or this and all future ones."),
             new(.iPhone, "Going? Yes, Maybe or No on the event screen and in Edit for meetings you're invited to. Your pick opens Apple's invite screen, which sends the reply."),
