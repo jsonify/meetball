@@ -98,7 +98,7 @@ final class AppleCalendarClient {
     /// repeating series; otherwise only this occurrence goes. Throws when the calendar is read-only or the event is gone.
     func deleteEvent(_ event: CalendarEvent, futureToo: Bool) throws {
         guard let e = editableEvent(for: event) else { throw CocoaError(.featureUnsupported) }
-        try store.remove(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
+        try store.remove(e, span: futureToo && Self.repeats(e) ? .futureEvents : .thisEvent, commit: true)
     }
 
     /// Writes a place to `event` (the iPhone's Where's this?). With coordinates it's saved as a structured location too,
@@ -116,6 +116,13 @@ final class AppleCalendarClient {
         e.location = text
         try store.save(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
     }
+
+    /// Whether the stored event behind `event` belongs to a repeating series.
+    func isRepeating(_ event: CalendarEvent) -> Bool { storedEvent(for: event).map(Self.repeats) ?? false }
+
+    /// Part of a series: it repeats, or it's one meeting of a series that was changed on its own (a detached
+    /// occurrence, which some accounts store without the series' repeat rules).
+    private static func repeats(_ e: EKEvent) -> Bool { e.hasRecurrenceRules || e.isDetached }
 
     /// Your reply to `event` as the calendar holds it now (nil when you aren't on its guest list or it's gone).
     func selfResponse(for event: CalendarEvent) -> AttendeeResponse? {

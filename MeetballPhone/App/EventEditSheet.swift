@@ -67,7 +67,7 @@ struct EventEditSheet: View {
         _draft = State(initialValue: d)
     }
 
-    private var isRepeating: Bool { ekEvent.hasRecurrenceRules || event.recurrence.isRecurring }
+    private var isRepeating: Bool { ekEvent.hasRecurrenceRules || ekEvent.isDetached || event.recurrence.isRecurring }
     private var hasChanges: Bool { draft != original }
     private var cleanTitle: String { draft.title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -106,9 +106,6 @@ struct EventEditSheet: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .sk1Chassis()
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(hasChanges)
         .sensoryFeedback(.selection, trigger: nudged)
         .confirmationDialog("This is a repeating event.", isPresented: $confirmingSpan, titleVisibility: .visible) {
             Button("Save for This Event Only") { save(span: .thisEvent) }

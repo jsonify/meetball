@@ -224,6 +224,9 @@ final class PhoneStore: ObservableObject {
         return (e, client.eventStore)
     }
 
+    /// Whether the calendar's copy of `event` belongs to a repeating series (Delete then asks: this one or all after it).
+    func isRepeating(_ event: CalendarEvent) -> Bool { client.isRepeating(event) }
+
     /// Your reply to `event` as the calendar holds it now, which can be newer than `event` itself.
     func currentResponse(for event: CalendarEvent) -> AttendeeResponse? { client.selfResponse(for: event) }
 
