@@ -156,12 +156,7 @@ struct EventEditSheet: View {
 
     private var whenGroup: some View {
         let cal = Calendar.current
-        let today = cal.startOfDay(for: Date())
         let dayStart = cal.startOfDay(for: draft.start)
-        let offset = cal.dateComponents([.day], from: today, to: dayStart).day ?? 0
-        // Three weeks either side of today, and a week either side of the event's own day.
-        var dayOffsets = Array(min(-21, offset - 7)...max(21, offset + 7))
-        if !dayOffsets.contains(offset) { dayOffsets.append(offset); dayOffsets.sort() }
         let minuteOfDay = Int(draft.start.timeIntervalSince(dayStart) / 60)
         var times = Array(stride(from: 0, to: 24 * 60, by: 15))
         if !times.contains(minuteOfDay) { times.append(minuteOfDay); times.sort() }
@@ -182,9 +177,8 @@ struct EventEditSheet: View {
             draft.isAllDay = on
             nudged += 1
         })
-        let dayBinding = Binding<Int>(get: { offset }, set: { new in
-            guard let moved = cal.date(byAdding: .day, value: new - offset, to: draft.start) else { return }
-            draft.start = moved
+        let dayBinding = Binding<Date>(get: { draft.start }, set: { new in
+            draft.start = new
             nudged += 1
         })
         let timeBinding = Binding<Int>(get: { minuteOfDay }, set: { new in
@@ -208,8 +202,7 @@ struct EventEditSheet: View {
                 Toggle("All day", isOn: allDayBinding).labelsHidden().toggleStyle(.sk1Switch)
             }
             SKRow(title: draft.isAllDay ? "Starts" : "Day") {
-                ScrollingPicker(selection: dayBinding,
-                                options: dayOffsets.map { ($0, Self.dayLabel($0, today: today)) }, name: "Day")
+                MonthDayPicker(selection: dayBinding, name: draft.isAllDay ? "Starts" : "Day")
             }
             if draft.isAllDay {
                 SKRow(title: "Days") {
@@ -233,17 +226,6 @@ struct EventEditSheet: View {
                                 options: lengths.map { SKSegmented<Int>.Option($0, Self.lengthLabel($0)) })
                 }
             }
-        }
-    }
-
-    static func dayLabel(_ offset: Int, today: Date) -> String {
-        switch offset {
-        case 0: return "Today"
-        case 1: return "Tomorrow"
-        case -1: return "Yesterday"
-        default:
-            let d = Calendar.current.date(byAdding: .day, value: offset, to: today) ?? today
-            return d.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
         }
     }
 

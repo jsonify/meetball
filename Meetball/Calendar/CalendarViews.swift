@@ -639,11 +639,19 @@ struct EventFormView: View {
                             Toggle("Focus block", isOn: $draft.isFocusBlock).toggleStyle(.sk1Switch)
                         }
                         SKRow(title: "Starts") {
-                            DatePicker("Starts", selection: $draft.start).labelsHidden()
-                                .onChange(of: draft.start) { _, s in if draft.end <= s { draft.end = s.addingTimeInterval(1800) } }
+                            HStack(spacing: 8) {
+                                MonthDayPicker(selection: $draft.start, name: "Start day")
+                                DatePicker("Starts", selection: $draft.start, displayedComponents: .hourAndMinute).labelsHidden()
+                            }
+                            .onChange(of: draft.start) { _, s in if draft.end <= s { draft.end = s.addingTimeInterval(1800) } }
                         }
                         SKRow(title: "Ends", subtitle: DurationFormatter.string(from: draft.start, to: draft.end)) {
-                            DatePicker("Ends", selection: $draft.end, in: draft.start...).labelsHidden()
+                            HStack(spacing: 8) {
+                                MonthDayPicker(selection: $draft.end, name: "End day")
+                                DatePicker("Ends", selection: $draft.end, in: draft.start..., displayedComponents: .hourAndMinute)
+                                    .labelsHidden()
+                            }
+                            .onChange(of: draft.end) { _, e in if e <= draft.start { draft.end = draft.start.addingTimeInterval(1800) } }
                         }
                         SKRow(title: "Calendar") {
                             SKPicker(selection: $draft.calendar,

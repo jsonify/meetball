@@ -119,6 +119,7 @@ targets:
       - Meetball/DesignSystem/Components.swift
       - Meetball/DesignSystem/CountdownLCD.swift
       - Meetball/DesignSystem/HeroUrgency.swift
+      - Meetball/DesignSystem/MonthDayPicker.swift
       - Meetball/MeetingGuardian/Confetti.swift
     dependencies:
       - package: SK1Kit
