@@ -77,7 +77,13 @@ final class AppleCalendarClient {
     /// The stored EventKit event behind `event`, when its calendar can be changed (for Apple's event editor). Nil for
     /// read-only calendars such as a subscribed work feed.
     func editableEvent(for event: CalendarEvent) -> EKEvent? {
-        guard isAuthorized, let ek = store.calendar(withIdentifier: event.calendarID), ek.allowsContentModifications,
+        guard let e = storedEvent(for: event), e.calendar?.allowsContentModifications == true else { return nil }
+        return e
+    }
+
+    /// The stored EventKit event behind `event`, on any calendar (read-only ones too), for Apple's event screen.
+    func storedEvent(for event: CalendarEvent) -> EKEvent? {
+        guard isAuthorized, let ek = store.calendar(withIdentifier: event.calendarID),
               let at = event.id.lastIndex(of: "@") else { return nil }
         let base = String(event.id[..<at])
         let stamp = Int(event.id[event.id.index(after: at)...])
@@ -92,7 +98,7 @@ final class AppleCalendarClient {
     /// repeating series; otherwise only this occurrence goes. Throws when the calendar is read-only or the event is gone.
     func deleteEvent(_ event: CalendarEvent, futureToo: Bool) throws {
         guard let e = editableEvent(for: event) else { throw CocoaError(.featureUnsupported) }
-        try store.remove(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
+        try store.remove(e, span: futureToo && Self.repeats(e) ? .futureEvents : .thisEvent, commit: true)
     }
 
     /// Writes a place to `event` (the iPhone's Where's this?). With coordinates it's saved as a structured location too,
@@ -109,6 +115,18 @@ final class AppleCalendarClient {
         }
         e.location = text
         try store.save(e, span: futureToo && e.hasRecurrenceRules ? .futureEvents : .thisEvent, commit: true)
+    }
+
+    /// Whether the stored event behind `event` belongs to a repeating series.
+    func isRepeating(_ event: CalendarEvent) -> Bool { storedEvent(for: event).map(Self.repeats) ?? false }
+
+    /// Part of a series: it repeats, or it's one meeting of a series that was changed on its own (a detached
+    /// occurrence, which some accounts store without the series' repeat rules).
+    private static func repeats(_ e: EKEvent) -> Bool { e.hasRecurrenceRules || e.isDetached }
+
+    /// Your reply to `event` as the calendar holds it now (nil when you aren't on its guest list or it's gone).
+    func selfResponse(for event: CalendarEvent) -> AttendeeResponse? {
+        storedEvent(for: event)?.attendees?.first(where: \.isCurrentUser).map { Self.attendee($0).response }
     }
 
     /// Identifiers of the calendars new events can be added to (the iPhone app's quick add).

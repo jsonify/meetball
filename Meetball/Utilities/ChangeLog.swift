@@ -65,6 +65,12 @@ enum ChangeLog {
     private static func fixed(_ p: Platform, _ t: String) -> Change { Change(kind: .fixed, platform: p, text: t) }
 
     static let all: [Entry] = [
+        Entry(day: "2026-11-11", changes: [
+            new(.iPhone, "The event screen blooms out of the event you tap instead of sliding up as a sheet, and turns over to edit."),
+            fixed(.iPhone, "Deleting a repeating meeting asks: only this one, or this and all future ones."),
+            new(.iPhone, "Going? Yes, Maybe or No on the event screen and in Edit for meetings you're invited to. Your pick opens Apple's invite screen, which sends the reply."),
+            better(.iPhone, "Edit's More options is now Invitees, alerts & repeat, and isn't shown for invitations, where Apple's editor had nothing more."),
+        ]),
         Entry(day: "2026-11-10", changes: [
             new(.both, "A change log here in Settings › About, so you can see what's new."),
             better(.iPhone, "Editing an event uses Meetball's own SK-1 editor; More options opens Apple's for invitees, alerts and repeat."),

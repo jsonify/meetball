@@ -218,6 +218,18 @@ final class PhoneStore: ObservableObject {
         return (e, client.eventStore)
     }
 
+    /// The stored event behind `event` on any calendar, for Apple's invitation screen (the only way to send a reply).
+    func storedEvent(for event: CalendarEvent) -> (event: EKEvent, store: EKEventStore)? {
+        guard let e = client.storedEvent(for: event) else { return nil }
+        return (e, client.eventStore)
+    }
+
+    /// Whether the calendar's copy of `event` belongs to a repeating series (Delete then asks: this one or all after it).
+    func isRepeating(_ event: CalendarEvent) -> Bool { client.isRepeating(event) }
+
+    /// Your reply to `event` as the calendar holds it now, which can be newer than `event` itself.
+    func currentResponse(for event: CalendarEvent) -> AttendeeResponse? { client.selfResponse(for: event) }
+
     /// Deletes `event` (and, with `futureToo`, the rest of its series) at once, then refreshes in the background so the
     /// event screen can close straight away.
     func deleteEvent(_ event: CalendarEvent, futureToo: Bool) throws {

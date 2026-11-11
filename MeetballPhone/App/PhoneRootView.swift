@@ -32,7 +32,10 @@ struct PhoneRootView: View {
     @EnvironmentObject private var store: PhoneStore
     @SceneStorage("tab") private var storedTab: Tab = .day
     @SceneStorage("settingsSection") private var settingsSection: PhoneSettingsSection = .general
+    /// The event screen, open over everything, and the point it grew out of (the tap that opened it).
     @State private var detail: CalendarEvent?
+    @State private var detailAnchor: UnitPoint = .center
+    @State private var tapSpot = TapSpot()
     /// The composer, open; `start` when a slot on the day grid picked the time.
     @State private var compose: ComposeRequest?
     @State private var readout = false
@@ -74,6 +77,11 @@ struct PhoneRootView: View {
                 .zIndex(tab == .today ? 1 : 0)
         }
         .animation(course.animation, value: tab)
+        // Remembers where each tap lands, for the event screen to grow out of. Alongside the screens' own taps.
+        .simultaneousGesture(SpatialTapGesture(coordinateSpace: .global).onEnded { tapSpot.record($0.location) })
+        // The app sinks back a little under an open event.
+        .scaleEffect(detail == nil ? 1 : 0.94)
+        .brightness(detail == nil ? 0 : -0.06)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { course.stage = $0 }
         // Content runs under the floating dock, and scrolls far enough to clear it.
         .contentMargins(.bottom, PhoneDock.clearance, for: .scrollContent)
@@ -97,9 +105,19 @@ struct PhoneRootView: View {
             .padding(.bottom, 4)
         }
         .sk1Chassis()
-        .sheet(item: $detail) { e in
-            EventDetailSheet(event: e).environmentObject(store)
+        // The event screen: a full panel over the app, dock included, that blooms out of the tapped event (no sheet).
+        .overlay {
+            if let e = detail {
+                EventDetailSheet(event: e) { closeDetail() }
+                    .environmentObject(store)
+                    // The chassis under the status bar too, so nothing behind shows above the panel.
+                    .background { Color.clear.sk1Chassis().ignoresSafeArea() }
+                    .accessibilityAddTraits(.isModal)
+                    .id(e.id)
+                    .transition(EventOpenTransition(anchor: detailAnchor))
+            }
         }
+        .animation(.spring(duration: 0.42, bounce: 0.12), value: detail?.id)
         .sheet(item: $compose) { request in
             QuickAddSheet(start: request.start).environmentObject(store)
         }
@@ -143,6 +161,16 @@ struct PhoneRootView: View {
             case nil: break
             }
         }
+    }
+
+    /// Opens the event screen, growing out of where the event was tapped.
+    private func openDetail(_ e: CalendarEvent) {
+        detailAnchor = tapSpot.anchor(in: course.stage)
+        detail = e
+    }
+
+    private func closeDetail() {
+        detail = nil
     }
 
     /// Sleeps until a minute before the next meeting with a link, then shows the countdown moment (restarted by every
@@ -216,7 +244,7 @@ struct PhoneRootView: View {
     private var page: some View {
         if tab == .day {
             // The time grid scrolls itself, under its pinned dates and all-day strip.
-            DayGridView(open: { detail = $0 }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
+            DayGridView(open: { openDetail($0) }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
                 .frame(maxWidth: 700)
                 .frame(maxWidth: .infinity)
         } else if tab == .month {
@@ -242,7 +270,7 @@ struct PhoneRootView: View {
 
     @ViewBuilder
     private var screen: some View {
-        let open: (CalendarEvent) -> Void = { detail = $0 }
+        let open: (CalendarEvent) -> Void = { openDetail($0) }
         let add: () -> Void = { compose = ComposeRequest(start: nil) }
         switch tab {
         case .today: TodayView(open: open, quickAdd: add, filters: showFilters)

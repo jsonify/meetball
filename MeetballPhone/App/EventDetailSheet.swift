@@ -5,23 +5,55 @@ import SK1Tokens
 import SK1UI
 
 /// A meeting's details: when, where, the Join key, who's coming and the notes.
+///
+/// Not a sheet: the root view lays it over the app as a full panel that grows out of the event you tapped and shrinks
+/// back into it (`EventOpenTransition`). Close with ✕ or a swipe to the right. Edit turns the panel over to the editor
+/// on its back; Cancel turns it back.
 struct EventDetailSheet: View {
     let event: CalendarEvent
+    /// Closes the panel.
+    var onClose: () -> Void
     @EnvironmentObject private var store: PhoneStore
-    @Environment(\.dismiss) private var dismiss
     @AppStorage("phone.workEmail") private var workEmail = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = 0
     /// The stored event when its calendar can be changed here; nil for a read-only feed such as the work calendar.
     @State private var editable: (event: EKEvent, store: EKEventStore)?
     @State private var editing = false
-    /// Set when the editor saved or deleted: this screen closes once the editor has gone, not alongside it.
-    @State private var closeAfterEdit = false
     @State private var confirmingDelete = false
     @State private var deleteError: String?
     @State private var brief: PreFlightBrief?
     @State private var recording = false
+    /// How far a swipe to close has pulled the panel to the right.
+    @State private var pull: CGFloat = 0
 
     var body: some View {
+        ZStack {
+            if editing, let editable {
+                EventEditSheet(event: event, ekEvent: editable.event, eventStore: editable.store) { action in
+                    switch action {
+                    case .canceled: editing = false
+                    case .deleted: store.noteDeleted(event); onClose()
+                    default: onClose()
+                    }
+                }
+                .environmentObject(store)
+                .transition(reduceMotion ? .opacity : CardTurn.transition(back: true))
+            } else {
+                details.transition(reduceMotion ? .opacity : CardTurn.transition(back: false))
+            }
+        }
+        .animation(.easeInOut(duration: 0.5), value: editing)
+        .onAppear {
+            editable = store.editableEvent(for: event)
+            if !event.isAllDay { brief = store.preFlight(for: event) }
+        }
+        .sheet(isPresented: $recording) {
+            EchoSheet(event: event).environmentObject(store)
+        }
+    }
+
+    private var details: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
                 header
@@ -30,6 +62,8 @@ struct EventDetailSheet: View {
                     PhoneJoinButton(event: event, variant: .orange, size: .large, fillsWidth: true)
                 }
                 whenGroup
+                // Yes / Maybe / No for a meeting you were invited to.
+                if event.canRespond { ReplyGroup(event: event).environmentObject(store) }
                 if !event.isAllDay && event.end > Date() { alertsGroup }
                 // The place with Directions, Where's this? for a trip with no place, or a room or link as it is.
                 TripWhereSection(event: event)
@@ -52,59 +86,82 @@ struct EventDetailSheet: View {
                         .sensoryFeedback(.success, trigger: copied)
                     }
                 }
-                if editable != nil { deleteKey }
+                if editable != nil { deleteSection }
             }
             .padding(16)
         }
         .sk1Chassis()
-        .presentationDragIndicator(.visible)
-        .onAppear {
-            editable = store.editableEvent(for: event)
-            if !event.isAllDay { brief = store.preFlight(for: event) }
-        }
-        .sheet(isPresented: $recording) {
-            EchoSheet(event: event).environmentObject(store)
-        }
-        // Closing both sheets in one go leaves the editor up but marked closed, so its ✕ and ✓ stop working: the editor
-        // goes first, then this screen (it shows the old details; the calendars reload from the change).
-        .sheet(isPresented: $editing, onDismiss: { if closeAfterEdit { dismiss() } }) {
-            if let editable {
-                EventEditSheet(event: event, ekEvent: editable.event, eventStore: editable.store) { action in
-                    if action == .deleted { store.noteDeleted(event) }
-                    closeAfterEdit = action != .canceled
-                    editing = false
+        .offset(x: pull)
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24)
+                .onChanged { g in
+                    // Mostly sideways and to the right: the panel follows the finger.
+                    guard g.translation.width > 0, abs(g.translation.width) > abs(g.translation.height) * 1.5 else { return }
+                    pull = g.translation.width
                 }
-                .environmentObject(store)
-            }
-        }
+                .onEnded { g in
+                    if pull > 110 || g.predictedEndTranslation.width > 260 && pull > 0 {
+                        onClose()
+                    } else {
+                        withAnimation(.spring(duration: 0.3)) { pull = 0 }
+                    }
+                }
+        )
+        .accessibilityAction(.escape) { onClose() }
     }
 
-    /// Delete, straight from the event screen as in Apple's Calendar: one confirmation (this one or the rest of the
-    /// series for a repeating meeting), then the screen closes.
-    private var deleteKey: some View {
-        let repeating = event.seriesID != nil || event.recurrence.isRecurring
-        return Button(role: .destructive) { confirmingDelete = true } label: {
-            Label("Delete Event", systemImage: "trash").frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.sk1Key(.charcoal, size: .large))
-        .accessibilityHint(repeating ? "Asks whether to delete this meeting or every one after it" : "Asks before deleting")
-        .confirmationDialog(repeating ? "This is a repeating event." : "Delete this event?",
-                            isPresented: $confirmingDelete, titleVisibility: .visible) {
-            if repeating {
-                Button("Delete This Event Only", role: .destructive) { delete(futureToo: false) }
-                Button("Delete All Future Events", role: .destructive) { delete(futureToo: true) }
-            } else {
-                Button("Delete Event", role: .destructive) { delete(futureToo: false) }
+    /// The meeting repeats, judged by the calendar's own copy too (an edited occurrence can lose its repeat details).
+    private var isRepeating: Bool {
+        event.seriesID != nil || event.recurrence.isRecurring || store.isRepeating(event)
+    }
+
+    /// Delete Event, then, in place of the key, the choice: just this one, this and every one after it (for a repeating
+    /// meeting), or keep it. Nothing is deleted until one of them is tapped.
+    @ViewBuilder
+    private var deleteSection: some View {
+        if confirmingDelete {
+            let repeating = isRepeating
+            let day = event.start.formatted(.dateTime.weekday(.abbreviated).month(.abbreviated).day())
+            VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
+                SKCaption(repeating ? "Delete a repeating event" : "Delete this event", tone: .soft)
+                SKWell {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(repeating
+                             ? "\u{201C}\(event.title)\u{201D} repeats. Delete only \(day)\u{2019}s, or this one and every one after it?"
+                             : "Delete \u{201C}\(event.title)\u{201D} on \(day)?")
+                            .font(.callout)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button(role: .destructive) { delete(futureToo: false) } label: {
+                            Label(repeating ? "Only this one" : "Delete", systemImage: "trash").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.sk1Key(.charcoal, size: .large))
+                        if repeating {
+                            Button(role: .destructive) { delete(futureToo: true) } label: {
+                                Label("This and all future ones", systemImage: "trash.fill").frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.sk1Key(.charcoal, size: .large))
+                        }
+                        Button { withAnimation(.snappy) { confirmingDelete = false } } label: {
+                            Text("Keep it").frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.sk1Key(size: .large))
+                    }
+                    .padding(12)
+                }
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(event.title)
-        }
-        .alert("Couldn\u{2019}t delete the event",
-               isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(deleteError ?? "")
+            .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .bottom)))
+        } else {
+            Button(role: .destructive) { withAnimation(.snappy) { confirmingDelete = true } } label: {
+                Label("Delete Event", systemImage: "trash").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.sk1Key(.charcoal, size: .large))
+            .accessibilityHint(isRepeating ? "Asks whether to delete this meeting or every one after it" : "Asks before deleting")
+            .alert("Couldn\u{2019}t delete the event",
+                   isPresented: Binding(get: { deleteError != nil }, set: { if !$0 { deleteError = nil } })) {
+                Button("OK", role: .cancel) {}
+            } message: {
+                Text(deleteError ?? "")
+            }
         }
     }
 
@@ -112,8 +169,9 @@ struct EventDetailSheet: View {
         do {
             try store.deleteEvent(event, futureToo: futureToo)
             UINotificationFeedbackGenerator().notificationOccurred(.success)
-            dismiss()
+            onClose()
         } catch {
+            confirmingDelete = false
             // Gone already (deleted elsewhere) or its calendar turned read-only: say so rather than fail silently.
             deleteError = store.editableEvent(for: event) == nil
                 ? "It may already have been deleted, or its calendar can no longer be changed."
@@ -160,7 +218,7 @@ struct EventDetailSheet: View {
                 }
             }
             Spacer(minLength: 8)
-            Button { dismiss() } label: { Image(systemName: "xmark") }
+            Button { onClose() } label: { Image(systemName: "xmark") }
                 .buttonStyle(.sk1Key(.round, size: .small))
                 .accessibilityLabel("Close")
         }

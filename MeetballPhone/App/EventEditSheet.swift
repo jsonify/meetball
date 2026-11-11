@@ -9,8 +9,10 @@ import SK1UI
 /// (any clash in red), the day's meetings on a strip, then the day, start and end on keys, the place and calendar, and
 /// the notes. Save writes it with EventKit (asking "this one or every one after it" for a repeating meeting).
 ///
-/// What EventKit can't do here (invitees) or that needs Apple's full controls (alerts, repeat rules) is one key away:
-/// More options hands the event, with the changes made so far, to Apple's own editor.
+/// A meeting you were invited to shows Going? (Yes / Maybe / No) at the top. On your own events, what EventKit can't do
+/// here (invitees) or that needs Apple's full controls (alerts, repeat rules) is one key away: it names what it adds and
+/// hands the event, with the changes made so far, to Apple's own editor. Invitations don't get that key: Apple's editor
+/// has nothing more for them, and no reply buttons either.
 struct EventEditSheet: View {
     let event: CalendarEvent
     let ekEvent: EKEvent
@@ -65,7 +67,7 @@ struct EventEditSheet: View {
         _draft = State(initialValue: d)
     }
 
-    private var isRepeating: Bool { ekEvent.hasRecurrenceRules || event.recurrence.isRecurring }
+    private var isRepeating: Bool { ekEvent.hasRecurrenceRules || ekEvent.isDetached || event.recurrence.isRecurring }
     private var hasChanges: Bool { draft != original }
     private var cleanTitle: String { draft.title.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -86,6 +88,7 @@ struct EventEditSheet: View {
                     .submitLabel(.done)
                     .textInputAutocapitalization(.sentences)
                 readout(clashes: clashes)
+                if event.canRespond { ReplyGroup(event: event).environmentObject(store) }
                 if !draft.isAllDay {
                     DayStrip(events: dayEvents.filter { !$0.isAllDay }, start: draft.start, end: end,
                              clashing: !clashes.isEmpty)
@@ -103,9 +106,6 @@ struct EventEditSheet: View {
         }
         .scrollDismissesKeyboard(.interactively)
         .sk1Chassis()
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
-        .interactiveDismissDisabled(hasChanges)
         .sensoryFeedback(.selection, trigger: nudged)
         .confirmationDialog("This is a repeating event.", isPresented: $confirmingSpan, titleVisibility: .visible) {
             Button("Save for This Event Only") { save(span: .thisEvent) }
@@ -298,11 +298,15 @@ struct EventEditSheet: View {
             }
             .buttonStyle(.sk1Key(.orange, size: .large))
             .disabled(cleanTitle.isEmpty || !hasChanges)
-            Button { moreOptions() } label: {
-                Label("More options\u{2026}", systemImage: "slider.horizontal.3").frame(maxWidth: .infinity)
+            if !event.canRespond {
+                Button { moreOptions() } label: {
+                    Label("Invitees, alerts & repeat\u{2026}", systemImage: "person.badge.plus").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.sk1Key())
+                .accessibilityHint("Opens Apple's editor, with your changes so far")
+                Text("Invitees, alerts and repeat rules are set in Apple\u{2019}s editor: iOS doesn\u{2019}t let apps add guests themselves.")
+                    .sk1Hint()
             }
-            .buttonStyle(.sk1Key())
-            .accessibilityHint("Opens Apple's editor for invitees, alerts and repeat, with your changes so far")
         }
     }
 
