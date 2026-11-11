@@ -75,15 +75,8 @@ struct NextMeetingWidgetView: View {
                     Color(sk1Hex: SK1.palette(for: scheme).chassis)
                 }
             }
-            .widgetURL(link)
-    }
-
-    /// Tapping joins a meeting that's on or starts within 10 minutes; otherwise it opens Today.
-    private var link: URL {
-        guard let m = entry.meeting, let url = m.joinURL, m.start.timeIntervalSince(entry.date) < 10 * 60 else {
-            return MeetballLink.today
-        }
-        return MeetballLink.join(url)
+            // Tapping never joins: it opens the Day grid on today at the time now.
+            .widgetURL(MeetballLink.today)
     }
 
     @ViewBuilder
@@ -146,7 +139,7 @@ struct NextMeetingWidgetView: View {
     }
 
     /// The bottom line of the glass. Left: the count to a meeting further off than an hour, ticking by the second
-    /// ("IN 9:51:07"), or its time once the digits count down. Right: JOIN when it's time, else a clash, what time the
+    /// ("IN 9:51:07"), or its time once the digits count down. Right: a clash, what time the
     /// next one is, or that it's the last.
     private func faceFooter(_ r: WidgetReadout) -> some View {
         HStack(spacing: 3) {
@@ -165,15 +158,7 @@ struct NextMeetingWidgetView: View {
                 }
                 Spacer(minLength: 2)
                 let clashes = entry.snapshot?.overlapping(m, at: entry.date) ?? []
-                if m.joinURL != nil && m.start.timeIntervalSince(entry.date) < 10 * 60 {
-                    HStack(spacing: 2) {
-                        Image(systemName: "video.fill").font(.system(size: 7, weight: .bold))
-                        Text("JOIN").font(.system(size: 9, weight: .heavy)).tracking(0.6)
-                    }
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 6).frame(height: 14)
-                    .background(WidgetStyle.orange, in: Capsule())
-                } else if !clashes.isEmpty {
+                if !clashes.isEmpty {
                     footerLabel("+\(clashes.count) CLASH")
                 } else if let then = entry.snapshot?.following(m) {
                     footerLabel("THEN")

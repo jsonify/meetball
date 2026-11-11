@@ -112,7 +112,7 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   hidden, faded, with the reason.
 
 - **Widgets** (MeetballWidgets extension): the MB-1 for the Home Screen (small, medium) and the Lock Screen
-  (rectangular, circular, inline). Tapping joins a meeting that's on or starts within 10 minutes. The display shows
+  (rectangular, circular, inline). Tapping opens the Day grid on today, scrolled to the time now (it never joins). The display shows
   the start time ("TOMORROW AT 8:00 AM") until a meeting is within the hour, then counts down, then counts down to its
   end. The small widget is the LCD itself, glass from edge to edge in a dark bezel: the lamp and caption, the digits as
   big as they fit, the title, the tape (eight hours as half-hour LEDs with an hour scale, lit where there are
