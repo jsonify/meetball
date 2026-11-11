@@ -7,7 +7,7 @@ import SK1UI
 /// are to each other (`ScreenMove`): the calendar screens zoom, Today comes down as a lid, Settings is a flip away.
 struct PhoneRootView: View {
     enum Tab: String, CaseIterable, Identifiable {
-        case today, day, week, month, settings
+        case today, day, week, month, todo, settings
         var id: String { rawValue }
         var title: String {
             switch self {
@@ -15,6 +15,7 @@ struct PhoneRootView: View {
             case .day: return "Day"
             case .week: return "Week"
             case .month: return "Month"
+            case .todo: return "To-do"
             case .settings: return "Settings"
             }
         }
@@ -24,6 +25,7 @@ struct PhoneRootView: View {
             case .day: return "calendar.day.timeline.left"
             case .week: return "chart.bar"
             case .month: return "calendar"
+            case .todo: return "checklist"
             case .settings: return "slider.horizontal.3"
             }
         }
@@ -72,9 +74,9 @@ struct PhoneRootView: View {
                 // Its own chassis, so a screen moves as one panel.
                 .sk1Chassis()
                 .id(tab)
-                .transition(ScreenTransition(course: course, lid: tab == .today))
+                .transition(ScreenTransition(course: course, lid: tab.isLid))
                 // The lid stays over the calendar, going as well as coming.
-                .zIndex(tab == .today ? 1 : 0)
+                .zIndex(tab.isLid ? 1 : 0)
         }
         .animation(course.animation, value: tab)
         // Remembers where each tap lands, for the event screen to grow out of. Alongside the screens' own taps.
@@ -158,6 +160,9 @@ struct PhoneRootView: View {
             switch MeetballLink.parse(url) {
             case .join(let meeting): PhoneJoin.open(meeting)
             case .today: openNow()
+            case .todo:
+                detail = nil
+                tab = .todo
             case nil: break
             }
         }
@@ -184,6 +189,17 @@ struct PhoneRootView: View {
     private func openDetail(_ e: CalendarEvent) {
         detailAnchor = tapSpot.anchor(in: course.stage)
         detail = e
+    }
+
+    /// The meeting a to-do came from: its screen when it's still on the calendar, else the Day grid on its day.
+    private func openMeeting(_ m: TodoMeeting) {
+        let around = DateInterval(start: m.start.addingTimeInterval(-3600), end: m.start.addingTimeInterval(4 * 3600))
+        if let e = store.events(in: around).first(where: { m.matches($0) }) {
+            openDetail(e)
+        } else {
+            dayJump = m.start
+            tab = .day
+        }
     }
 
     private func closeDetail() {
@@ -264,6 +280,14 @@ struct PhoneRootView: View {
             DayGridView(open: { openDetail($0) }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
                 .frame(maxWidth: 700)
                 .frame(maxWidth: .infinity)
+        } else if tab == .todo {
+            // The list scrolls (and reorders) itself.
+            VStack(alignment: .leading, spacing: 4) {
+                Text("To-do").font(.largeTitle.bold()).padding(.horizontal, 16).padding(.top, 8)
+                TodoListView { openMeeting($0) }
+            }
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
         } else if tab == .month {
             // Months scroll on and on under the pinned header and weekday row.
             MonthView { day, cell in
@@ -293,7 +317,7 @@ struct PhoneRootView: View {
         case .today: TodayView(open: open, quickAdd: add, filters: showFilters)
         case .day: EmptyView()   // drawn outside the scroll view, in page
         case .week: WeekView(open: open, quickAdd: add)
-        case .month: EmptyView()   // drawn outside the scroll view, in page
+        case .month, .todo: EmptyView()   // drawn outside the scroll view, in page
         case .settings: PhoneSettingsView(section: $settingsSection)
         }
     }
@@ -316,6 +340,11 @@ struct PhoneRootView: View {
         .sensoryFeedback(.selection, trigger: tab)
         .onChange(of: tab) { _, _ in menuOpen = false }
     }
+}
+
+extension PhoneRootView.Tab {
+    /// Today and To-do come down over the calendar as a lid, rather than zooming.
+    var isLid: Bool { self == .today || self == .todo }
 }
 
 /// A request to open the composer, at `start` when one was picked on the day grid.

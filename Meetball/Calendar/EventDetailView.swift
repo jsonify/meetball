@@ -80,6 +80,7 @@ struct EventDetailPopover: View {
             if !people.isEmpty || event.organizer != nil { attendeesSection }
             if !notes.isEmpty { notesSection }
             if let brief, brief.lastTime != nil || !brief.links.isEmpty { preFlightSection(brief) }
+            MeetingFollowUps(event: event, notes: notes)
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)

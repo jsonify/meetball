@@ -18,7 +18,7 @@ struct PhoneSettings: Codable, Equatable {
     var countdownMoment: Bool = true
     /// The pre-flight card five minutes before a meeting: who's in it, the last meeting with them, the invite's links.
     var preFlight: Bool = true
-    /// Echo: when a meeting ends, offer a 20-second voice note (and a notification to tap if Meetball isn't open).
+    /// Echo: when a meeting ends, offer a voice note (and a notification to tap if Meetball isn't open).
     var echoMode: Bool = true
     /// Echo notes are also added to Reminders as follow-ups.
     var echoToReminders: Bool = true
@@ -215,7 +215,7 @@ enum ReminderPlanner {
         return Array(out.sorted { $0.fireDate < $1.fireDate }.prefix(room))
     }
 
-    static let echoBody = "How did it go? Tap to leave a 20-second voice note for your follow-ups."
+    static let echoBody = "How did it go? Tap to leave a voice note for your follow-ups."
 
     static func minutes(_ n: Int) -> String { n == 1 ? "1 min" : "\(n) min" }
 

@@ -48,7 +48,7 @@
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Echo records a short voice note after a meeting, only while you're recording.</string>
 	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Echo adds your after-meeting notes to Reminders as follow-ups.</string>
+	<string>Meetball keeps your to-do list, including follow-ups from meetings and Echo notes, as a Meetball list in Reminders, so it syncs with your Mac.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Echo turns your voice note into text on your iPhone, so it can become a follow-up reminder.</string>
 	<key>NSSupportsLiveActivities</key>

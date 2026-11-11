@@ -38,6 +38,8 @@
 	<string>$(MEETBALL_COMMIT)</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Meetball reads your calendars to show upcoming meetings, the menu bar countdown, and Meeting Guardian alerts.</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Meetball keeps your to-do list as a Meetball list in Reminders, so it syncs with your iPhone.</string>
 	<key>PRO_PRODUCT_IDS</key>
 	<string>$(PRO_PRODUCT_IDS)</string>
 	<key>PRO_UNLOCKED</key>

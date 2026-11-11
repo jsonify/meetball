@@ -128,6 +128,7 @@ struct MeetballApp: App {
                     Button(mode.title) { model.calendar.section = .calendar; model.calendar.viewMode = mode }
                         .keyboardShortcut(KeyEquivalent(mode.shortcut), modifiers: .command)
                 }
+                Button("To-do") { model.calendar.section = .todo }.keyboardShortcut("4", modifiers: .command)
                 Divider()  // sk1-audit: ignore (a menu item separator)
                 Button("Refresh Calendars") { model.calendar.refresh(.user) }.keyboardShortcut("r", modifiers: .command)
                 Button(model.calendar.isWorkOnly ? "Show All Calendars" : "Show Work Calendars Only") { model.calendar.toggleWorkOnly() }

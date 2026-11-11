@@ -71,6 +71,7 @@ struct EventDetailSheet: View {
                 if let notes = event.notes.map(EventNotesFormatter.plainText), !notes.isEmpty { notesGroup(notes) }
                 // Pre-flight: the last meeting like this one and the invite's links (people and notes are above).
                 if let brief { PreFlightSections(brief: brief, showPeople: false, showNotes: false) }
+                MeetingFollowUps(event: event, notes: event.notes.map(EventNotesFormatter.plainText) ?? "")
                 if store.settings.echoMode || !store.echoNotes(for: event).isEmpty {
                     EchoNotesGroup(event: event) { recording = true }
                 }

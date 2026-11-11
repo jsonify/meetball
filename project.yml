@@ -54,6 +54,7 @@ targets:
         MeetballCommit: "$(MEETBALL_COMMIT)"
         MeetballBuildDate: "$(MEETBALL_BUILD_DATE)"
         NSCalendarsFullAccessUsageDescription: Meetball reads your calendars to show upcoming meetings, the menu bar countdown, and Meeting Guardian alerts.
+        NSRemindersFullAccessUsageDescription: Meetball keeps your to-do list as a Meetball list in Reminders, so it syncs with your iPhone.
         LSApplicationCategoryType: public.app-category.productivity
         LSMinimumSystemVersion: "15.0"
         GOOGLE_CLIENT_ID: "$(GOOGLE_CLIENT_ID)"
@@ -109,6 +110,8 @@ targets:
       - Meetball/Calendar/PreFlight.swift
       - Meetball/Calendar/EchoNotes.swift
       - Meetball/Calendar/EventFilter.swift
+      - Meetball/Calendar/Todos.swift
+      - Meetball/Calendar/TodoStore.swift
       - Meetball/Utilities/AppPreferences.swift
       - Meetball/Utilities/AppVersion.swift
       - Meetball/Utilities/ChangeLog.swift
@@ -120,6 +123,7 @@ targets:
       - Meetball/DesignSystem/CountdownLCD.swift
       - Meetball/DesignSystem/HeroUrgency.swift
       - Meetball/DesignSystem/MonthDayPicker.swift
+      - Meetball/DesignSystem/TodoViews.swift
       - Meetball/MeetingGuardian/Confetti.swift
     dependencies:
       - package: SK1Kit
@@ -152,7 +156,7 @@ targets:
         NSLocationWhenInUseUsageDescription: Meetball works out the drive to your games, parties and appointments from where you are, so it can tell you when to leave.
         NSMicrophoneUsageDescription: Echo records a short voice note after a meeting, only while you're recording.
         NSSpeechRecognitionUsageDescription: Echo turns your voice note into text on your iPhone, so it can become a follow-up reminder.
-        NSRemindersFullAccessUsageDescription: Echo adds your after-meeting notes to Reminders as follow-ups.
+        NSRemindersFullAccessUsageDescription: Meetball keeps your to-do list, including follow-ups from meetings and Echo notes, as a Meetball list in Reminders, so it syncs with your Mac.
         UIBackgroundModes: [fetch]
         BGTaskSchedulerPermittedIdentifiers: [app.meetball.MeetballPhone.refresh]
         UILaunchScreen: {}

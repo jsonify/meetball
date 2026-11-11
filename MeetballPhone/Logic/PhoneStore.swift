@@ -346,12 +346,12 @@ final class PhoneStore: ObservableObject {
     /// The Echo notes left for `event`, newest first.
     func echoNotes(for event: CalendarEvent) -> [EchoNote] { Echo.notes(for: event, in: echoNotes) }
 
-    /// Saves an Echo note for `event` and, when Settings says so, adds it to Reminders. Returns why Reminders
-    /// failed, if it did; the note is kept in Meetball either way.
+    /// Saves an Echo note for `event` and, when Settings says so, puts it on the to-do list. Returns the note as saved
+    /// and why the to-do list failed, if it did; the note is kept in Meetball either way.
     @discardableResult
-    func saveEcho(_ text: String, for event: CalendarEvent, now: Date = Date()) async -> String? {
+    func saveEcho(_ text: String, for event: CalendarEvent, now: Date = Date()) async -> (note: EchoNote?, problem: String?) {
         var note = Echo.note(for: event, text: text, now: now)
-        guard !note.text.isEmpty else { return nil }
+        guard !note.text.isEmpty else { return (nil, nil) }
         var problem: String?
         if settings.echoToReminders {
             do { note.reminderID = try await EchoReminders.add(note) } catch { problem = error.localizedDescription }
@@ -359,10 +359,28 @@ final class PhoneStore: ObservableObject {
         setEchoNotes([note] + echoNotes)
         // The nudge for this meeting has done its job.
         PhoneNotifications.center.removeDeliveredNotifications(withIdentifiers: [ReminderPlanner.idPrefix + "echo|" + event.uid])
-        return problem
+        return (note, problem)
     }
 
-    /// Deletes an Echo note and the reminder made from it.
+    /// Puts a saved Echo note on the to-do list. Returns why it couldn't, if it couldn't.
+    @discardableResult
+    func addEchoToTodo(_ note: EchoNote) async -> String? {
+        guard note.reminderID == nil else { return nil }
+        do {
+            let id = try await EchoReminders.add(note)
+            setEchoNotes(echoNotes.map { n in
+                guard n.id == note.id else { return n }
+                var n = n
+                n.reminderID = id
+                return n
+            })
+            return nil
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    /// Deletes an Echo note and the to-do made from it.
     func deleteEcho(_ note: EchoNote) {
         if let id = note.reminderID { EchoReminders.remove(id) }
         setEchoNotes(echoNotes.filter { $0.id != note.id })

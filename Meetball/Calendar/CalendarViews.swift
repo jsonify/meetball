@@ -47,6 +47,11 @@ struct CalendarContainerView: View {
     @ViewBuilder private var detail: some View {
         if store.section == .upcoming {
             UpcomingView { store.composer = .quickAdd(nil) }
+        } else if store.section == .todo {
+            TodoListView { store.showDay($0.start) }
+                .frame(maxWidth: 640)
+                .padding(.top, 12)
+                .frame(maxWidth: .infinity)
         } else {
             VStack(spacing: 0) {
                 header
@@ -106,7 +111,11 @@ struct CalendarContainerView: View {
 
     /// What the title strip says after the nickname: the section, and in the calendar the period shown.
     private var windowTitle: String {
-        store.section == .upcoming ? "Upcoming" : "Calendar \u{2014} \(title)"
+        switch store.section {
+        case .upcoming: return "Upcoming"
+        case .todo: return "To-do"
+        case .calendar: return "Calendar \u{2014} \(title)"
+        }
     }
 
     private var title: String {
@@ -241,6 +250,9 @@ struct CalendarSidebarView: View {
                 }
                 SidebarNavRow(title: "Calendar", symbol: "calendar", selected: store.section == .calendar, shortcut: "⌘1–3") {
                     store.section = .calendar
+                }
+                SidebarNavRow(title: "To-do", symbol: "checklist", selected: store.section == .todo, shortcut: "⌘4") {
+                    store.section = .todo
                 }
             }
             SidebarStatusSection()
