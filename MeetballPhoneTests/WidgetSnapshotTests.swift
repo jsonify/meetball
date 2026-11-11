@@ -79,6 +79,7 @@ final class WidgetSnapshotTests: XCTestCase {
         let meet = URL(string: "https://meet.google.com/abc-defg-hij?authuser=0")!
         XCTAssertEqual(MeetballLink.parse(MeetballLink.join(meet)), .join(meet))
         XCTAssertEqual(MeetballLink.parse(MeetballLink.today), .today)
+        XCTAssertEqual(MeetballLink.parse(URL(string: "meetball://todo?rank=2")!), .todo)
         XCTAssertEqual(MeetballLink.parse(URL(string: "meetball://join?url=tel:123")!), .today)
         XCTAssertNil(MeetballLink.parse(URL(string: "https://example.com")!))
     }

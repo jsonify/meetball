@@ -2,8 +2,9 @@ import SwiftUI
 import SK1Tokens
 import SK1UI
 
-/// Echo: a 20-second voice note after a meeting, transcribed on the iPhone, saved in Meetball against that meeting
-/// and added to Reminders as a follow-up. It starts recording as soon as it opens, so it's one tap from the banner or
+/// Echo: a voice note after a meeting, as long as you like, transcribed on the iPhone, saved in Meetball against that
+/// meeting and (by Settings, or with its key) put on the to-do list as a follow-up. Recording again adds to the note
+/// rather than starting over. It starts recording as soon as it opens, so it's one tap from the banner or
 /// the nudge; the words can be fixed up before saving.
 struct EchoSheet: View {
     let event: CalendarEvent
@@ -15,6 +16,10 @@ struct EchoSheet: View {
     @State private var saved = false
     @State private var problem: String?
     @State private var thunk = 0
+    /// The note as it stood when this recording started; what's heard is added after it.
+    @State private var before = ""
+    /// The saved note, and whether it's on the to-do list.
+    @State private var savedNote: EchoNote?
 
     var body: some View {
         VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
@@ -33,8 +38,9 @@ struct EchoSheet: View {
         .sensoryFeedback(.impact(weight: .heavy), trigger: thunk)
         .task { await record() }
         .onDisappear { recorder.cancel() }
-        .onChange(of: recorder.transcript) { _, new in if recorder.isRecording || recorder.state == .finishing { text = new } }
-        .onChange(of: recorder.state) { _, new in if new == .done { text = recorder.transcript.isEmpty ? text : recorder.transcript } }
+        .onChange(of: recorder.transcript) { _, new in
+            if recorder.isRecording || recorder.state == .finishing { text = Echo.joined(before, new) }
+        }
     }
 
     private var header: some View {
@@ -54,10 +60,10 @@ struct EchoSheet: View {
     private func lcd(now: Date) -> some View {
         switch recorder.state {
         case .recording(let started):
-            let left = max(0, Echo.maxDuration - now.timeIntervalSince(started))
-            SK1CountdownLCD(caption: "Recording · \(meter)", digits: "\(Int(left.rounded(.up)))", unit: "SEC", live: true,
-                            lamp: .danger, lampBlinking: true, height: 50,
-                            accessibilityText: "Recording, \(Int(left.rounded(.up))) seconds left")
+            let elapsed = Int(max(0, now.timeIntervalSince(started)))
+            SK1CountdownLCD(caption: "Recording · \(meter)", digits: String(format: "%d:%02d", elapsed / 60, elapsed % 60),
+                            unit: "TAP STOP", live: true, lamp: .danger, lampBlinking: true, height: 50,
+                            accessibilityText: "Recording, \(elapsed) seconds so far")
         case .finishing:
             SK1CountdownLCD(caption: "Echo", text: "Transcribing…", lamp: .warning, lampBlinking: true, height: 50,
                             accessibilityText: "Transcribing")
@@ -90,8 +96,8 @@ struct EchoSheet: View {
                     }
             }
             Text(store.settings.echoToReminders
-                 ? "Saved here against this meeting and added to Reminders, due \(Echo.dueDate(after: event.end).formatted(.dateTime.weekday(.wide).hour().minute()))."
-                 : "Saved here against this meeting. Turn on Add to Reminders in Settings to get a follow-up too.")
+                 ? "Saved here against this meeting and put on your to-do list, due \(Echo.dueDate(after: event.end).formatted(.dateTime.weekday(.wide).hour().minute())). Record again to add more."
+                 : "Saved here against this meeting. Record again to add more; once it's saved you can put it on your to-do list.")
                 .sk1Hint()
         }
     }
@@ -100,9 +106,20 @@ struct EchoSheet: View {
         SKWell {
             VStack(alignment: .leading, spacing: 8) {
                 Text(Echo.cleaned(text)).font(.body).fixedSize(horizontal: false, vertical: true)
-                Text(problem ?? (store.settings.echoToReminders ? "Added to Reminders. It shows up in this meeting's pre-flight next time."
-                                                                : "It shows up in this meeting's pre-flight next time."))
+                Text(problem ?? (savedNote?.reminderID != nil ? "On your to-do list. It shows up in this meeting's pre-flight next time."
+                                                              : "It shows up in this meeting's pre-flight next time."))
                     .sk1Hint()
+                if let note = savedNote, note.reminderID == nil {
+                    Button {
+                        Task {
+                            problem = await store.addEchoToTodo(note)
+                            savedNote = store.echoNotes.first { $0.id == note.id }
+                        }
+                    } label: {
+                        Label("Add to To-do", systemImage: "checklist").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.sk1Key())
+                }
             }
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -138,13 +155,16 @@ struct EchoSheet: View {
 
     private func record() async {
         guard !saved else { return }
+        before = text
         await recorder.start()
     }
 
     private func save() async {
         if recorder.isRecording { await recorder.stop() }
         saving = true
-        problem = await store.saveEcho(text, for: event)
+        let result = await store.saveEcho(text, for: event)
+        problem = result.problem
+        savedNote = result.note
         saving = false
         saved = true
         thunk += 1
@@ -186,6 +206,7 @@ struct EchoBanner: View {
 struct EchoNoteRow: View {
     let note: EchoNote
     var onDelete: (() -> Void)?
+    var onAddToTodo: (() -> Void)?
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -193,10 +214,15 @@ struct EchoNoteRow: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text(note.text).font(.callout).fixedSize(horizontal: false, vertical: true).textSelection(.enabled)
                 Text(note.createdAt.formatted(.dateTime.month(.abbreviated).day().hour().minute())
-                     + (note.reminderID != nil ? " · In Reminders" : ""))
+                     + (note.reminderID != nil ? " · On your to-do list" : ""))
                     .sk1Hint()
             }
             Spacer(minLength: 4)
+            if note.reminderID == nil, let onAddToTodo {
+                Button(action: onAddToTodo) { Image(systemName: "checklist") }
+                    .buttonStyle(.sk1Key(.round, size: .small))
+                    .accessibilityLabel("Add to the to-do list")
+            }
             if let onDelete {
                 Button(action: onDelete) { Image(systemName: "trash") }
                     .buttonStyle(.sk1Key(.round, size: .small))
@@ -218,7 +244,8 @@ struct EchoNotesGroup: View {
         if !notes.isEmpty || event.start <= Date() {
             SKGroup(caption: "Echo notes") {
                 ForEach(notes) { n in
-                    EchoNoteRow(note: n) { withAnimation { store.deleteEcho(n) } }
+                    EchoNoteRow(note: n, onDelete: { withAnimation { store.deleteEcho(n) } },
+                                onAddToTodo: { Task { await store.addEchoToTodo(n) } })
                 }
                 if event.start <= Date() {
                     Button(action: record) {

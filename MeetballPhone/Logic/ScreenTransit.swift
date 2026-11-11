@@ -19,7 +19,7 @@ enum ScreenMove: Equatable {
         guard from != to else { return nil }
         if to == .settings { return .flip(forward: true) }
         if from == .settings { return .flip(forward: false) }
-        if to == .today || from == .today { return .lid }
+        if to.isLid || from.isLid { return .lid }
         return span(to) < span(from) ? .zoomIn(dive: false) : .zoomOut
     }
 
@@ -30,7 +30,8 @@ enum ScreenMove: Equatable {
         case .day: return 1
         case .week: return 2
         case .month: return 3
-        case .settings: return 4
+        case .todo: return 4
+        case .settings: return 5
         }
     }
 

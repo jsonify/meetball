@@ -26,7 +26,7 @@ public enum CalendarViewMode: String, CaseIterable, Identifiable {
 }
 
 /// What the main window's detail area shows.
-public enum MainSection: String { case upcoming, calendar }
+public enum MainSection: String { case upcoming, calendar, todo }
 
 @MainActor
 public final class CalendarStore: ObservableObject {
@@ -350,6 +350,13 @@ public final class CalendarStore: ObservableObject {
     /// Moves the selected day (J / K); the visible month/week follows.
     func moveSelectedDay(_ n: Int) {
         select(Calendar.app.date(byAdding: .day, value: n, to: selectedDay) ?? selectedDay)
+    }
+
+    /// The calendar on `day`, in the Day view (a to-do's meeting).
+    func showDay(_ day: Date) {
+        section = .calendar
+        viewMode = .day
+        select(day)
     }
 
     func goToday() {

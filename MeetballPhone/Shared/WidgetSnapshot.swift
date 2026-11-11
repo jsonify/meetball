@@ -250,6 +250,8 @@ enum MeetballLink {
         /// The Day grid on today, scrolled to the time now.
         case today
         case join(URL)
+        /// The to-do list (a to-do's link, tapped in Reminders).
+        case todo
     }
 
     static var today: URL { URL(string: "\(scheme)://today")! }
@@ -271,6 +273,8 @@ enum MeetballLink {
                 return .today
             }
             return .join(target)
+        case "todo":
+            return .todo
         default:
             return .today
         }

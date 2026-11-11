@@ -104,11 +104,11 @@ struct PhoneSettingsView: View {
             SKRow(title: "Pre-flight card", subtitle: "Five minutes before a meeting: who's in it, the last meeting with them and your note from it, and the invite's links.") {
                 Toggle("Pre-flight card", isOn: $store.settings.preFlight).labelsHidden().toggleStyle(.sk1Switch)
             }
-            SKRow(title: "Echo", subtitle: "When a meeting ends, one tap records a 20-second voice note for your follow-ups.") {
+            SKRow(title: "Echo", subtitle: "When a meeting ends, one tap records a voice note for your follow-ups, for as long as you talk.") {
                 Toggle("Echo", isOn: $store.settings.echoMode).labelsHidden().toggleStyle(.sk1Switch)
             }
-            SKRow(title: "Add to Reminders", subtitle: "Each Echo note also becomes a reminder, due the next working morning.") {
-                Toggle("Add to Reminders", isOn: $store.settings.echoToReminders).labelsHidden().toggleStyle(.sk1Switch)
+            SKRow(title: "Add to To-do", subtitle: "Each Echo note also goes on your to-do list, due the next working morning. Off: add the ones you want from the note.") {
+                Toggle("Add to To-do", isOn: $store.settings.echoToReminders).labelsHidden().toggleStyle(.sk1Switch)
                     .disabled(!store.settings.echoMode)
             }
             if !store.echoNotes.isEmpty {

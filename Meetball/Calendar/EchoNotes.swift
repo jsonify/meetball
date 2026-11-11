@@ -2,7 +2,7 @@ import Foundation
 
 // Shared with the iPhone app (MeetballPhone): no AppKit here.
 
-/// An Echo note: what you said in the 20 seconds after a meeting, kept in Meetball (the work calendar is a read-only
+/// An Echo note: what you said after a meeting, kept in Meetball (the work calendar is a read-only
 /// feed, so nothing is written to the event) and, if you like, added to Reminders as a follow-up.
 public struct EchoNote: Codable, Hashable, Identifiable {
     public var id = UUID()
@@ -21,8 +21,8 @@ public struct EchoNote: Codable, Hashable, Identifiable {
 /// Echo mode: when a meeting ends, one tap records a short voice note that becomes a follow-up reminder pinned to
 /// that meeting.
 public enum Echo {
-    /// The longest recording.
-    public static let maxDuration: TimeInterval = 20
+    /// The longest recording: a safety stop, well past any real note (it used to be 20 seconds, which cut people off).
+    public static let maxDuration: TimeInterval = 10 * 60
     /// How long after a meeting ends Meetball offers to record.
     public static let offerWindow: TimeInterval = 30 * 60
     /// Shorter meetings (a 5-minute hold) aren't worth a note.
@@ -59,6 +59,11 @@ public enum Echo {
                 && !notes.contains { matches($0, e) }
         }
         .max { $0.end < $1.end }
+    }
+
+    /// Two stretches of a note run together with a space, either of them possibly empty.
+    public static func joined(_ a: String, _ b: String) -> String {
+        cleaned([a, b].map(cleaned).filter { !$0.isEmpty }.joined(separator: " "))
     }
 
     /// Whitespace collapsed and trimmed.

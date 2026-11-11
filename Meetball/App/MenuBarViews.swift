@@ -41,6 +41,8 @@ struct MenuBarContent: View {
                         .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
                 }
                 .frame(height: min(max(contentHeight, 60), maxScrollHeight))
+                SKGroove()
+                TodoTray()
             }
             SKGroove()
             footer
