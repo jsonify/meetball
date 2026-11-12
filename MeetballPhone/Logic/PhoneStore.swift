@@ -162,7 +162,8 @@ final class PhoneStore: ObservableObject {
                                          etas: settings.driveTimes ? etas : [:], now: now)
         let echoes = ReminderPlanner.echoes(events, settings: settings, now: now, room: ReminderPlanner.maxPending - scheduled.count)
         await PhoneNotifications.apply(scheduled + echoes, directions: settings.directionsApp)
-        LiveActivityController.updateWidgets(upcoming: upcoming, now: now)
+        // The widgets (and Siri, which reads their snapshot) follow "Work only" like the screens do.
+        LiveActivityController.updateWidgets(upcoming: upcoming.filter { settings.shows(calendarKey: $0.calendarKey) }, now: now)
         await LiveActivityController.reconcile(upcoming: upcoming.filter(settings.alerts(for:)), enabled: settings.liveActivity, now: now)
         lastRefresh = now
     }
