@@ -89,4 +89,30 @@ final class PhoneAgendaTests: XCTestCase {
         round.celebrateCancellations = false
         XCTAssertEqual(try JSONDecoder().decode(PhoneSettings.self, from: JSONEncoder().encode(round)), round)
     }
+
+    func testWorkOnlyShowsJustWorkCalendars() throws {
+        var s = PhoneSettings()
+        s.hiddenCalendars = ["me|old"]
+        s.workOnly = true
+        XCTAssertFalse(s.isWorkOnly, "nothing marked as work: work only has no effect")
+        XCTAssertTrue(s.shows(calendarKey: "me|home"))
+        s.toggleWork("me|work")
+        XCTAssertTrue(s.isWorkOnly)
+        XCTAssertTrue(s.shows(calendarKey: "me|work"))
+        XCTAssertFalse(s.shows(calendarKey: "me|home"))
+        XCTAssertFalse(s.shows(calendarKey: "me|old"))
+        s.workOnly = false
+        XCTAssertTrue(s.shows(calendarKey: "me|home"))
+        XCTAssertFalse(s.shows(calendarKey: "me|old"), "hidden stays hidden")
+        s.workOnly = true
+        s.toggleWork("me|work")
+        XCTAssertFalse(s.workOnly, "unmarking the last work calendar turns work only off")
+        s.toggleWork("me|work")
+        s.workOnly = true
+        XCTAssertEqual(try JSONDecoder().decode(PhoneSettings.self, from: JSONEncoder().encode(s)), s)
+        let old = #"{"leadMinutes":5,"hiddenCalendars":[]}"#
+        let decoded = try JSONDecoder().decode(PhoneSettings.self, from: Data(old.utf8))
+        XCTAssertEqual(decoded.workCalendars, [])
+        XCTAssertFalse(decoded.workOnly)
+    }
 }

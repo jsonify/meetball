@@ -253,3 +253,11 @@ struct HiddenEventsToggle: View {
         }
     }
 }
+
+/// Which calendars are shown, given hidden calendars and "Work only" (#52). Shared with the iPhone app.
+public enum CalendarVisibility {
+    public static func isShown(_ key: String, hidden: Set<String>, work: Set<String>, workOnly: Bool) -> Bool {
+        guard !hidden.contains(key) else { return false }
+        return !workOnly || work.isEmpty || work.contains(key)
+    }
+}

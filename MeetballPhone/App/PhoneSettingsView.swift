@@ -58,15 +58,18 @@ struct PhoneSettingsView: View {
     @AppStorage(AppPreferences.Key.theme) private var themeRaw = AppTheme.system.rawValue
 
     var body: some View {
-        VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+        PhoneScrollScreen {
             PhoneScreenHeader(title: "Settings", detail: "Meetball \(AppVersion.current.short)") { EmptyView() }
-            VStack(alignment: .leading, spacing: 8) {
-                PhoneSettingsLCD(section: section, version: AppVersion.current.short)
-                PhoneSettingsKeys(selection: $section)
-                Text(section.detail).sk1Hint()
+        } content: {
+            VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+                VStack(alignment: .leading, spacing: 8) {
+                    PhoneSettingsLCD(section: section, version: AppVersion.current.short)
+                    PhoneSettingsKeys(selection: $section)
+                    Text(section.detail).sk1Hint()
+                }
+                if store.calendarAccess != .granted && section != .about { accessCard }
+                content
             }
-            if store.calendarAccess != .granted && section != .about { accessCard }
-            content
         }
         .sensoryFeedback(.selection, trigger: section)
     }
@@ -83,6 +86,7 @@ struct PhoneSettingsView: View {
         case .events:
             PhoneEventFilterGroups()
         case .calendars:
+            workGroup
             calendarsGroup
         case .prep:
             prepGroup
@@ -303,7 +307,7 @@ struct PhoneSettingsView: View {
 
     private var calendarsGroup: some View {
         SKGroup(caption: "Calendars",
-                note: "Switch a calendar off to hide it. Press its bell to keep it visible but silence its alerts (a family calendar, say); you can still turn alerts on for one of its meetings from the meeting itself.") {
+                note: "Switch a calendar off to hide it. Press its bell to keep it visible but silence its alerts (a family calendar, say); you can still turn alerts on for one of its meetings from the meeting itself. Press its briefcase to mark it as a work calendar.") {
             ForEach(store.calendars, id: \.key) { cal in
                 SKRow(title: cal.summary, subtitle: cal.accountEmail.replacingOccurrences(of: AppleCalendarClient.sourcePrefix, with: "")) {
                     HStack(spacing: 10) {
@@ -316,9 +320,33 @@ struct PhoneSettingsView: View {
                         .disabled(!shown)
                         .opacity(shown ? 1 : 0.4)
                         .accessibilityLabel(silenced ? "Turn on alerts for \(cal.summary)" : "Silence alerts for \(cal.summary)")
+                        let work = store.settings.workCalendars.contains(cal.key)
+                        Button { store.settings.toggleWork(cal.key) } label: {
+                            Image(systemName: work ? "briefcase.fill" : "briefcase")
+                        }
+                        .buttonStyle(.sk1Key(isOn: work, size: .small))
+                        .disabled(!shown)
+                        .opacity(shown ? 1 : 0.4)
+                        .accessibilityLabel(work ? "Unmark \(cal.summary) as a work calendar" : "Mark \(cal.summary) as a work calendar")
                         Toggle(cal.summary, isOn: visible(cal)).labelsHidden().toggleStyle(.sk1Switch)
                     }
                 }
+            }
+        }
+    }
+
+    /// "Work only", as the Day grid's All / Work switch sets it.
+    private var workGroup: some View {
+        let marked = store.settings.workCalendars.count
+        return SKGroup(caption: "Work",
+                       note: marked == 0
+                        ? "Press the briefcase beside your work calendars below, then switch between All and Work from the Day screen."
+                        : "Day, Week, Month and Today show only the \(marked == 1 ? "work calendar" : "\(marked) work calendars"). Alerts, widgets and the Live Activity still cover every calendar that's switched on.") {
+            SKRow(title: "Work calendars only", subtitle: marked == 0 ? "No calendar marked as work yet" : nil) {
+                Toggle("Work calendars only", isOn: Binding(get: { store.settings.isWorkOnly },
+                                                            set: { store.settings.workOnly = $0 }))
+                    .labelsHidden().toggleStyle(.sk1Switch)
+                    .disabled(marked == 0)
             }
         }
     }

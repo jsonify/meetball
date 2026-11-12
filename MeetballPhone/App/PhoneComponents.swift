@@ -255,15 +255,63 @@ struct PhoneScreenHeader<Keys: View>: View {
     let title: String
     let detail: String
     @ViewBuilder var keys: () -> Keys
+    @Environment(\.phoneWorkOnly) private var workOnly
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.largeTitle.bold())
-                Text(detail).sk1Hint()
+                Text(title).font(.largeTitle.bold()).lineLimit(1).minimumScaleFactor(0.7)
+                HStack(spacing: 6) {
+                    // "Work only" is on (the Day grid's All / Work switch): every screen says so under its title.
+                    if workOnly {
+                        Label("WORK", systemImage: "briefcase.fill")
+                            .font(.caption2.weight(.bold).monospaced())
+                            .foregroundStyle(Color(sk1Hex: SK1.orange))
+                            .accessibilityLabel("Work calendars only")
+                    }
+                    Text(detail).sk1Hint()
+                }
             }
             Spacer(minLength: 8)
             keys()
         }
+    }
+}
+
+/// A screen whose title stays pinned at the top while the rest scrolls under it, so the screen's name never slides up
+/// behind the Dynamic Island. Pull to refresh comes from `.refreshable` on the screen.
+struct PhoneScrollScreen<Header: View, Content: View>: View {
+    @ViewBuilder var header: () -> Header
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header()
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
+                .frame(maxWidth: 600)
+                .frame(maxWidth: .infinity)
+            ScrollView {
+                content()
+                    .padding(.horizontal, 16)
+                    .padding(.top, 4)
+                    .padding(.bottom, 24)
+                    .frame(maxWidth: 600)
+                    .frame(maxWidth: .infinity)
+            }
+        }
+    }
+}
+
+private struct PhoneWorkOnlyKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// "Work only" is in effect, for the screen headers' WORK tag.
+    var phoneWorkOnly: Bool {
+        get { self[PhoneWorkOnlyKey.self] }
+        set { self[PhoneWorkOnlyKey.self] = newValue }
     }
 }

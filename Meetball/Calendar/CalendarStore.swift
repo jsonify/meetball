@@ -385,10 +385,3 @@ public final class CalendarStore: ObservableObject {
     }
 }
 
-/// Which calendars are shown, given hidden calendars and "Work only" (#52).
-public enum CalendarVisibility {
-    public static func isShown(_ key: String, hidden: Set<String>, work: Set<String>, workOnly: Bool) -> Bool {
-        guard !hidden.contains(key) else { return false }
-        return !workOnly || work.isEmpty || work.contains(key)
-    }
-}

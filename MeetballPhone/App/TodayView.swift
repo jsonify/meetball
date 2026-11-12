@@ -29,7 +29,7 @@ struct TodayView: View {
         let shownInHero = Set(([hero].compactMap { $0 } + overlapping).map(\.uid))
         let groups = MenuAgendaBuilder.build(events: showHidden ? all : events, now: now, days: 2, limit: 40, excluding: shownInHero)
         let line = MeetingStatusText.line(events, now: now)
-        return VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+        return PhoneScrollScreen {
             PhoneScreenHeader(title: "Today", detail: now.formatted(.dateTime.weekday(.wide).month(.wide).day())) {
                 Button(action: filters) { Image(systemName: "line.3.horizontal.decrease") }
                     .buttonStyle(.sk1Key())
@@ -38,25 +38,28 @@ struct TodayView: View {
                     .buttonStyle(.sk1Key())
                     .accessibilityLabel("Add an event")
             }
-            SKDisplay(title: "MB-1", detail: now.shortTime, message: line.message,
-                      number: MeetingStatusText.remainingToday(events, now: now), digits: 2, unit: "LEFT",
-                      live: line.live, height: 60)
-            if store.calendarAccess != .granted {
-                accessNote
-            }
-            if !store.changeCards.isEmpty { changeCards(now: now) }
-            if let hero {
-                VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
-                    SKCaption(hero.start <= now ? "On now" : "Up next", tone: .soft)
-                    PhoneHeroCard(event: hero, now: now, overlapping: overlapping, open: open)
+        } content: {
+            VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+                SKDisplay(title: "MB-1", detail: now.shortTime, message: line.message,
+                          number: MeetingStatusText.remainingToday(events, now: now), digits: 2, unit: "LEFT",
+                          live: line.live, height: 60)
+                if store.calendarAccess != .granted {
+                    accessNote
                 }
-            } else if store.calendarAccess == .granted {
-                freeCard
+                if !store.changeCards.isEmpty { changeCards(now: now) }
+                if let hero {
+                    VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
+                        SKCaption(hero.start <= now ? "On now" : "Up next", tone: .soft)
+                        PhoneHeroCard(event: hero, now: now, overlapping: overlapping, open: open)
+                    }
+                } else if store.calendarAccess == .granted {
+                    freeCard
+                }
+                ForEach(groups) { g in
+                    PhoneDaySection(group: g, now: now, title: title(for: g, now: now), open: open)
+                }
+                HiddenEventsToggle(count: hiddenCount, showing: $showHidden)
             }
-            ForEach(groups) { g in
-                PhoneDaySection(group: g, now: now, title: title(for: g, now: now), open: open)
-            }
-            HiddenEventsToggle(count: hiddenCount, showing: $showHidden)
         }
         .environment(\.eventFilterSettings, store.settings.filters)
     }
