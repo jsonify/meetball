@@ -341,7 +341,7 @@ struct PhoneSettingsView: View {
         return SKGroup(caption: "Work",
                        note: marked == 0
                         ? "Press the briefcase beside your work calendars below, then switch between All and Work from the Day screen."
-                        : "Day, Week, Month and Today show only the \(marked == 1 ? "work calendar" : "\(marked) work calendars"). Alerts, widgets and the Live Activity still cover every calendar that's switched on.") {
+                        : "Day, Week, Month, Today and the widgets show only the \(marked == 1 ? "work calendar" : "\(marked) work calendars"). Alerts and the Live Activity still cover every calendar that's switched on.") {
             SKRow(title: "Work calendars only", subtitle: marked == 0 ? "No calendar marked as work yet" : nil) {
                 Toggle("Work calendars only", isOn: Binding(get: { store.settings.isWorkOnly },
                                                             set: { store.settings.workOnly = $0 }))

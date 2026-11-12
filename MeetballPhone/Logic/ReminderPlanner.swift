@@ -47,8 +47,8 @@ struct PhoneSettings: Codable, Equatable {
     var filters = EventFilterSettings()
     /// Calendar keys marked as work (Settings › Calendars, the briefcase key), as on the Mac.
     var workCalendars: Set<String> = []
-    /// "Work only": the Day, Week, Month and Today screens show just the work calendars (the Day grid's All / Work
-    /// switch). Alerts, widgets and the Live Activity still cover every calendar that's switched on.
+    /// "Work only": the Day, Week, Month and Today screens and the widgets show just the work calendars (the Day grid's
+    /// All / Work switch). Alerts and the Live Activity still cover every calendar that's switched on.
     var workOnly: Bool = false
 
     /// "Work only" is in effect: it's on and at least one calendar is marked as work.
