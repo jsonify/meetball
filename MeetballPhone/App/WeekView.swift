@@ -21,25 +21,28 @@ struct WeekView: View {
         let loads = MeetingLoadBuilder.build(events: events, from: now, days: 7)
         let groups = MenuAgendaBuilder.build(events: events, now: now, days: 7, limit: 400)
         let total = loads.reduce(0) { $0 + $1.hours }
-        return VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+        return PhoneScrollScreen {
             PhoneScreenHeader(title: "Week", detail: summary(total: total, count: loads.reduce(0) { $0 + $1.count })) {
                 Button(action: quickAdd) { Image(systemName: "plus") }
                     .buttonStyle(.sk1Key())
                     .accessibilityLabel("Add an event")
             }
-            LoadMeter(loads: loads, now: now, selected: focusDay) { day in
-                focusDay = Calendar.app.isDate(day, inSameDayAs: focusDay ?? .distantPast) ? nil : day
-            }
-            let shown = focusDay.map { d in groups.filter { Calendar.app.isDate($0.day, inSameDayAs: d) } } ?? groups
-            if shown.isEmpty {
-                SKWell {
-                    Text(focusDay == nil ? "Nothing left this week." : "Nothing on this day.")
-                        .font(.callout).foregroundStyle(.secondary)
-                        .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+        } content: {
+            VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
+                LoadMeter(loads: loads, now: now, selected: focusDay) { day in
+                    focusDay = Calendar.app.isDate(day, inSameDayAs: focusDay ?? .distantPast) ? nil : day
                 }
-            }
-            ForEach(shown) { g in
-                PhoneDaySection(group: g, now: now, open: open)
+                let shown = focusDay.map { d in groups.filter { Calendar.app.isDate($0.day, inSameDayAs: d) } } ?? groups
+                if shown.isEmpty {
+                    SKWell {
+                        Text(focusDay == nil ? "Nothing left this week." : "Nothing on this day.")
+                            .font(.callout).foregroundStyle(.secondary)
+                            .padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                ForEach(shown) { g in
+                    PhoneDaySection(group: g, now: now, open: open)
+                }
             }
         }
     }

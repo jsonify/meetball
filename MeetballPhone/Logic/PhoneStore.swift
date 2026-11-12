@@ -167,13 +167,18 @@ final class PhoneStore: ObservableObject {
         lastRefresh = now
     }
 
-    /// The visible calendars' events overlapping `range`, a meeting on two calendars kept once. Cached until the next
+    /// The visible calendars' events (just the work ones with "Work only") overlapping `range`, a meeting on two calendars kept once. Cached until the next
     /// refresh, so the screens can ask on every redraw.
-    func events(in range: DateInterval) -> [CalendarEvent] {
-        let key = "\(revision)|\(range.start.timeIntervalSince1970)|\(range.end.timeIntervalSince1970)"
+    /// `everyCalendar` ignores "Work only", for lookups that aren't what a screen shows (a meeting's history, say).
+    func events(in range: DateInterval, everyCalendar: Bool = false) -> [CalendarEvent] {
+        let workOnly = settings.isWorkOnly && !everyCalendar
+        let key = "\(revision)|\(workOnly)|\(range.start.timeIntervalSince1970)|\(range.end.timeIntervalSince1970)"
         if let hit = rangeCache[key] { return hit }
         guard client.isAuthorized else { return [] }
-        let visible = calendars.filter { !settings.hiddenCalendars.contains($0.key) }
+        // "Work only" narrows what the screens show; alerts (planned in refresh) still cover every calendar switched on.
+        let visible = calendars.filter {
+            workOnly ? settings.shows(calendarKey: $0.key) : !settings.hiddenCalendars.contains($0.key)
+        }
         let loaded = PhoneAgenda.dedupe(visible.flatMap { client.events(for: $0, range: range) })
         if rangeCache.count > 32 { rangeCache.removeAll() }
         rangeCache[key] = loaded
@@ -262,7 +267,7 @@ final class PhoneStore: ObservableObject {
 
     /// Places earlier or later meetings like `event` were at, nearest in time first.
     func placeSuggestions(for event: CalendarEvent) -> [String] {
-        TravelPlanner.suggestions(for: event, history: events(in: TravelPlanner.historyRange(for: event)))
+        TravelPlanner.suggestions(for: event, history: events(in: TravelPlanner.historyRange(for: event), everyCalendar: true))
     }
 
     /// Whether a place picked for `event` can be saved to it (not on a read-only feed such as the work calendar).
@@ -340,7 +345,7 @@ final class PhoneStore: ObservableObject {
 
     /// The pre-flight brief for `event`: its people and links, and the last meeting like it in the past 90 days.
     func preFlight(for event: CalendarEvent) -> PreFlightBrief {
-        PreFlight.brief(for: event, history: events(in: PreFlight.historyRange(for: event)))
+        PreFlight.brief(for: event, history: events(in: PreFlight.historyRange(for: event), everyCalendar: true))
     }
 
     /// The Echo notes left for `event`, newest first.
@@ -394,7 +399,7 @@ final class PhoneStore: ObservableObject {
     /// The meeting behind an Echo nudge: the loaded event if it's still there, else one rebuilt from the nudge.
     func event(for request: EchoRequest) -> CalendarEvent {
         let around = DateInterval(start: request.start.addingTimeInterval(-3600), end: max(request.end, request.start).addingTimeInterval(3600))
-        if let e = events(in: around).first(where: { $0.uid == request.uid }) { return e }
+        if let e = events(in: around, everyCalendar: true).first(where: { $0.uid == request.uid }) { return e }
         let parts = request.uid.split(separator: "|", maxSplits: 2).map(String.init)
         return CalendarEvent(id: parts.count == 3 ? parts[2] : request.uid, calendarID: parts.count == 3 ? parts[1] : "",
                              accountEmail: parts.first ?? "", title: request.title, start: request.start, end: request.end,

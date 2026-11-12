@@ -79,6 +79,8 @@ struct PhoneRootView: View {
                 .zIndex(tab.isLid ? 1 : 0)
         }
         .animation(course.animation, value: tab)
+        // Every screen's title says WORK while "Work only" is on.
+        .environment(\.phoneWorkOnly, store.settings.isWorkOnly)
         // Remembers where each tap lands, for the event screen to grow out of. Alongside the screens' own taps.
         .simultaneousGesture(SpatialTapGesture(coordinateSpace: .global).onEnded { tapSpot.record($0.location) })
         // The app sinks back a little under an open event.
@@ -194,7 +196,7 @@ struct PhoneRootView: View {
     /// The meeting a to-do came from: its screen when it's still on the calendar, else the Day grid on its day.
     private func openMeeting(_ m: TodoMeeting) {
         let around = DateInterval(start: m.start.addingTimeInterval(-3600), end: m.start.addingTimeInterval(4 * 3600))
-        if let e = store.events(in: around).first(where: { m.matches($0) }) {
+        if let e = store.events(in: around, everyCalendar: true).first(where: { m.matches($0) }) {
             openDetail(e)
         } else {
             dayJump = m.start
@@ -277,7 +279,8 @@ struct PhoneRootView: View {
     private var page: some View {
         if tab == .day {
             // The time grid scrolls itself, under its pinned dates and all-day strip.
-            DayGridView(open: { openDetail($0) }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump)
+            DayGridView(open: { openDetail($0) }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump,
+                        markWork: showCalendars)
                 .frame(maxWidth: 700)
                 .frame(maxWidth: .infinity)
         } else if tab == .todo {
@@ -296,16 +299,10 @@ struct PhoneRootView: View {
                 tab = .day
             }
         } else {
-            ScrollView {
-                screen
-                    .padding(.horizontal, 16)
-                    .padding(.top, 8)
-                    .padding(.bottom, 24)
-                    .frame(maxWidth: 600)
-                    .frame(maxWidth: .infinity)
-            }
-            .refreshable { await store.refresh(fresh: true) }
-            .scrollDismissesKeyboard(.interactively)
+            // Today, Week and Settings pin their title and scroll the rest (PhoneScrollScreen).
+            screen
+                .refreshable { await store.refresh(fresh: true) }
+                .scrollDismissesKeyboard(.interactively)
         }
     }
 
@@ -320,6 +317,12 @@ struct PhoneRootView: View {
         case .month, .todo: EmptyView()   // drawn outside the scroll view, in page
         case .settings: PhoneSettingsView(section: $settingsSection)
         }
+    }
+
+    /// Settings › Calendars, from the Day grid's Work switch before any calendar is marked as work.
+    private func showCalendars() {
+        settingsSection = .calendars
+        tab = .settings
     }
 
     /// Settings › Events, from Today's filter key.

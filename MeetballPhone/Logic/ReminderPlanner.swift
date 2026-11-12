@@ -45,6 +45,25 @@ struct PhoneSettings: Codable, Equatable {
     /// per-source overrides. They decide what Today, Up next, alerts, widgets and the Live Activity care about; the Day,
     /// Week and Month grids still show everything.
     var filters = EventFilterSettings()
+    /// Calendar keys marked as work (Settings › Calendars, the briefcase key), as on the Mac.
+    var workCalendars: Set<String> = []
+    /// "Work only": the Day, Week, Month and Today screens show just the work calendars (the Day grid's All / Work
+    /// switch). Alerts, widgets and the Live Activity still cover every calendar that's switched on.
+    var workOnly: Bool = false
+
+    /// "Work only" is in effect: it's on and at least one calendar is marked as work.
+    var isWorkOnly: Bool { workOnly && !workCalendars.isEmpty }
+
+    /// Whether the screens show the calendar `key`: it's switched on and, with "Work only", it's a work calendar.
+    func shows(calendarKey key: String) -> Bool {
+        CalendarVisibility.isShown(key, hidden: hiddenCalendars, work: workCalendars, workOnly: workOnly)
+    }
+
+    /// Marks or unmarks a calendar as work. Unmarking the last one turns "Work only" off, as it would show nothing.
+    mutating func toggleWork(_ key: String) {
+        if workCalendars.contains(key) { workCalendars.remove(key) } else { workCalendars.insert(key) }
+        if workCalendars.isEmpty { workOnly = false }
+    }
 
     /// Whether the meeting-first rules leave `e` out.
     func isFiltered(_ e: CalendarEvent) -> Bool { EventFilter.hideReason(e, settings: filters) != nil }
@@ -110,7 +129,9 @@ extension PhoneSettings {
                   driveTimes: try c.decodeIfPresent(Bool.self, forKey: .driveTimes) ?? d.driveTimes,
                   leaveAlerts: try c.decodeIfPresent(Bool.self, forKey: .leaveAlerts) ?? d.leaveAlerts,
                   leaveBufferMinutes: try c.decodeIfPresent(Int.self, forKey: .leaveBufferMinutes) ?? d.leaveBufferMinutes,
-                  filters: (try? c.decodeIfPresent(EventFilterSettings.self, forKey: .filters)) ?? d.filters)
+                  filters: (try? c.decodeIfPresent(EventFilterSettings.self, forKey: .filters)) ?? d.filters,
+                  workCalendars: try c.decodeIfPresent(Set<String>.self, forKey: .workCalendars) ?? d.workCalendars,
+                  workOnly: try c.decodeIfPresent(Bool.self, forKey: .workOnly) ?? d.workOnly)
     }
 }
 

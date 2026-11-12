@@ -13,6 +13,8 @@ struct DayGridView: View {
     var add: (Date?) -> Void
     /// A day to open on (picked on the Month tab); taken and cleared on arrival.
     var jump: Binding<Date?> = .constant(nil)
+    /// Opens Settings › Calendars, to mark work calendars.
+    var markWork: () -> Void = {}
 
     @SceneStorage("grid.span") private var span = 1
     @AppStorage("phone.grid.hourHeight") private var hourHeight: Double = DayGridMetrics.defaultHourHeight
@@ -22,6 +24,7 @@ struct DayGridView: View {
     @State private var zoomBase: Double?
     @State private var scrollRequest = 0
     @State private var paged = 0
+    @State private var switched = 0
 
     private var dayCount: Int { span == 3 ? 3 : 1 }
 
@@ -41,6 +44,7 @@ struct DayGridView: View {
             jump.wrappedValue = nil
         }
         .sensoryFeedback(.selection, trigger: paged)
+        .sensoryFeedback(.selection, trigger: switched)
     }
 
     private func content(now: Date) -> some View {
@@ -102,11 +106,27 @@ struct DayGridView: View {
                         .buttonStyle(.sk1Key()).accessibilityLabel(dayCount == 1 ? "Next day" : "Next three days")
                 }
             }
-            // Full width and key height, so the 3-day view can't be missed.
-            SKSegmented(selection: $span, options: [SKSegmented<Int>.Option(1, "Day"), SKSegmented<Int>.Option(3, "3 Day")],
-                        height: 30)
-                .frame(maxWidth: .infinity)
+            // Full width and key height, so the 3-day view and the All / Work switch can't be missed.
+            HStack(spacing: 8) {
+                SKSegmented(selection: $span, options: [SKSegmented<Int>.Option(1, "Day"), SKSegmented<Int>.Option(3, "3 Day")],
+                            height: 30)
+                    .frame(maxWidth: .infinity)
+                SKSegmented(selection: workOnly, options: [SKSegmented<Bool>.Option(false, "All"), SKSegmented<Bool>.Option(true, "Work")],
+                            height: 30)
+                    .frame(maxWidth: .infinity)
+            }
         }
+    }
+
+    /// All / Work: "Work only" across the screens. With no calendar marked as work yet, Work opens Settings › Calendars,
+    /// where the briefcase keys mark them.
+    private var workOnly: Binding<Bool> {
+        Binding(get: { store.settings.isWorkOnly },
+                set: { on in
+                    if on && store.settings.workCalendars.isEmpty { markWork(); return }
+                    store.settings.workOnly = on
+                    switched += 1
+                })
     }
 
     private func detail(days: [Date], now: Date) -> String {
