@@ -18,6 +18,12 @@ enum PhoneNotifications {
     static let directionsURLKey = "directionsURL"
     static let changePrefix = "meetball.change|"
     static let testID = "meetball.test"
+    /// Timers (TimerStore): one notification per running timer, "meetball.timer|<id>".
+    static let timerPrefix = "meetball.timer|"
+    static let timerCategory = "meetball.timer"
+    static let timerStopAction = "meetball.timer.stop"
+    static let timerSnoozeAction = "meetball.timer.snooze"
+    static let timerIDKey = "timerID"
 
     static var center: UNUserNotificationCenter { .current() }
 
@@ -34,6 +40,13 @@ enum PhoneNotifications {
                                    actions: [UNNotificationAction(identifier: directionsAction, title: "Directions",
                                                                   options: [.foreground],
                                                                   icon: UNNotificationActionIcon(systemImageName: "car.fill"))],
+                                   intentIdentifiers: [], options: []),
+            UNNotificationCategory(identifier: timerCategory,
+                                   actions: [UNNotificationAction(identifier: timerStopAction, title: "Stop", options: [],
+                                                                  icon: UNNotificationActionIcon(systemImageName: "stop.fill")),
+                                             UNNotificationAction(identifier: timerSnoozeAction, title: "1 more minute",
+                                                                  options: [],
+                                                                  icon: UNNotificationActionIcon(systemImageName: "plus"))],
                                    intentIdentifiers: [], options: []),
         ])
     }

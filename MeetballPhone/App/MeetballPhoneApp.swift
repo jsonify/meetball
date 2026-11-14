@@ -9,6 +9,7 @@ import UserNotifications
 struct MeetballPhoneApp: App {
     @UIApplicationDelegateAdaptor(PhoneAppDelegate.self) private var appDelegate
     @StateObject private var store = PhoneStore.shared
+    @StateObject private var timers = TimerStore.shared
     @Environment(\.scenePhase) private var phase
     @AppStorage(AppPreferences.Key.theme) private var themeRaw = AppTheme.system.rawValue
 
@@ -16,14 +17,18 @@ struct MeetballPhoneApp: App {
         WindowGroup {
             PhoneRootView()
                 .environmentObject(store)
+                .environmentObject(timers)
                 .preferredColorScheme(colorScheme)
                 .task { await store.start() }
                 .onChange(of: phase) { _, newPhase in
                     switch newPhase {
                     case .active:
+                        timers.becameActive()
                         store.showPendingCelebration()
                         Task { await store.refresh(fresh: true) }
-                    case .background: store.scheduleBackgroundRefresh()
+                    case .background:
+                        timers.becameInactive()
+                        store.scheduleBackgroundRefresh()
                     default: break
                     }
                 }
@@ -53,13 +58,24 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
                                 withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        // A timer going off with Meetball open rings on its own full-screen card instead.
+        if notification.request.content.categoryIdentifier == PhoneNotifications.timerCategory {
+            completionHandler([])
+            return
+        }
         completionHandler([.banner, .list, .sound])
     }
 
     func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
-        if response.actionIdentifier == PhoneNotifications.joinAction,
+        if response.notification.request.content.categoryIdentifier == PhoneNotifications.timerCategory {
+            // A timer's notification: Stop (or a tap) resets it, "1 more minute" runs it again.
+            if let id = info[PhoneNotifications.timerIDKey] as? String {
+                let action = response.actionIdentifier
+                Task { @MainActor in TimerStore.shared.handle(action: action, timerID: id) }
+            }
+        } else if response.actionIdentifier == PhoneNotifications.joinAction,
            let link = info[PhoneNotifications.joinURLKey] as? String, let url = URL(string: link) {
             DispatchQueue.main.async { UIApplication.shared.open(url) }
         } else if response.notification.request.content.categoryIdentifier == PhoneNotifications.leaveCategory,

@@ -65,6 +65,9 @@ enum ChangeLog {
     private static func fixed(_ p: Platform, _ t: String) -> Change { Change(kind: .fixed, platform: p, text: t) }
 
     static let all: [Entry] = [
+        Entry(day: "2026-11-14", changes: [
+            new(.iPhone, "Timers: as many as you like, each with its own name, length and one of the iPhone's own sounds (Tri-tone, Bamboo, Fanfare…). Type a length on the keypad or quick start a preset. Open the screen menu and pick Timers."),
+        ]),
         Entry(day: "2026-11-11", changes: [
             better(.both, "Picking a day for a meeting opens a square month calendar: page through months and tap any day, instead of scrolling a short list of dates."),
             new(.iPhone, "The event screen blooms out of the event you tap instead of sliding up as a sheet, and turns over to edit."),

@@ -135,6 +135,16 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   Action Button (Settings › Action Button › Shortcut › Meetball). A **Join Meeting** control does the same from Control
   Center. They use the meetings Meetball last saved for the widgets.
 - **StandBy**: the small widget becomes an MB-1 desk clock counting down to your next meeting.
+- **Timers** (Timers in the screen menu): as many as you like, each a card with its name, an LCD counting down and
+  Start / Pause, Reset and +1 MIN keys. Tap a card (or + for a new one) to set its name, its length on a microwave-style
+  keypad (1-3-0 is 1:30) or a preset, and its sound, picked from the alert sounds that come with iOS (Tri-tone, Chime,
+  Bamboo, Fanfare, Bloom…, read from the iPhone's own system sound folder; each plays as you pick it). **Quick start**
+  runs a one-off 1–60 minute timer that goes away once stopped. With Meetball open, a timer that goes off takes over the
+  screen (TIME'S UP, how long ago, Stop, +1 / +5 min, Again) and its sound loops with a buzz until stopped, even with the
+  ring switch on silent. With Meetball closed, a Time Sensitive notification rings with the same sound (copied into
+  Meetball's Library/Sounds, since notifications can only play an app's own files) and offers Stop and 1 more minute;
+  that one follows the ring switch. Running timers are saved as end times, so they survive Meetball being closed.
+  `TimerModel` holds the rules, `TimerStore` the ringing and notifications.
 - **Shake** for the rest of your day: meetings left, hours booked, and your next free stretch (before 6 PM).
 - **Countdown moment**: with Meetball open in the last minute before a meeting, a full-screen seven-segment countdown,
   a tick every second for the last ten, a thunk at zero, and the Join key.

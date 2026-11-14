@@ -7,7 +7,7 @@ import SK1UI
 /// are to each other (`ScreenMove`): the calendar screens zoom, Today comes down as a lid, Settings is a flip away.
 struct PhoneRootView: View {
     enum Tab: String, CaseIterable, Identifiable {
-        case today, day, week, month, todo, settings
+        case today, day, week, month, todo, timers, settings
         var id: String { rawValue }
         var title: String {
             switch self {
@@ -16,6 +16,7 @@ struct PhoneRootView: View {
             case .week: return "Week"
             case .month: return "Month"
             case .todo: return "To-do"
+            case .timers: return "Timers"
             case .settings: return "Settings"
             }
         }
@@ -26,12 +27,14 @@ struct PhoneRootView: View {
             case .week: return "chart.bar"
             case .month: return "calendar"
             case .todo: return "checklist"
+            case .timers: return "timer"
             case .settings: return "slider.horizontal.3"
             }
         }
     }
 
     @EnvironmentObject private var store: PhoneStore
+    @EnvironmentObject private var timers: TimerStore
     @SceneStorage("tab") private var storedTab: Tab = .day
     @SceneStorage("settingsSection") private var settingsSection: PhoneSettingsSection = .general
     /// The event screen, open over everything, and the point it grew out of (the tap that opened it).
@@ -133,6 +136,16 @@ struct PhoneRootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: store.celebration)
+        // A timer going off with Meetball open: over everything until it's stopped.
+        .overlay {
+            if let id = timers.ringing.last, let t = timers.timer(id) {
+                TimerRingingView(timer: t, more: timers.ringing.count - 1)
+                    .environmentObject(timers)
+                    .id(id)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.spring(duration: 0.4, bounce: 0.15), value: timers.ringing)
         .sheet(isPresented: $readout) {
             DayReadoutSheet().environmentObject(store)
         }
@@ -315,6 +328,7 @@ struct PhoneRootView: View {
         case .day: EmptyView()   // drawn outside the scroll view, in page
         case .week: WeekView(open: open, quickAdd: add)
         case .month, .todo: EmptyView()   // drawn outside the scroll view, in page
+        case .timers: TimersView()
         case .settings: PhoneSettingsView(section: $settingsSection)
         }
     }
@@ -346,8 +360,8 @@ struct PhoneRootView: View {
 }
 
 extension PhoneRootView.Tab {
-    /// Today and To-do come down over the calendar as a lid, rather than zooming.
-    var isLid: Bool { self == .today || self == .todo }
+    /// Today, To-do and Timers come down over the calendar as a lid, rather than zooming.
+    var isLid: Bool { self == .today || self == .todo || self == .timers }
 }
 
 /// A request to open the composer, at `start` when one was picked on the day grid.
