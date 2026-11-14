@@ -135,6 +135,23 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   Action Button (Settings › Action Button › Shortcut › Meetball). A **Join Meeting** control does the same from Control
   Center. They use the meetings Meetball last saved for the widgets.
 - **StandBy**: the small widget becomes an MB-1 desk clock counting down to your next meeting.
+- **Timers** (Timers in the screen menu), after the MT-1 menu bar timer
+  ([jsonify/menubar-timer](https://github.com/jsonify/menubar-timer)) whose panel the SK-1 look began with. As many
+  timers as you like, each an MT-1 of its own: Run / Pause / Ring lamps, an LCD with the label, the end time, the
+  seven-segment digits and a progress strip (teal, amber in the last fifth, red in the last ten seconds), and captioned
+  **Reset · Start / Pause / Resume · +1 Min · Edit** keys. Tap the LCD or Edit (or + for a new one) to set the length on
+  **Hours / Minutes / Seconds knobs** (or a microwave-style keypad: 1-3-0 is 1:30), a label, and the sound, picked with
+  ◀ ▶ from the alert sounds that come with iOS (Tri-tone, Chime, Bamboo, Fanfare, Bloom…, read from the iPhone's own
+  system sound folder; each plays as you step to it). **Recent** (your last five) and the presets (🍅 Pomodoro 25,
+  🧠 Deep work 50, and plain lengths) start a one-off timer that goes away once stopped. **Settings** under them:
+  snooze length, auto-stop (how long an ignored alarm rings) and the sound new timers start with.
+  With Meetball open, a timer that goes off takes over the screen like the MT-1's alarm window: the LCD flashes 00:00
+  with the backlight pulsing and counts how long it has rung, with **Again**, **Snooze** and **Stop**, and "Auto-stop in".
+  Its sound loops with a buzz, even with the ring switch on silent. With Meetball closed, a Time Sensitive notification
+  rings with the same sound (copied into Meetball's Library/Sounds, since notifications can only play an app's own
+  files), again every 30 seconds up to five times or until auto-stop, with Stop and Snooze; those follow the ring switch.
+  Running timers are saved as end times, so they survive Meetball being closed. `TimerModel` holds the rules,
+  `TimerStore` the ringing and notifications.
 - **Shake** for the rest of your day: meetings left, hours booked, and your next free stretch (before 6 PM).
 - **Countdown moment**: with Meetball open in the last minute before a meeting, a full-screen seven-segment countdown,
   a tick every second for the last ten, a thunk at zero, and the Join key.

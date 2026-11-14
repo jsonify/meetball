@@ -31,7 +31,8 @@ enum ScreenMove: Equatable {
         case .week: return 2
         case .month: return 3
         case .todo: return 4
-        case .settings: return 5
+        case .timers: return 5
+        case .settings: return 6
         }
     }
 
