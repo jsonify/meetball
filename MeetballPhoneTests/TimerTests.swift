@@ -118,6 +118,42 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(back.remaining(at: t0.addingTimeInterval(700)), 2000)
     }
 
+    func testRecentKeepsFiveNewestWithoutRepeats() {
+        let tea = TimerPreset(label: "Tea", seconds: 240)
+        var recent: [TimerPreset] = []
+        for m in 1...6 { recent = TimerPresets.remember(TimerPreset(label: "", seconds: TimeInterval(m * 60)), in: recent) }
+        XCTAssertEqual(recent.map(\.seconds), [360, 300, 240, 180, 120])
+        recent = TimerPresets.remember(tea, in: recent)
+        recent = TimerPresets.remember(TimerPreset(label: "", seconds: 300), in: recent)
+        XCTAssertEqual(recent.first?.seconds, 300)
+        XCTAssertEqual(recent.count, 5)
+        XCTAssertEqual(recent.filter { $0.seconds == 300 }.count, 1)
+        XCTAssertEqual(tea.title, "Tea · 4 min")
+        XCTAssertEqual(TimerPreset(label: "5 min", seconds: 300).title, "5 min")
+        XCTAssertEqual(TimerPresets.focus.first?.title, "🍅 Pomodoro · 25 min")
+    }
+
+    func testUrgencyFollowsTheMT1Colours() {
+        var t = MeetballTimer(label: "", duration: 100)
+        XCTAssertEqual(TimerUrgency.of(t, at: t0), .calm)
+        t.start(at: t0)
+        XCTAssertEqual(TimerUrgency.of(t, at: t0.addingTimeInterval(50)), .calm)
+        XCTAssertEqual(TimerUrgency.of(t, at: t0.addingTimeInterval(81)), .near)
+        XCTAssertEqual(TimerUrgency.of(t, at: t0.addingTimeInterval(91)), .alarm)
+        XCTAssertEqual(TimerUrgency.of(t, at: t0.addingTimeInterval(200)), .alarm)
+    }
+
+    @MainActor
+    func testBackgroundAlarmRepeatsUntilAutoStop() {
+        XCTAssertEqual(TimerStore.ringOffsets(left: 60, ringFor: 90), [60, 90, 120, 150])
+        // Capped, to leave room for meeting reminders in iOS's 64 pending notifications.
+        XCTAssertEqual(TimerStore.ringOffsets(left: 10, ringFor: 900).count, TimerStore.maxRepeats + 1)
+        let ids = TimerStore.notificationIDs(UUID())
+        XCTAssertEqual(ids.count, TimerStore.maxRepeats + 1)
+        XCTAssertEqual(Set(ids).count, ids.count)
+        XCTAssertTrue(ids.allSatisfy { $0.hasPrefix(PhoneNotifications.timerPrefix) })
+    }
+
     func testTimersScreenIsALid() {
         XCTAssertEqual(ScreenMove.between(.day, .timers), .lid)
         XCTAssertEqual(ScreenMove.between(.timers, .settings), .flip(forward: true))

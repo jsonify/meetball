@@ -16,13 +16,25 @@ final class TimerStore: ObservableObject {
     @Published private(set) var timers: [MeetballTimer] = []
     /// Timers that went off while Meetball was open and are ringing now, oldest first.
     @Published private(set) var ringing: [UUID] = []
+    /// The last few timers started from Quick start or the new-timer sheet, newest first (the MT-1's Recent).
+    @Published private(set) var recent: [TimerPreset] = []
+    @Published var settings = TimerSettings() {
+        didSet { if settings != oldValue { saveSettings() } }
+    }
 
     private static let notificationPrefix = PhoneNotifications.timerPrefix
     private static let storageKey = "timers.v1"
+    private static let recentKey = "timers.recent.v1"
+    private static let settingsKey = "timers.settings.v1"
+    /// With Meetball closed, an alarm rings again this often until it's stopped or auto-stop is reached, at most
+    /// `maxRepeats` times (iOS keeps only 64 pending notifications in all, and meeting reminders need most of them).
+    static let repeatEvery: TimeInterval = 30
+    static let maxRepeats = 5
 
     private let defaults: UserDefaults
     private let ringer = TimerRinger()
     private var watch: Task<Void, Never>?
+    private var autoStop: Task<Void, Never>?
     private var active = true
 
     init(defaults: UserDefaults = .standard) {
@@ -35,17 +47,42 @@ final class TimerStore: ObservableObject {
             timers = [MeetballTimer(label: "Tea", duration: 4 * 60, soundID: "New/Bloom.caf"),
                       MeetballTimer(label: "Focus", duration: 25 * 60, soundID: "New/Fanfare.caf")]
         }
+        if let data = defaults.data(forKey: Self.recentKey),
+           let saved = try? JSONDecoder().decode([TimerPreset].self, from: data) { recent = saved }
+        if let data = defaults.data(forKey: Self.settingsKey),
+           let saved = try? JSONDecoder().decode(TimerSettings.self, from: data) { settings = saved }
         rewatch()
     }
 
     func timer(_ id: UUID) -> MeetballTimer? { timers.first { $0.id == id } }
+
+    /// Starts a one-off timer for a recent or preset length, with the default sound; it goes away once stopped.
+    func quickStart(_ preset: TimerPreset) {
+        add(MeetballTimer(label: preset.label, duration: preset.seconds, soundID: settings.soundID, oneOff: true), start: true)
+    }
+
+    /// Puts `t` at the top of Recent.
+    func remember(_ t: MeetballTimer) {
+        recent = TimerPresets.remember(TimerPreset(label: t.label, seconds: t.duration), in: recent)
+        if let data = try? JSONEncoder().encode(recent) { defaults.set(data, forKey: Self.recentKey) }
+    }
+
+    func clearRecent() {
+        recent = []
+        defaults.removeObject(forKey: Self.recentKey)
+    }
 
     // MARK: Editing
 
     /// Adds `timer`; `start` sets it going straight away.
     func add(_ timer: MeetballTimer, start: Bool = false) {
         timers.append(timer)
-        if start { self.start(timer.id) } else { save() }
+        if start {
+            remember(timer)
+            self.start(timer.id)
+        } else {
+            save()
+        }
     }
 
     /// Saves changes to an existing timer (name, length, sound). A running one keeps running, to its new sound.
@@ -87,6 +124,24 @@ final class TimerStore: ObservableObject {
     func add(_ seconds: TimeInterval, to id: UUID, now: Date = Date()) {
         stopRinging(id)
         mutate(id) { $0.add(seconds, at: now) }
+    }
+
+    /// Snooze: quiet, and rings again after the snooze length (Settings).
+    func snooze(_ id: UUID, now: Date = Date()) {
+        stopRinging(id)
+        mutate(id) { t in
+            t.reset()
+            t.endDate = now.addingTimeInterval(TimeInterval(settings.snoozeMinutes * 60))
+        }
+    }
+
+    /// Again: the same timer from the top.
+    func again(_ id: UUID, now: Date = Date()) {
+        stopRinging(id)
+        mutate(id) { t in
+            t.reset()
+            t.start(at: now)
+        }
     }
 
     /// Stop on the ringing card (or the notification): quiet, and back to its full length, ready to go again. A
@@ -140,6 +195,10 @@ final class TimerStore: ObservableObject {
         rewatch()
     }
 
+    private func saveSettings() {
+        if let data = try? JSONEncoder().encode(settings) { defaults.set(data, forKey: Self.settingsKey) }
+    }
+
     private func save() {
         if let data = try? JSONEncoder().encode(timers) { defaults.set(data, forKey: Self.storageKey) }
     }
@@ -163,24 +222,53 @@ final class TimerStore: ObservableObject {
         guard active, !ringing.contains(id), let t = timer(id) else { return }
         ringing.append(id)
         // The notification for it isn't needed now it's ringing here.
-        PhoneNotifications.center.removeDeliveredNotifications(withIdentifiers: [Self.notificationPrefix + id.uuidString])
+        PhoneNotifications.center.removeDeliveredNotifications(withIdentifiers: Self.notificationIDs(id))
+        unschedule(id)
         ringer.play(TimerSound.find(t.soundID))
+        rearmAutoStop()
     }
+
+    /// Stops the oldest ringing timer once it has rung for `settings.ringFor` (the MT-1's auto-stop).
+    private func rearmAutoStop() {
+        autoStop?.cancel()
+        let due = ringing.compactMap { id in timer(id).flatMap { t in t.endDate.map { (id, $0.addingTimeInterval(settings.ringFor)) } } }
+        guard let first = due.min(by: { $0.1 < $1.1 }) else { return }
+        autoStop = Task { [weak self] in
+            let wait = first.1.timeIntervalSinceNow
+            if wait > 0 { try? await Task.sleep(for: .seconds(wait)) }
+            guard !Task.isCancelled, let self else { return }
+            self.stop(first.0)
+        }
+    }
+
+    /// When an alarm rung by Meetball stops by itself.
+    func autoStopDate(for t: MeetballTimer) -> Date? { t.endDate?.addingTimeInterval(settings.ringFor) }
 
     private func stopRinging(_ id: UUID) {
         ringing.removeAll { $0 == id }
-        PhoneNotifications.center.removeDeliveredNotifications(withIdentifiers: [Self.notificationPrefix + id.uuidString])
+        PhoneNotifications.center.removeDeliveredNotifications(withIdentifiers: Self.notificationIDs(id))
         if let last = ringing.last, let next = timer(last) {
             ringer.play(TimerSound.find(next.soundID))
         } else {
             ringer.stop()
         }
+        rearmAutoStop()
+    }
+
+    /// The timer's notification and its repeats.
+    static func notificationIDs(_ id: UUID) -> [String] {
+        (0...maxRepeats).map { notificationPrefix + id.uuidString + ($0 == 0 ? "" : "|\($0)") }
+    }
+
+    /// When the notifications ring, `left` seconds from now: as it goes off, then every `repeatEvery` until auto-stop.
+    static func ringOffsets(left: TimeInterval, ringFor: TimeInterval) -> [TimeInterval] {
+        let repeats = min(maxRepeats, Int(ringFor / repeatEvery))
+        return (0...repeats).map { left + TimeInterval($0) * repeatEvery }
     }
 
     // MARK: Notifications
 
     private func schedule(_ t: MeetballTimer) {
-        let id = Self.notificationPrefix + t.id.uuidString
         let left = t.remaining(at: Date())
         guard left > 0 else { return }
         let c = UNMutableNotificationContent()
@@ -192,14 +280,19 @@ final class TimerStore: ObservableObject {
         c.categoryIdentifier = PhoneNotifications.timerCategory
         c.threadIdentifier = "meetball.timers"
         c.userInfo = [PhoneNotifications.timerIDKey: t.id.uuidString]
-        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: left, repeats: false)
-        // Added straight away (not after an await), so a pause or reset right after can't leave it behind.
-        PhoneNotifications.center.add(UNNotificationRequest(identifier: id, content: c, trigger: trigger), withCompletionHandler: nil)
+        // Added straight away (not after an await), so a pause or reset right after can't leave them behind.
+        unschedule(t.id)
+        let ids = Self.notificationIDs(t.id)
+        for (n, offset) in Self.ringOffsets(left: left, ringFor: settings.ringFor).enumerated() {
+            let trigger = UNTimeIntervalNotificationTrigger(timeInterval: offset, repeats: false)
+            PhoneNotifications.center.add(UNNotificationRequest(identifier: ids[n], content: c, trigger: trigger),
+                                          withCompletionHandler: nil)
+        }
         Task { _ = await PhoneNotifications.requestAuthorization() }
     }
 
     private func unschedule(_ id: UUID) {
-        PhoneNotifications.center.removePendingNotificationRequests(withIdentifiers: [Self.notificationPrefix + id.uuidString])
+        PhoneNotifications.center.removePendingNotificationRequests(withIdentifiers: Self.notificationIDs(id))
     }
 
     /// Notifications only play sounds kept in the app's Library/Sounds folder, so the iPhone's own sound is copied
@@ -224,7 +317,7 @@ final class TimerStore: ObservableObject {
     /// A tap on a timer's notification, or one of its actions.
     func handle(action: String, timerID: String) {
         guard let id = UUID(uuidString: timerID), timer(id) != nil else { return }
-        if action == PhoneNotifications.timerSnoozeAction { add(60, to: id) } else { stop(id) }
+        if action == PhoneNotifications.timerSnoozeAction { snooze(id) } else { stop(id) }
     }
 
     /// Plays `sound` once, for the picker.

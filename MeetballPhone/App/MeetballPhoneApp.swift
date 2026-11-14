@@ -70,7 +70,7 @@ final class PhoneAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         if response.notification.request.content.categoryIdentifier == PhoneNotifications.timerCategory {
-            // A timer's notification: Stop (or a tap) resets it, "1 more minute" runs it again.
+            // A timer's notification: Stop (or a tap) stops it, Snooze rings again after the snooze length.
             if let id = info[PhoneNotifications.timerIDKey] as? String {
                 let action = response.actionIdentifier
                 Task { @MainActor in TimerStore.shared.handle(action: action, timerID: id) }

@@ -66,7 +66,7 @@ enum ChangeLog {
 
     static let all: [Entry] = [
         Entry(day: "2026-11-14", changes: [
-            new(.iPhone, "Timers: as many as you like, each with its own name, length and one of the iPhone's own sounds (Tri-tone, Bamboo, Fanfare…). Type a length on the keypad or quick start a preset. Open the screen menu and pick Timers."),
+            new(.iPhone, "Timers, after the MT-1 menu bar timer: as many as you like, each with its own label, length and one of the iPhone's own sounds (Tri-tone, Bamboo, Fanfare…). Set the length on knobs or a keypad, or start a recent one or a preset. Again, Snooze and Stop when it rings. Open the screen menu and pick Timers."),
         ]),
         Entry(day: "2026-11-11", changes: [
             better(.both, "Picking a day for a meeting opens a square month calendar: page through months and tap any day, instead of scrolling a short list of dates."),

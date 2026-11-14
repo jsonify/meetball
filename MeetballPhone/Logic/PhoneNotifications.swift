@@ -18,7 +18,7 @@ enum PhoneNotifications {
     static let directionsURLKey = "directionsURL"
     static let changePrefix = "meetball.change|"
     static let testID = "meetball.test"
-    /// Timers (TimerStore): one notification per running timer, "meetball.timer|<id>".
+    /// Timers (TimerStore): a running timer's notification, "meetball.timer|<id>", and its repeats ("…|<id>|2").
     static let timerPrefix = "meetball.timer|"
     static let timerCategory = "meetball.timer"
     static let timerStopAction = "meetball.timer.stop"
@@ -44,9 +44,9 @@ enum PhoneNotifications {
             UNNotificationCategory(identifier: timerCategory,
                                    actions: [UNNotificationAction(identifier: timerStopAction, title: "Stop", options: [],
                                                                   icon: UNNotificationActionIcon(systemImageName: "stop.fill")),
-                                             UNNotificationAction(identifier: timerSnoozeAction, title: "1 more minute",
+                                             UNNotificationAction(identifier: timerSnoozeAction, title: "Snooze",
                                                                   options: [],
-                                                                  icon: UNNotificationActionIcon(systemImageName: "plus"))],
+                                                                  icon: UNNotificationActionIcon(systemImageName: "zzz"))],
                                    intentIdentifiers: [], options: []),
         ])
     }

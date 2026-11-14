@@ -239,17 +239,63 @@ struct TimerSound: Identifiable, Hashable {
     }
 }
 
-/// A length offered as a one-tap timer.
-struct TimerPreset: Hashable {
+/// A length offered as a one-tap timer: a recent one, or a preset.
+struct TimerPreset: Hashable, Codable {
     let label: String
     let seconds: TimeInterval
+
+    /// "🍅 Pomodoro · 25 min", or just "5 min" when the label is the length.
+    var title: String {
+        let length = TimerFormat.spoken(seconds)
+        return label.isEmpty || label == length ? length : "\(label) · \(length)"
+    }
 }
 
-/// Lengths offered as one-tap timers (Quick start) and on the edit sheet.
+/// Lengths offered as one-tap timers (Quick start) and on the new-timer sheet, as on the MT-1 menu bar timer.
 enum TimerPresets {
-    static let all: [TimerPreset] = [
-        .init(label: "1 min", seconds: 60), .init(label: "3 min", seconds: 180), .init(label: "5 min", seconds: 300),
-        .init(label: "10 min", seconds: 600), .init(label: "15 min", seconds: 900), .init(label: "25 min", seconds: 1500),
-        .init(label: "30 min", seconds: 1800), .init(label: "1 hr", seconds: 3600),
+    /// The named presets ("Focus" on the MT-1).
+    static let focus: [TimerPreset] = [
+        .init(label: "🍅 Pomodoro", seconds: 25 * 60), .init(label: "🧠 Deep work", seconds: 50 * 60),
     ]
+    /// Plain lengths.
+    static let lengths: [TimerPreset] = ([60, 180, 300, 600, 900, 1800, 3600] as [TimeInterval]).map {
+        TimerPreset(label: TimerFormat.spoken($0), seconds: $0)
+    }
+    static var all: [TimerPreset] { focus + lengths }
+
+    /// How many recent timers are kept.
+    static let recentLimit = 5
+
+    /// `recent` with `started` put first, no duplicates, at most `recentLimit`.
+    static func remember(_ started: TimerPreset, in recent: [TimerPreset]) -> [TimerPreset] {
+        Array(([started] + recent.filter { $0 != started }).prefix(recentLimit))
+    }
+}
+
+/// How close a running timer is to going off, for its lamp and progress strip (the MT-1's colours): teal, amber
+/// in the last fifth, red in the last ten seconds and while it rings.
+enum TimerUrgency: Equatable {
+    case calm, near, alarm
+
+    static func of(_ timer: MeetballTimer, at now: Date) -> TimerUrgency {
+        switch timer.state(at: now) {
+        case .done: return .alarm
+        case .idle: return .calm
+        case .running, .paused:
+            let left = timer.remaining(at: now)
+            if left <= 10 { return .alarm }
+            return left <= timer.duration * 0.2 ? .near : .calm
+        }
+    }
+}
+
+/// The timers' own settings (the MT-1's Settings): snooze length, how long an ignored alarm rings, and the sound a
+/// new timer starts with.
+struct TimerSettings: Codable, Equatable {
+    var snoozeMinutes = 5
+    /// Seconds an alarm rings if nobody stops it.
+    var ringFor: TimeInterval = 300
+    var soundID = "New/Bloom.caf"
+
+    static let ringForStops: [TimeInterval] = [60, 120, 300, 600, 900]
 }
