@@ -141,7 +141,8 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   ([jsonify/menubar-timer](https://github.com/jsonify/menubar-timer)) whose panel the SK-1 look began with. As many
   timers as you like, each an MT-1 of its own: Run / Pause / Ring lamps, an LCD with the label, the end time, the
   seven-segment digits and a progress strip (teal, amber in the last fifth, red in the last ten seconds), and captioned
-  **Reset · Start / Pause / Resume · +1 Min · Edit** keys. Tap the LCD or Edit (or + for a new one) to set the length on
+  **Reset · Start / Pause / Resume · +1 Min · Edit** keys. Tap the LCD or Edit (or + for a new one) to open the editor, a full SK-1 panel that grows out of what you tapped
+  (not a sheet; ✕ closes it, Start and Save are full-width keys at the bottom), and set the length on
   **Hours / Minutes / Seconds knobs** (or a microwave-style keypad: 1-3-0 is 1:30), a label, and the sound, picked with
   ◀ ▶ from the alert sounds that come with iOS (Tri-tone, Chime, Bamboo, Fanfare, Bloom…, read from the iPhone's own
   system sound folder; each plays as you step to it). **Recent** (your last five) and the presets (🍅 Pomodoro 25,

@@ -10,7 +10,8 @@ import SK1UI
 /// one-off timers, and Settings holds the snooze length, auto-stop and the sound new timers get.
 struct TimersView: View {
     @EnvironmentObject private var timers: TimerStore
-    @State private var editing: TimerEditRequest?
+    /// Opens the timer editor over the whole app (PhoneRootView), growing out of where you tapped.
+    @Environment(\.openTimerEditor) private var openEditor
     /// The timer being dragged to a new place (touch and hold, then move).
     @State private var dragging: UUID?
     /// The timer just deleted with a swipe, and where it was, for Undo.
@@ -29,7 +30,7 @@ struct TimersView: View {
                 }
             }
             .overlay(alignment: .trailing) {
-                Button { editing = TimerEditRequest(timer: nil) } label: { Image(systemName: "plus") }
+                Button { openEditor(nil) } label: { Image(systemName: "plus") }
                     .buttonStyle(.sk1Key())
                     .accessibilityLabel("New timer")
             }
@@ -40,7 +41,7 @@ struct TimersView: View {
                     Text("No timers yet. Press + to make one, or start one from Recent or the presets below.").sk1Hint()
                 }
                 ForEach(timers.timers) { t in
-                    TimerCard(timer: t, edit: { editing = TimerEditRequest(timer: t) }, delete: { swipeDelete(t) })
+                    TimerCard(timer: t, edit: { openEditor(t) }, delete: { swipeDelete(t) })
                         .opacity(dragging == t.id ? 0.35 : 1)
                         // Touch and hold, then move: the card lifts and the others make room as it passes them.
                         .onDrag {
@@ -64,9 +65,6 @@ struct TimersView: View {
         .onDrop(of: [.text], isTargeted: nil) { _ in dragging = nil; return false }
         .overlay(alignment: .bottom) { undoBar }
         .animation(.snappy, value: deleted?.timer.id)
-        .sheet(item: $editing) { request in
-            TimerEditSheet(original: request.timer, newSound: timers.settings.soundID).environmentObject(timers)
-        }
     }
 
     /// A swipe deletes at once; Undo (for a few seconds) puts it back where it was.
@@ -201,10 +199,22 @@ struct TimerChips: View {
     }
 }
 
-/// The edit sheet, for a new timer (nil) or an existing one.
+/// The timer editor, for a new timer (nil) or an existing one.
 struct TimerEditRequest: Identifiable {
     let id = UUID()
     let timer: MeetballTimer?
+}
+
+private struct OpenTimerEditorKey: EnvironmentKey {
+    static let defaultValue: (MeetballTimer?) -> Void = { _ in }
+}
+
+extension EnvironmentValues {
+    /// Opens the timer editor (nil for a new timer) over the whole app. Set by PhoneRootView.
+    var openTimerEditor: (MeetballTimer?) -> Void {
+        get { self[OpenTimerEditorKey.self] }
+        set { self[OpenTimerEditorKey.self] = newValue }
+    }
 }
 
 /// One timer as an MT-1: lamps, the LCD, and the captioned keys.
@@ -463,10 +473,15 @@ struct TimerSoundPicker: View {
 
 /// Making or changing a timer: its length on Hours / Minutes / Seconds knobs as on the MT-1 (or typed on a keypad,
 /// microwave style), a label, Recent and presets, and its sound.
+///
+/// Not a sheet: PhoneRootView lays it over the app as a full SK-1 panel (like the event screen) that grows out of the
+/// + key or the timer you tapped. Everything fits the phone's width: the Hours / Minutes / Seconds knobs are rows, one
+/// under another, rather than side by side, and Save / Start sit at the bottom as full-width keys.
 struct TimerEditSheet: View {
     @EnvironmentObject private var timers: TimerStore
-    @Environment(\.dismiss) private var dismiss
     let original: MeetballTimer?
+    /// Closes the panel.
+    var onClose: () -> Void
 
     enum Input: String { case knobs, keypad }
 
@@ -481,8 +496,9 @@ struct TimerEditSheet: View {
 
     /// `newSound` is the sound a new timer starts with (Settings). The fields are filled here rather than on appear:
     /// a change after the sheet shows would count as picking a sound, and play it.
-    init(original: MeetballTimer?, newSound: String) {
+    init(original: MeetballTimer?, newSound: String, onClose: @escaping () -> Void) {
         self.original = original
+        self.onClose = onClose
         _label = State(initialValue: original?.label ?? "")
         _entry = State(initialValue: original.map { TimerKeypadEntry(seconds: $0.duration) } ?? TimerKeypadEntry())
         _soundID = State(initialValue: original?.soundID ?? newSound)
@@ -503,36 +519,57 @@ struct TimerEditSheet: View {
                 SKGroup(caption: "Sound", note: "The iPhone's own sounds. Each plays as you pick it.") {
                     SKRow(title: "Alarm") { TimerSoundPicker(soundID: $soundID) }
                 }
+                actions
                 if !isNew { deleteKey }
             }
             .padding(16)
+            .frame(maxWidth: 600)
+            .frame(maxWidth: .infinity)
         }
         .scrollDismissesKeyboard(.interactively)
         .sk1Chassis()
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .accessibilityAction(.escape) { onClose() }
         .sensoryFeedback(.selection, trigger: tap)
         .onDisappear { timers.stopPreview() }
     }
 
+    /// The title with ✕, as on the event screen; Save and Start are at the bottom.
     private var header: some View {
-        HStack(spacing: 8) {
-            Button("Cancel") { dismiss() }.buttonStyle(.sk1Key())
-            Spacer()
-            Text(isNew ? "New timer" : "Edit timer").font(.headline)
-            Spacer()
-            if isNew {
-                Button("Save") { save(start: false) }
-                    .buttonStyle(.sk1Key())
-                    .disabled(entry.seconds <= 0)
-                Button("Start") { save(start: true) }
-                    .buttonStyle(.sk1Key(.orange))
-                    .disabled(entry.seconds <= 0)
-            } else {
-                Button("Save") { save(start: false) }
-                    .buttonStyle(.sk1Key(.orange))
-                    .disabled(entry.seconds <= 0)
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(isNew ? "New timer" : "Edit timer").font(.title.bold())
+                Text(isNew ? "Set a length, then Start or Save it for later." : original?.displayName ?? "").sk1Hint()
             }
+            Spacer(minLength: 8)
+            Button { onClose() } label: { Image(systemName: "xmark") }
+                .buttonStyle(.sk1Key(.round, size: .small))
+                .accessibilityLabel("Cancel")
+        }
+    }
+
+    /// Start (new timers) and Save, full width so their captions never crowd.
+    private var actions: some View {
+        let empty = entry.seconds <= 0
+        return VStack(spacing: 10) {
+            if isNew {
+                Button { save(start: true) } label: {
+                    Label("Start", systemImage: "play.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.sk1Key(.orange, size: .large))
+                .disabled(empty)
+                Button { save(start: false) } label: {
+                    Label("Save for later", systemImage: "tray.and.arrow.down").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.sk1Key(size: .large))
+                .disabled(empty)
+            } else {
+                Button { save(start: false) } label: {
+                    Label("Save", systemImage: "checkmark").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.sk1Key(.orange, size: .large))
+                .disabled(empty)
+            }
+            if empty { Text("Turn a knob, type a length or pick a preset first.").sk1Hint() }
         }
     }
 
@@ -557,16 +594,19 @@ struct TimerEditSheet: View {
     }
 
     /// Hours, Minutes and Seconds knobs: drag one up or down, double-tap to zero it.
+    /// Hours, Minutes and Seconds knobs, one row each (side by side they were wider than the phone): drag one up or
+    /// down, double-tap to zero it.
     private var knobs: some View {
-        SKWell {
-            HStack(alignment: .top, spacing: 4) {
+        SKGroup(caption: "Length") {
+            SKRow(title: "Hours") {
                 SKKnob("Hours", value: part(3600, 23), in: 0...23, defaultValue: 0) { "\($0)H" }
+            }
+            SKRow(title: "Minutes") {
                 SKKnob("Minutes", value: part(60, 59), in: 0...59, defaultValue: 0) { "\($0)M" }
+            }
+            SKRow(title: "Seconds") {
                 SKKnob("Seconds", value: part(1, 59), in: 0...59, defaultValue: 0) { "\($0)S" }
             }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 12)
-            .padding(.horizontal, 6)
         }
     }
 
@@ -648,14 +688,16 @@ struct TimerEditSheet: View {
                 HStack(spacing: 8) {
                     Button("Delete it") {
                         if let original { timers.delete(original.id) }
-                        dismiss()
+                        onClose()
                     }
                     .buttonStyle(.sk1Key(.charcoal))
                     Button("Keep it") { confirmDelete = false }.buttonStyle(.sk1Key())
                 }
             } else {
-                Button { confirmDelete = true } label: { Label("Delete Timer", systemImage: "trash") }
-                    .buttonStyle(.sk1Key())
+                Button { confirmDelete = true } label: {
+                    Label("Delete Timer", systemImage: "trash").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.sk1Key(.charcoal, size: .large))
             }
         }
         .frame(maxWidth: .infinity)
@@ -676,7 +718,7 @@ struct TimerEditSheet: View {
         } else {
             timers.add(MeetballTimer(label: label, duration: seconds, soundID: soundID), start: start)
         }
-        dismiss()
+        onClose()
     }
 }
 
