@@ -66,6 +66,7 @@ enum ChangeLog {
 
     static let all: [Entry] = [
         Entry(day: "2026-11-15", changes: [
+            better(.mac, "Google Calendar refreshes ask only for what changed since the last one, instead of reloading every event each time: lighter on Google's quota and quicker. Refresh (⌘R) still reloads everything."),
             better(.iPhone, "Swiping between days on the Day grid: the days follow your finger, the day you're heading to shows at the edge (its lamp lights, with a tap you can feel, once letting go will turn the page), and the page slides over. Let go early and it springs back. The ‹ › keys slide too."),
             new(.iPhone, "Your own timer presets: tap ★ beside a timer's name (or Add to Presets in the timer editor, or touch and hold a recent one) to keep it under Presets, ready to start with one tap. Touch and hold one of yours to remove it."),
             better(.iPhone, "The timer editor opens as an SK-1 panel from the + or the timer you tap (no more sheet), with the knobs in rows so nothing is cut off at the sides, and Start and Save at the bottom."),

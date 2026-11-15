@@ -34,6 +34,10 @@ Independent implementation; written from observed behavior and public APIs, not 
   **Alert me** under the next meeting); a muted event's bell does the opposite on any other calendar. Works on any plan.
 - Pro tier via StoreKit 2 (soft alerts and silencing a calendar are free; heads-up/hard/per-calendar strength rules are Pro)
 - Launch at login, refresh interval, per-account accent color
+- Google Calendar is synced incrementally: the first refresh loads each calendar in full (a week back to two weeks past
+  what's on screen) and later ones ask Google only for what changed (sync tokens), so a refresh costs one small request
+  per calendar. A change to a recurring meeting, a range outside what's loaded, an expired token, or every six hours
+  brings a full reload of that calendar; Refresh (⌘R) reloads everything.
 - SK-1 look via [SK1Kit](https://github.com/jsonify/SK1Kit) 0.4+ (cream/charcoal chassis, sunken trays, raised keys,
   olive LCD), laid out after Skreener: the popover is a launcher (an LCD strip that shows the next meeting or the key
   under the pointer, big Join / Calendar / Refresh tiles, a tray of captioned keys with charcoal Settings and Quit);

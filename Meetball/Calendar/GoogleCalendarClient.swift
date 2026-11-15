@@ -48,7 +48,51 @@ struct GoogleCalendarClient {
         }
     }
 
-    func events(for cal: GCalendar, range: DateInterval) async throws -> [CalendarEvent] {
+    /// The calendar's events overlapping `range`. With a `cache`, a refresh asks Google only for what changed since the
+    /// last one (a sync token), and loads everything again only the first time, for a range the cache doesn't cover, or
+    /// when Google has expired the token. Without one, every call loads the range in full.
+    func events(for cal: GCalendar, range: DateInterval, cache: GoogleSyncCache? = nil) async throws -> [CalendarEvent] {
+        guard let cache else {
+            let full = try await list(cal, query: timeQuery(range))
+            return recolor(GoogleSyncState(window: range, token: nil, events: full.changes.upserts).events(in: range), cal)
+        }
+        let key = cal.key
+        let saved = await cache.state(for: key)
+        if let saved, saved.covers(range), let token = saved.token {
+            do {
+                let changed = try await list(cal, query: [.init(name: "syncToken", value: token)])
+                // A change to a recurring meeting is reloaded in full (its occurrences can change ids).
+                if !saved.touchesSeries(changed.changes) {
+                    let next = saved.applying(changed.changes, token: changed.nextSyncToken)
+                    await cache.store(next, for: key)
+                    return recolor(next.events(in: range), cal)
+                }
+            } catch APIError.http(410, _) {
+                // Google expired the token: start again with a full sync.
+                await cache.forget(key)
+            }
+        }
+        let window = GoogleSyncState.window(for: range, previous: saved?.window)
+        let full = try await list(cal, query: timeQuery(window))
+        let state = GoogleSyncState(window: window, token: full.nextSyncToken, events: full.changes.upserts)
+        await cache.store(state, for: key)
+        return recolor(state.events(in: range), cal)
+    }
+
+    private func timeQuery(_ range: DateInterval) -> [URLQueryItem] {
+        let iso = ISO8601DateFormatter()
+        return [.init(name: "timeMin", value: iso.string(from: range.start)), .init(name: "timeMax", value: iso.string(from: range.end))]
+    }
+
+    /// Kept events take the calendar's colour as it is now (it may have changed since they were loaded).
+    private func recolor(_ events: [CalendarEvent], _ cal: GCalendar) -> [CalendarEvent] {
+        events.map { var e = $0; e.colorHex = cal.colorHex; return e }
+    }
+
+    /// Every page of an events list with `query` (a time range for a full sync, or a sync token): each event as an
+    /// upsert, each cancelled one as a removal, and the token for the next incremental sync, if Google gave one.
+    /// Recurring meetings come as their single occurrences, the same in both kinds of sync.
+    private func list(_ cal: GCalendar, query: [URLQueryItem]) async throws -> (changes: [GoogleSyncState.Change], nextSyncToken: String?) {
         struct L: Decodable {
             struct T: Decodable { let dateTime: String?; let date: String?; let timeZone: String? }
             struct A: Decodable {
@@ -67,22 +111,24 @@ struct GoogleCalendarClient {
                 let attendees: [A]?; let htmlLink: String?; let conferenceData: CD?
                 let description: String?; let organizer: O?; let recurringEventId: String?
             }
-            let items: [I]; let nextPageToken: String?
+            let items: [I]; let nextPageToken: String?; let nextSyncToken: String?
         }
         let iso = ISO8601DateFormatter()
         let dayF = DateFormatter(); dayF.dateFormat = "yyyy-MM-dd"; dayF.timeZone = .current
         let dtF = ISO8601DateFormatter(); dtF.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        var all: [CalendarEvent] = []; var pageToken: String?
+        var all: [GoogleSyncState.Change] = []; var pageToken: String?; var syncToken: String?
         repeat {
-            var q: [URLQueryItem] = [.init(name: "timeMin", value: iso.string(from: range.start)),
-                                     .init(name: "timeMax", value: iso.string(from: range.end)),
-                                     .init(name: "singleEvents", value: "true"), .init(name: "orderBy", value: "startTime"),
-                                     .init(name: "maxResults", value: "250")]
+            // No orderBy: Google allows none with a sync token, and Meetball sorts the events itself.
+            var q = query + [.init(name: "singleEvents", value: "true"), .init(name: "maxResults", value: "250")]
             if let pageToken { q.append(.init(name: "pageToken", value: pageToken)) }
             let enc = cal.id.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)?.replacingOccurrences(of: "@", with: "%40") ?? cal.id
             let d = try await request(cal.accountEmail, "/calendars/\(enc)/events", query: q)
             let page = try JSONDecoder().decode(L.self, from: d)
-            for i in page.items where i.status != "cancelled" {
+            for i in page.items {
+                if i.status == "cancelled" {
+                    all.append(.remove(id: i.id))
+                    continue
+                }
                 func parse(_ t: L.T?) -> (Date, Bool)? {
                     if let s = t?.dateTime { return ((iso.date(from: s) ?? dtF.date(from: s)).map { ($0, false) }) }
                     if let s = t?.date, let dt = dayF.date(from: s) { return (dt, true) }
@@ -90,7 +136,7 @@ struct GoogleCalendarClient {
                 }
                 guard let (s, allDay) = parse(i.start), let (e, _) = parse(i.end) else { continue }
                 let meet = (i.hangoutLink ?? i.conferenceData?.entryPoints?.first(where: { $0.entryPointType == "video" })?.uri).flatMap(URL.init)
-                all.append(CalendarEvent(id: i.id, calendarID: cal.id, accountEmail: cal.accountEmail,
+                all.append(.upsert(CalendarEvent(id: i.id, calendarID: cal.id, accountEmail: cal.accountEmail,
                                          title: i.summary ?? "(No title)", start: s, end: e, isAllDay: allDay,
                                          meetURL: meet, location: i.location,
                                          attendees: (i.attendees ?? []).compactMap(\.email),
@@ -105,11 +151,12 @@ struct GoogleCalendarClient {
                                          },
                                          organizerIsSelf: i.organizer?.isSelf ?? false,
                                          seriesID: i.recurringEventId,
-                                         timeZoneID: i.start?.timeZone))
+                                         timeZoneID: i.start?.timeZone)))
             }
             pageToken = page.nextPageToken
+            syncToken = page.nextSyncToken ?? syncToken
         } while pageToken != nil
-        return all
+        return (all, syncToken)
     }
 
     func create(_ draft: NewEventDraft) async throws {
@@ -152,5 +199,11 @@ struct GoogleCalendarClient {
     func delete(_ e: CalendarEvent) async throws {
         let enc = e.calendarID.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)?.replacingOccurrences(of: "@", with: "%40") ?? e.calendarID
         _ = try await request(e.accountEmail, "/calendars/\(enc)/events/\(e.id)", method: "DELETE")
+    }
+}
+
+private extension Array where Element == GoogleSyncState.Change {
+    var upserts: [CalendarEvent] {
+        compactMap { if case .upsert(let e) = $0 { return e } else { return nil } }
     }
 }

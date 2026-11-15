@@ -83,6 +83,8 @@ public final class CalendarStore: ObservableObject {
 
     let session: SessionManager
     private var client: GoogleCalendarClient
+    /// Google calendars' sync tokens and events, so a refresh asks Google only for what changed.
+    private let googleSync = GoogleSyncCache()
     private let apple = AppleCalendarClient()
     private var storeObserver: NSObjectProtocol?
     private var timer: Timer?
@@ -178,7 +180,12 @@ public final class CalendarStore: ObservableObject {
     func refresh(_ reason: RefreshReason = .local) {
         if appleEnabled, reason != .local { apple.sync(fresh: reason == .user) }
         refreshTask?.cancel()
-        refreshTask = Task { await load() }
+        let full = reason == .user
+        refreshTask = Task {
+            // Refresh and ⌘R reload every Google calendar in full, not just what changed.
+            if full { await googleSync.forgetAll() }
+            await load()
+        }
     }
 
     private func appleStoreChanged() {
@@ -213,7 +220,7 @@ public final class CalendarStore: ObservableObject {
                 attemptedKeys.formUnion(c.map(\.key))
                 for cal in c where !hiddenCalendarKeys.contains(cal.key) {
                     if Task.isCancelled { return }
-                    evs += try await client.events(for: cal, range: range)
+                    evs += try await client.events(for: cal, range: range, cache: googleSync)
                     loadedKeys.insert(cal.key)
                 }
             } catch {
