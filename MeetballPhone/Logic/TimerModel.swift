@@ -164,6 +164,9 @@ struct TimerSound: Identifiable, Hashable {
 
     var fileURL: URL? { id == Self.defaultID ? nil : Self.folder.appendingPathComponent(id) }
 
+    /// Whether there's a file to play (not the default sound, and one this iPhone has).
+    var hasFile: Bool { fileURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false }
+
     /// The older sounds' file names and what Settings › Sounds calls them.
     static let classicNames: [String: String] = [
         "sms-received1.caf": "Tri-tone",

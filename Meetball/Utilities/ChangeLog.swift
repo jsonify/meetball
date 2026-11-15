@@ -65,6 +65,11 @@ enum ChangeLog {
     private static func fixed(_ p: Platform, _ t: String) -> Change { Change(kind: .fixed, platform: p, text: t) }
 
     static let all: [Entry] = [
+        Entry(day: "2026-11-15", changes: [
+            new(.iPhone, "A running timer shows on the Lock Screen and in the Dynamic Island. During a meeting's countdown, the card splits: the meeting on one side, the timer on the other."),
+            new(.iPhone, "A running timer shows at the top of the Day grid, beside today's date (under the header in 3 Day). Tap it to open Timers."),
+            fixed(.iPhone, "Timers no longer stall the first time you start, stop or preview one, and the new-timer sheet no longer plays a sound as it opens."),
+        ]),
         Entry(day: "2026-11-14", changes: [
             new(.iPhone, "Timers, after the MT-1 menu bar timer: as many as you like, each with its own label, length and one of the iPhone's own sounds (Tri-tone, Bamboo, Fanfare…). Set the length on knobs or a keypad, or start a recent one or a preset. Again, Snooze and Stop when it rings. Open the screen menu and pick Timers."),
         ]),
