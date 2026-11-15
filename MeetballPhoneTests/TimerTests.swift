@@ -143,7 +143,6 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(TimerUrgency.of(t, at: t0.addingTimeInterval(200)), .alarm)
     }
 
-    @MainActor
     func testMovingATimerOntoAnother() {
         let list = ["A", "B", "C", "D"].map { MeetballTimer(label: $0, duration: 60) }
         let names = { (l: [MeetballTimer]) in l.map(\.label) }
@@ -155,6 +154,7 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(names(TimerStore.moved(list, id: UUID(), onto: list[1].id)), ["A", "B", "C", "D"])
     }
 
+    @MainActor
     func testBackgroundAlarmRepeatsUntilAutoStop() {
         XCTAssertEqual(TimerStore.ringOffsets(left: 60, ringFor: 90), [60, 90, 120, 150])
         // Capped, to leave room for meeting reminders in iOS's 64 pending notifications.
