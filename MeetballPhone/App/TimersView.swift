@@ -105,26 +105,6 @@ struct TimersView: View {
             .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
-}
-
-/// Moves the dragged timer to each card it passes over, so the list reorders as you drag.
-struct TimerDropDelegate: DropDelegate {
-    let target: UUID
-    @Binding var dragging: UUID?
-    let timers: TimerStore
-
-    func dropEntered(info: DropInfo) {
-        guard let dragging, dragging != target else { return }
-        withAnimation(.snappy) { timers.move(dragging, onto: target) }
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
-
-    func performDrop(info: DropInfo) -> Bool {
-        dragging = nil
-        return true
-    }
 
     /// The next timer to go off, and how many are running.
     private func display(now: Date) -> some View {
@@ -178,6 +158,26 @@ struct TimerDropDelegate: DropDelegate {
                 }
             }
         }
+    }
+}
+
+/// Moves the dragged timer to each card it passes over, so the list reorders as you drag.
+struct TimerDropDelegate: DropDelegate {
+    let target: UUID
+    @Binding var dragging: UUID?
+    let timers: TimerStore
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        withAnimation(.snappy) { timers.move(dragging, onto: target) }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
     }
 }
 
