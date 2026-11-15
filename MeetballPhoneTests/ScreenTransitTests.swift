@@ -65,4 +65,18 @@ final class ScreenTransitTests: XCTestCase {
         XCTAssertEqual(ScreenMove.anchor(of: CGRect(x: 500, y: 0, width: 10, height: 10), in: stage), CGPoint(x: 1, y: 0))
         XCTAssertEqual(ScreenMove.anchor(of: .zero, in: .zero), CGPoint(x: 0.5, y: 0.5))
     }
+
+    // MARK: Day grid swipe
+
+    func testDaySwipeFollowsTheFingerThenStiffens() {
+        let t = DayGridView.swipeThreshold
+        XCTAssertEqual(DayGridView.pull(0), 0)
+        // Before the threshold the days move at 0.6 of the finger, both ways.
+        XCTAssertEqual(DayGridView.pull(50), 30, accuracy: 0.001)
+        XCTAssertEqual(DayGridView.pull(-50), -30, accuracy: 0.001)
+        // Past it, a quarter: still moving, but never running away.
+        XCTAssertEqual(DayGridView.pull(t + 100), t * 0.6 + 25, accuracy: 0.001)
+        XCTAssertLessThan(DayGridView.pull(400), 400 * 0.4)
+        XCTAssertGreaterThan(DayGridView.pull(t + 1), DayGridView.pull(t))
+    }
 }
