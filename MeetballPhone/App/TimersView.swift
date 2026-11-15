@@ -140,7 +140,7 @@ struct TimersView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(12)
                     } else {
-                        TimerChips(presets: timers.recent) { timers.quickStart($0) }.padding(10)
+                        TimerChips(presets: timers.recent, menu: addToPresetsMenu) { timers.quickStart($0) }.padding(10)
                     }
                 }
             }
@@ -148,6 +148,16 @@ struct TimersView: View {
                 SKCaption("Presets", tone: .soft)
                 SKWell {
                     VStack(alignment: .leading, spacing: 8) {
+                        if timers.saved.isEmpty {
+                            Text("Add your own: tap ★ on a timer, or touch and hold a recent one.").sk1Hint()
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            TimerChips(presets: timers.saved, columns: 2,
+                                       menu: TimerChipMenu(title: "Remove from Presets", symbol: "star.slash", role: .destructive) {
+                                           timers.removePreset($0)
+                                       }) { timers.quickStart($0) }
+                        }
+                        SKGroove()
                         TimerChips(presets: TimerPresets.focus, columns: 2) { timers.quickStart($0) }
                         SKGroove()
                         TimerChips(presets: TimerPresets.lengths) { timers.quickStart($0) }
@@ -156,6 +166,13 @@ struct TimersView: View {
                 }
             }
         }
+    }
+}
+
+extension TimersView {
+    /// Touch and hold a recent timer to keep it as one of your presets.
+    private var addToPresetsMenu: TimerChipMenu {
+        TimerChipMenu(title: "Add to Presets", symbol: "star") { timers.savePreset($0) }
     }
 }
 
@@ -184,19 +201,38 @@ struct TimerChips: View {
     let presets: [TimerPreset]
     var columns = 3
     var highlighted: TimeInterval? = nil
+    /// What touch and hold on a key offers (add to or remove from your presets), if anything.
+    var menu: TimerChipMenu? = nil
     let pick: (TimerPreset) -> Void
 
     var body: some View {
         LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: columns), spacing: 6) {
             ForEach(presets, id: \.self) { p in
-                Button { pick(p) } label: {
+                let key = Button { pick(p) } label: {
                     Text(p.title).lineLimit(1).minimumScaleFactor(0.7).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.sk1Key(isOn: highlighted == p.seconds, size: .small))
                 .accessibilityLabel("\(p.title) timer")
+                if let menu {
+                    key
+                        .contextMenu {
+                            Button(menu.title, systemImage: menu.symbol, role: menu.role) { menu.action(p) }
+                        }
+                        .accessibilityAction(named: Text(menu.title)) { menu.action(p) }
+                } else {
+                    key
+                }
             }
         }
     }
+}
+
+/// One touch-and-hold action on a timer key.
+struct TimerChipMenu {
+    let title: String
+    let symbol: String
+    var role: ButtonRole? = nil
+    let action: (TimerPreset) -> Void
 }
 
 /// The timer editor, for a new timer (nil) or an existing one.
@@ -283,14 +319,18 @@ struct TimerCard: View {
     private var card: some View {
         SKWell {
             VStack(alignment: .leading, spacing: 10) {
-                TimelineView(.periodic(from: .now, by: 1)) { tl in
-                    let state = timer.state(at: tl.date)
-                    HStack(spacing: 10) {
-                        Text(timer.displayName).font(.headline).lineLimit(1)
-                        Spacer(minLength: 8)
-                        legend("Run", .success, state == .running)
-                        legend("Pause", .warning, state == .paused)
-                        legend("Ring", .danger, state == .done)
+                // The ★ key sits outside the ticking part, so a tap on it is never lost to a redraw.
+                HStack(spacing: 10) {
+                    Text(timer.displayName).font(.headline).lineLimit(1)
+                    presetKey
+                    Spacer(minLength: 8)
+                    TimelineView(.periodic(from: .now, by: 1)) { tl in
+                        let state = timer.state(at: tl.date)
+                        HStack(spacing: 10) {
+                            legend("Run", .success, state == .running)
+                            legend("Pause", .warning, state == .paused)
+                            legend("Ring", .danger, state == .done)
+                        }
                     }
                 }
                 Button { if open { close() } else { edit() } } label: {
@@ -306,8 +346,30 @@ struct TimerCard: View {
         }
         .contextMenu {
             Button("Edit", systemImage: "slider.horizontal.3", action: edit)
+            if timers.isSaved(TimerPreset(timer)) {
+                Button("Remove from Presets", systemImage: "star.slash") { timers.removePreset(TimerPreset(timer)) }
+            } else {
+                Button("Add to Presets", systemImage: "star") { timers.savePreset(TimerPreset(timer)) }
+            }
             Button("Delete", systemImage: "trash", role: .destructive, action: delete)
         }
+    }
+
+    /// ★ beside the name: adds the timer (its label and length) to Presets, lit once it's there; tap again to remove.
+    private var presetKey: some View {
+        let preset = TimerPreset(timer)
+        let saved = timers.isSaved(preset)
+        return Button {
+            if saved { timers.removePreset(preset) } else { timers.savePreset(preset) }
+        } label: {
+            Image(systemName: saved ? "star.fill" : "star")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(saved ? Color(sk1Hex: SK1.orange) : .secondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(saved ? "Remove \(timer.displayName) from presets" : "Add \(timer.displayName) to presets")
     }
 
     private func legend(_ name: String, _ color: SKLampColor, _ lit: Bool) -> some View {
@@ -656,9 +718,25 @@ struct TimerEditSheet: View {
     /// Recent and the presets load their length and label onto the knobs.
     private var presets: some View {
         VStack(alignment: .leading, spacing: SK1.Metrics.captionToWell) {
-            SKCaption(timers.recent.isEmpty ? "Presets" : "Recent and presets", tone: .soft)
+            HStack {
+                SKCaption(timers.recent.isEmpty ? "Presets" : "Recent and presets", tone: .soft)
+                Spacer()
+                Button {
+                    if isPreset { timers.removePreset(current) } else { timers.savePreset(current) }
+                    tap += 1
+                } label: {
+                    Label(isPreset ? "In Presets" : "Add to Presets", systemImage: isPreset ? "star.fill" : "star")
+                }
+                .buttonStyle(.sk1Key(isOn: isPreset, size: .mini))
+                .disabled(entry.seconds <= 0)
+                .accessibilityLabel(isPreset ? "Remove this length and label from presets" : "Add this length and label to presets")
+            }
             SKWell {
                 VStack(alignment: .leading, spacing: 8) {
+                    if !timers.saved.isEmpty {
+                        TimerChips(presets: timers.saved, columns: 2, highlighted: entry.seconds, pick: load)
+                        SKGroove()
+                    }
                     if !timers.recent.isEmpty {
                         TimerChips(presets: timers.recent, columns: 2, highlighted: entry.seconds, pick: load)
                         SKGroove()
@@ -671,11 +749,18 @@ struct TimerEditSheet: View {
         }
     }
 
+    /// The length and label on the knobs now, as a preset.
+    private var current: TimerPreset {
+        TimerPreset(label: label.trimmingCharacters(in: .whitespacesAndNewlines), seconds: entry.seconds)
+    }
+
+    private var isPreset: Bool { entry.seconds > 0 && timers.isSaved(current) }
+
     /// Loads a preset's length, and its name as the label unless you've typed one of your own.
     private func load(_ p: TimerPreset) {
         entry = TimerKeypadEntry(seconds: p.seconds)
         let typed = label.trimmingCharacters(in: .whitespaces)
-        let known = (TimerPresets.all + timers.recent).contains { $0.label == typed }
+        let known = (TimerPresets.all + timers.recent + timers.saved).contains { $0.label == typed }
         if typed.isEmpty || known {
             label = p.label == TimerFormat.spoken(p.seconds) ? "" : p.label
         }

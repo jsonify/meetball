@@ -18,6 +18,8 @@ final class TimerStore: ObservableObject {
     @Published private(set) var ringing: [UUID] = []
     /// The last few timers started from Quick start or the new-timer sheet, newest first (the MT-1's Recent).
     @Published private(set) var recent: [TimerPreset] = []
+    /// Your own presets, added from a timer, a recent one or the editor; shown first under Presets.
+    @Published private(set) var saved: [TimerPreset] = []
     @Published var settings = TimerSettings() {
         didSet {
             guard settings != oldValue else { return }
@@ -29,6 +31,7 @@ final class TimerStore: ObservableObject {
     private static let notificationPrefix = PhoneNotifications.timerPrefix
     private static let storageKey = "timers.v1"
     private static let recentKey = "timers.recent.v1"
+    private static let savedKey = "timers.presets.v1"
     private static let settingsKey = "timers.settings.v1"
     /// With Meetball closed, an alarm rings again this often until it's stopped or auto-stop is reached, at most
     /// `maxRepeats` times (iOS keeps only 64 pending notifications in all, and meeting reminders need most of them).
@@ -57,6 +60,8 @@ final class TimerStore: ObservableObject {
         }
         if let data = defaults.data(forKey: Self.recentKey),
            let saved = try? JSONDecoder().decode([TimerPreset].self, from: data) { recent = saved }
+        if let data = defaults.data(forKey: Self.savedKey),
+           let mine = try? JSONDecoder().decode([TimerPreset].self, from: data) { saved = mine }
         if let data = defaults.data(forKey: Self.settingsKey),
            let saved = try? JSONDecoder().decode(TimerSettings.self, from: data) { settings = saved }
         rewatch()
@@ -82,6 +87,29 @@ final class TimerStore: ObservableObject {
     func clearRecent() {
         recent = []
         defaults.removeObject(forKey: Self.recentKey)
+    }
+
+    // MARK: Your presets
+
+    /// Whether `preset` (its label and length) is one of your presets.
+    func isSaved(_ preset: TimerPreset) -> Bool {
+        saved.contains(TimerPreset(label: preset.label.trimmingCharacters(in: .whitespacesAndNewlines), seconds: preset.seconds))
+    }
+
+    /// Adds `preset` to your presets (once).
+    func savePreset(_ preset: TimerPreset) {
+        saved = TimerPresets.save(preset, in: saved)
+        storeSaved()
+    }
+
+    func removePreset(_ preset: TimerPreset) {
+        let p = TimerPreset(label: preset.label.trimmingCharacters(in: .whitespacesAndNewlines), seconds: preset.seconds)
+        saved.removeAll { $0 == p }
+        storeSaved()
+    }
+
+    private func storeSaved() {
+        if let data = try? JSONEncoder().encode(saved) { defaults.set(data, forKey: Self.savedKey) }
     }
 
     // MARK: Editing
