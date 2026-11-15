@@ -28,6 +28,14 @@ struct DayGridView: View {
     @State private var scrollRequest = 0
     @State private var paged = 0
     @State private var switched = 0
+    /// How far the days are pulled sideways by a swipe (or slid by a page turn), in points.
+    @State private var slide: CGFloat = 0
+    /// The swipe's raw sideways distance while a finger is down; nil otherwise, or once it's judged a scroll.
+    @State private var dragX: CGFloat?
+    /// Whether the swipe has gone far enough to turn the page if let go now.
+    @State private var armed = false
+    @State private var gridWidth: CGFloat = 360
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var dayCount: Int { span == 3 ? 3 : 1 }
 
@@ -48,6 +56,8 @@ struct DayGridView: View {
         }
         .sensoryFeedback(.selection, trigger: paged)
         .sensoryFeedback(.selection, trigger: switched)
+        // A light tick as the swipe arms, so you feel where letting go turns the page.
+        .sensoryFeedback(.impact(weight: .light), trigger: armed) { _, isArmed in isArmed }
     }
 
     private func content(now: Date) -> some View {
@@ -77,7 +87,7 @@ struct DayGridView: View {
             }
             SKWell {
                 VStack(spacing: 0) {
-                    DayGridDateRow(days: days, loads: loads, now: now, span: dayCount) { day in
+                    DayGridDateRow(days: days, loads: loads, now: now, span: dayCount, slide: slide) { day in
                         anchor = day
                         span = 1
                     }
@@ -92,11 +102,16 @@ struct DayGridView: View {
                         DayGridAllDayStrip(strip: strip, dayCount: dayCount, expanded: allDayOpen, open: open) {
                             withAnimation(.easeInOut(duration: 0.2)) { allDayOpen.toggle() }
                         }
+                        .offset(x: slide)
+                        .opacity(slideOpacity)
                     }
                     SKGroove()
                     grid(days: days, derived: derived, now: now)
                 }
+                // The day the swipe is heading for, at the edge it's coming in from.
+                .overlay(alignment: (dragX ?? 0) > 0 ? .leading : .trailing) { swipeHint() }
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { gridWidth = max(1, $0) }
             .padding(.horizontal, 10)
         }
         .padding(.top, 8)
@@ -154,11 +169,80 @@ struct DayGridView: View {
         return "\(a) – \(b) · \(first.formatted(.dateTime.year()))"
     }
 
+    /// Turns the page by the days shown: the days slide out the way they're going and the new ones slide in from the
+    /// other side (a plain switch with Reduce Motion).
     private func page(_ direction: Int) {
         guard let next = Calendar.app.date(byAdding: .day, value: direction * dayCount, to: anchor) else { return }
-        anchor = next
         pencil = nil
         paged += 1
+        guard !reduceMotion else {
+            anchor = next
+            slide = 0
+            return
+        }
+        let out = -CGFloat(direction) * gridWidth * 0.5
+        withAnimation(.easeIn(duration: 0.12)) { slide = out } completion: {
+            anchor = next
+            // The new days start a little off on the far side and settle in.
+            var t = Transaction()
+            t.disablesAnimations = true
+            withTransaction(t) { slide = -out * 0.6 }
+            withAnimation(.spring(duration: 0.32, bounce: 0.12)) { slide = 0 }
+        }
+    }
+
+    /// The days fade a little as they're pulled away.
+    private var slideOpacity: Double {
+        1 - min(0.45, Double(abs(slide) / max(gridWidth, 1)) * 0.9)
+    }
+
+    // MARK: Swipe
+
+    /// How far (raw finger travel) a swipe must go to turn the page.
+    nonisolated static let swipeThreshold: CGFloat = 70
+
+    /// Where the days sit for a raw swipe of `dx`: they follow the finger at a little over half its speed, and more
+    /// stiffly past the threshold, so the pull is felt but never runs away.
+    nonisolated static func pull(_ dx: CGFloat) -> CGFloat {
+        let sign: CGFloat = dx < 0 ? -1 : 1
+        let d = abs(dx)
+        let soft = min(d, swipeThreshold) * 0.6
+        let stiff = max(0, d - swipeThreshold) * 0.25
+        return sign * (soft + stiff)
+    }
+
+    /// The day (or days) the swipe would turn to, on a small LCD at the edge it comes in from: an arrow and the date,
+    /// faint at first and lit with a lamp once letting go would turn the page.
+    @ViewBuilder
+    private func swipeHint() -> some View {
+        if let dx = dragX, abs(dx) > 8 {
+            let direction = dx < 0 ? 1 : -1
+            let target = Calendar.app.date(byAdding: .day, value: direction * dayCount, to: anchor) ?? anchor
+            let progress = min(1, abs(dx) / Self.swipeThreshold)
+            let label = target.formatted(.dateTime.weekday(.abbreviated).day()).uppercased()
+            let ink = Color(sk1Hex: SK1.lcdInk)
+            SKLCD(radius: 6, inset: 2) {
+                HStack(spacing: 5) {
+                    if direction < 0 { Image(systemName: "chevron.left") }
+                    SKLamp(color: .orange, lit: armed, glow: armed ? 4 : 0, size: 5)
+                    Text(dayCount == 1 ? label : "\(label) +2")
+                    if direction > 0 { Image(systemName: "chevron.right") }
+                }
+                .font(.system(size: 11, weight: .heavy, design: .monospaced)).tracking(0.6)
+                .foregroundStyle(ink)
+                .padding(.horizontal, 8)
+            }
+            .fixedSize()
+            .frame(height: 28)
+            .scaleEffect(0.85 + 0.15 * progress)
+            .opacity(0.35 + 0.65 * progress)
+            .padding(.horizontal, 8)
+            .padding(.top, 64)
+            .frame(maxHeight: .infinity, alignment: .top)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+            .animation(.easeOut(duration: 0.15), value: armed)
+        }
     }
 
     // MARK: Grid
@@ -169,14 +253,20 @@ struct DayGridView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 HStack(alignment: .top, spacing: 0) {
                     DayGridHourScale(hourHeight: h, now: now, showsNow: days.contains { Calendar.app.isDate($0, inSameDayAs: now) })
-                    ForEach(days, id: \.self) { day in
-                        DayGridColumn(day: day, segments: timed(derived, day), now: now, hourHeight: h,
-                                      pencil: pencil.flatMap { Calendar.app.isDate($0, inSameDayAs: day) ? $0 : nil },
-                                      open: { pencil = nil; open($0) },
-                                      tapEmpty: { pencil = $0 },
-                                      compose: { start in pencil = nil; add(start) })
-                            .frame(maxWidth: .infinity)
+                    // The days move with the swipe; the hour scale stays put.
+                    HStack(alignment: .top, spacing: 0) {
+                        ForEach(days, id: \.self) { day in
+                            DayGridColumn(day: day, segments: timed(derived, day), now: now, hourHeight: h,
+                                          pencil: pencil.flatMap { Calendar.app.isDate($0, inSameDayAs: day) ? $0 : nil },
+                                          open: { pencil = nil; open($0) },
+                                          tapEmpty: { pencil = $0 },
+                                          compose: { start in pencil = nil; add(start) })
+                                .frame(maxWidth: .infinity)
+                        }
                     }
+                    .offset(x: slide)
+                    .opacity(slideOpacity)
+                    .clipped()
                 }
                 .frame(height: h * 24)
                 .padding(.bottom, 12)
@@ -204,13 +294,33 @@ struct DayGridView: View {
         }
     }
 
-    /// A sideways swipe pages by the days shown; a mostly vertical one is left to the scroll view.
+    /// A sideways swipe pulls the days along under the finger, with the day it's heading for showing at the edge, and
+    /// turns the page when let go past the threshold (or flicked); short of it, the days spring back. A mostly vertical
+    /// drag is left to the scroll view.
     private var swipe: some Gesture {
-        DragGesture(minimumDistance: 30).onEnded { v in
-            let dx = v.translation.width, dy = v.translation.height
-            guard abs(dx) > 60, abs(dx) > abs(dy) * 2 else { return }
-            page(dx < 0 ? 1 : -1)
-        }
+        DragGesture(minimumDistance: 20)
+            .onChanged { v in
+                let dx = v.translation.width, dy = v.translation.height
+                // Decide once whether this is a sideways swipe; a vertical scroll never moves the days.
+                if dragX == nil {
+                    guard abs(dx) > abs(dy) * 1.5 else { return }
+                }
+                dragX = dx
+                armed = abs(dx) >= Self.swipeThreshold
+                if !reduceMotion { slide = Self.pull(dx) }
+            }
+            .onEnded { v in
+                let dx = v.translation.width, dy = v.translation.height
+                let wasSwiping = dragX != nil
+                dragX = nil
+                armed = false
+                let flick = abs(v.predictedEndTranslation.width) > 180 && abs(dx) > 30
+                if wasSwiping, abs(dx) > abs(dy) * 1.5, abs(dx) >= Self.swipeThreshold || flick {
+                    page(dx < 0 ? 1 : -1)
+                } else {
+                    withAnimation(.spring(duration: 0.3, bounce: 0.2)) { slide = 0 }
+                }
+            }
     }
 
     private var zoom: some Gesture {
@@ -350,28 +460,35 @@ struct DayGridDateRow: View {
     let loads: [DayMeetingLoad]
     let now: Date
     let span: Int
+    /// How far a swipe has pulled the days sideways (the week label stays put).
+    var slide: CGFloat = 0
     let pick: (Date) -> Void
 
     var body: some View {
         HStack(spacing: 0) {
             SKCaption(weekLabel, tone: .soft)
                 .frame(width: DayGridMetrics.gutterWidth)
-            ForEach(Array(days.enumerated()), id: \.element) { i, day in
-                let load = i < loads.count ? loads[i] : nil
-                Group {
-                    if span > 1 {
-                        Button { pick(day) } label: { cell(day, load: load) }
-                            .buttonStyle(.plain)
-                            .accessibilityHint("Opens this day")
-                    } else {
-                        cell(day, load: load)
+            HStack(spacing: 0) {
+                ForEach(Array(days.enumerated()), id: \.element) { i, day in
+                    let load = i < loads.count ? loads[i] : nil
+                    Group {
+                        if span > 1 {
+                            Button { pick(day) } label: { cell(day, load: load) }
+                                .buttonStyle(.plain)
+                                .accessibilityHint("Opens this day")
+                        } else {
+                            cell(day, load: load)
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(Text(accessibility(day, load: load)))
+                    .accessibilityAddTraits(span > 1 ? .isButton : [])
                 }
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(Text(accessibility(day, load: load)))
-                .accessibilityAddTraits(span > 1 ? .isButton : [])
             }
+            .offset(x: slide)
+            .opacity(1 - min(0.45, Double(abs(slide)) / 300))
+            .clipped()
         }
         .padding(.vertical, 8)
     }
