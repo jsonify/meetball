@@ -158,4 +158,91 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(ScreenMove.between(.day, .timers), .lid)
         XCTAssertEqual(ScreenMove.between(.timers, .settings), .flip(forward: true))
     }
+
+    // MARK: Lock Screen and the Day grid's chip
+
+    private func running(_ label: String, _ length: TimeInterval, startedAt start: Date) -> MeetballTimer {
+        var t = MeetballTimer(label: label, duration: length)
+        t.start(at: start)
+        return t
+    }
+
+    func testLiveActivityShowsTheTimerThatGoesOffFirst() {
+        let tea = running("Tea", 240, startedAt: t0)
+        let pasta = running("Pasta", 600, startedAt: t0)
+        var paused = running("Laundry", 60, startedAt: t0)
+        paused.pause(at: t0.addingTimeInterval(10))
+        let idle = MeetballTimer(label: "Focus", duration: 1500)
+
+        let run = LiveActivityController.timerRun([pasta, paused, tea, idle], now: t0.addingTimeInterval(30))
+        XCTAssertEqual(run?.label, "Tea")
+        XCTAssertEqual(run?.end, t0.addingTimeInterval(240))
+        XCTAssertEqual(run?.start, t0)
+        XCTAssertEqual(run?.others, 1)
+
+        // Nothing running: no timer on the Lock Screen.
+        XCTAssertNil(LiveActivityController.timerRun([paused, idle], now: t0))
+        XCTAssertNil(LiveActivityController.timerRun([tea], now: t0.addingTimeInterval(300)))
+    }
+
+    func testLiveActivityBarAfterAddingTime() {
+        var t = running("Tea", 60, startedAt: t0)
+        t.add(120, at: t0.addingTimeInterval(30))
+        let now = t0.addingTimeInterval(30)
+        let run = LiveActivityController.timerRun([t], now: now)
+        // 150 s left of a 60 s timer: the bar starts now, not in the future.
+        XCTAssertEqual(run?.start, now)
+        XCTAssertEqual(run?.end, t0.addingTimeInterval(180))
+    }
+
+    func testLiveActivitySplitsBetweenMeetingAndTimer() {
+        let meeting = MeetingActivityAttributes.Meeting(title: "Standup", start: t0, end: t0.addingTimeInterval(1800),
+                                                       colorHex: "#4285F4", joinURL: nil)
+        let timer = LiveActivityController.timerRun([running("Tea", 240, startedAt: t0)], now: t0)
+        let now = t0.addingTimeInterval(60)
+
+        let both = LiveActivityController.state(meeting: meeting, timer: timer, now: now)
+        XCTAssertEqual(both?.meeting, meeting)
+        XCTAssertEqual(both?.timer, timer)
+        // Stale when the meeting ends, not when the timer goes off.
+        XCTAssertEqual(both.flatMap(LiveActivityController.staleDate), meeting.end)
+
+        let timerOnly = LiveActivityController.state(meeting: nil, timer: timer, now: now)
+        XCTAssertNil(timerOnly?.meeting)
+        XCTAssertEqual(timerOnly.flatMap(LiveActivityController.staleDate), timer?.end)
+
+        // An ended meeting or timer drops out; with neither, the activity ends.
+        XCTAssertNil(LiveActivityController.state(meeting: meeting, timer: nil, now: t0.addingTimeInterval(4000)))
+        XCTAssertEqual(LiveActivityController.state(meeting: meeting, timer: timer, now: t0.addingTimeInterval(300))?.timer, nil)
+    }
+
+    func testLiveActivityStateDecodesTheOlderShape() throws {
+        // What builds before timers saved: the meeting's fields at the top level.
+        let legacy = ##"{"title":"Standup","start":0,"end":1800,"colorHex":"#4285F4"}"##
+        let old = try JSONDecoder().decode(MeetingActivityAttributes.ContentState.self, from: Data(legacy.utf8))
+        XCTAssertEqual(old.meeting?.title, "Standup")
+        XCTAssertNil(old.timer)
+
+        let state = MeetingActivityAttributes.ContentState(
+            meeting: nil, timer: .init(label: "Tea", start: t0, end: t0.addingTimeInterval(240), others: 2))
+        let back = try JSONDecoder().decode(MeetingActivityAttributes.ContentState.self, from: JSONEncoder().encode(state))
+        XCTAssertEqual(back, state)
+    }
+
+    func testDayGridChipPicksTheNextTimerThenADoneOne() {
+        let tea = running("Tea", 240, startedAt: t0)
+        let pasta = running("Pasta", 600, startedAt: t0)
+        let idle = MeetballTimer(label: "Focus", duration: 1500)
+        XCTAssertFalse(ActiveTimerChip.shows([idle]))
+        XCTAssertTrue(ActiveTimerChip.shows([idle, tea]))
+
+        let pick = ActiveTimerChip.pick([pasta, tea], now: t0.addingTimeInterval(10))
+        XCTAssertEqual(pick?.timer.label, "Tea")
+        XCTAssertEqual(pick?.others, 1)
+        // Tea has gone off: Pasta is next.
+        XCTAssertEqual(ActiveTimerChip.pick([pasta, tea], now: t0.addingTimeInterval(300))?.timer.label, "Pasta")
+        // Only a finished one left: it shows, as done.
+        XCTAssertEqual(ActiveTimerChip.pick([tea, idle], now: t0.addingTimeInterval(300))?.timer.label, "Tea")
+        XCTAssertNil(ActiveTimerChip.pick([idle], now: t0))
+    }
 }

@@ -11,30 +11,25 @@ struct TimersView: View {
     @State private var editing: TimerEditRequest?
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { tl in
-            content(now: tl.date)
-        }
-        .sheet(item: $editing) { request in
-            TimerEditSheet(original: request.timer).environmentObject(timers)
-        }
-    }
-
-    private func content(now: Date) -> some View {
-        let running = timers.timers.filter { $0.state(at: now) == .running }
-        return PhoneScrollScreen {
-            PhoneScreenHeader(title: "Timers", detail: running.isEmpty ? "None running" : "\(running.count) running") {
-                Button { editing = TimerEditRequest(timer: nil) } label: { Image(systemName: "plus") }
-                    .buttonStyle(.sk1Key())
-                    .accessibilityLabel("New timer")
+        // Only the parts that show the time tick each second (the header, the display and each card's LCD), so the
+        // keys, presets and settings below aren't rebuilt every second.
+        PhoneScrollScreen {
+            TimelineView(.periodic(from: .now, by: 1)) { tl in
+                let count = timers.timers.filter { $0.state(at: tl.date) == .running }.count
+                PhoneScreenHeader(title: "Timers", detail: count == 0 ? "None running" : "\(count) running") {
+                    Button { editing = TimerEditRequest(timer: nil) } label: { Image(systemName: "plus") }
+                        .buttonStyle(.sk1Key())
+                        .accessibilityLabel("New timer")
+                }
             }
         } content: {
             VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
-                display(now: now, running: running)
+                TimelineView(.periodic(from: .now, by: 1)) { tl in display(now: tl.date) }
                 if timers.timers.isEmpty {
                     Text("No timers yet. Press + to make one, or start one from Recent or the presets below.").sk1Hint()
                 }
                 ForEach(timers.timers) { t in
-                    TimerCard(timer: t, now: now) { editing = TimerEditRequest(timer: t) }
+                    TimerCard(timer: t) { editing = TimerEditRequest(timer: t) }
                 }
                 quickStart
                 TimerSettingsGroup()
@@ -44,10 +39,14 @@ struct TimersView: View {
                     .sk1Hint()
             }
         }
+        .sheet(item: $editing) { request in
+            TimerEditSheet(original: request.timer, newSound: timers.settings.soundID).environmentObject(timers)
+        }
     }
 
     /// The next timer to go off, and how many are running.
-    private func display(now: Date, running: [MeetballTimer]) -> some View {
+    private func display(now: Date) -> some View {
+        let running = timers.timers.filter { $0.state(at: now) == .running }
         let next = running.min { $0.remaining(at: now) < $1.remaining(at: now) }
         let done = timers.timers.first { $0.state(at: now) == .done }
         let message: String
@@ -130,12 +129,15 @@ struct TimerEditRequest: Identifiable {
 struct TimerCard: View {
     @EnvironmentObject private var timers: TimerStore
     let timer: MeetballTimer
-    let now: Date
     let edit: () -> Void
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { tl in card(now: tl.date) }
+    }
+
+    private func card(now: Date) -> some View {
         let state = timer.state(at: now)
-        SKWell {
+        return SKWell {
             VStack(alignment: .leading, spacing: 10) {
                 HStack(spacing: 10) {
                     Text(timer.displayName).font(.headline).lineLimit(1)
@@ -329,14 +331,23 @@ struct TimerEditSheet: View {
 
     enum Input: String { case knobs, keypad }
 
-    @State private var label = ""
-    @State private var entry = TimerKeypadEntry()
-    @State private var soundID = TimerSound.defaultID
+    @State private var label: String
+    @State private var entry: TimerKeypadEntry
+    @State private var soundID: String
     @AppStorage("timers.input") private var input: Input = .knobs
     @State private var confirmDelete = false
     @State private var tap = 0
 
     private var isNew: Bool { original == nil }
+
+    /// `newSound` is the sound a new timer starts with (Settings). The fields are filled here rather than on appear:
+    /// a change after the sheet shows would count as picking a sound, and play it.
+    init(original: MeetballTimer?, newSound: String) {
+        self.original = original
+        _label = State(initialValue: original?.label ?? "")
+        _entry = State(initialValue: original.map { TimerKeypadEntry(seconds: $0.duration) } ?? TimerKeypadEntry())
+        _soundID = State(initialValue: original?.soundID ?? newSound)
+    }
 
     var body: some View {
         ScrollView {
@@ -362,15 +373,6 @@ struct TimerEditSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .sensoryFeedback(.selection, trigger: tap)
-        .onAppear {
-            if let original {
-                label = original.label
-                entry = TimerKeypadEntry(seconds: original.duration)
-                soundID = original.soundID
-            } else {
-                soundID = timers.settings.soundID
-            }
-        }
         .onDisappear { timers.stopPreview() }
     }
 

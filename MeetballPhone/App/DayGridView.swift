@@ -9,12 +9,15 @@ import SK1UI
 /// The next meeting rides on top as a slim Up Next card, so this is the home screen.
 struct DayGridView: View {
     @EnvironmentObject private var store: PhoneStore
+    @EnvironmentObject private var timers: TimerStore
     var open: (CalendarEvent) -> Void
     var add: (Date?) -> Void
     /// A day to open on (picked on the Month tab); taken and cleared on arrival.
     var jump: Binding<Date?> = .constant(nil)
     /// Opens Settings › Calendars, to mark work calendars.
     var markWork: () -> Void = {}
+    /// Opens Timers, from the running timer's chip.
+    var openTimers: () -> Void = {}
 
     @SceneStorage("grid.span") private var span = 1
     @AppStorage("phone.grid.hourHeight") private var hourHeight: Double = DayGridMetrics.defaultHourHeight
@@ -57,9 +60,16 @@ struct DayGridView: View {
         let bars = TimeGridLayoutBuilder.allDayBars(events: events, firstDay: anchor, dayCount: dayCount, calendar: cal)
         let strip = TimeGridLayoutBuilder.collapse(bars, dayCount: dayCount, maxLanes: allDayOpen ? 8 : 2)
         let loads = MeetingLoadBuilder.build(events: events, from: anchor, days: dayCount, calendar: cal)
+        let timerChip = ActiveTimerChip.shows(timers.timers)
         return VStack(spacing: 12) {
             header(now: now, days: days)
                 .padding(.horizontal, 16)
+            // A running timer: in the 3-day view there's no room beside the dates, so it rides under the header.
+            if timerChip && dayCount > 1 {
+                ActiveTimerChip(open: openTimers)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+                    .padding(.horizontal, 16)
+            }
             let soon = store.meetingFeed(store.events(from: now, days: 2)).shown
             if let next = MenuAgendaBuilder.hero(soon, now: now, horizon: 24 * 3600) {
                 DayGridUpNext(event: next, now: now, overlapping: MenuAgendaBuilder.overlapping(next, in: soon, now: now), open: open)
@@ -70,6 +80,12 @@ struct DayGridView: View {
                     DayGridDateRow(days: days, loads: loads, now: now, span: dayCount) { day in
                         anchor = day
                         span = 1
+                    }
+                    // A running timer, in the room beside the day's date.
+                    .overlay(alignment: .trailing) {
+                        if timerChip && dayCount == 1 {
+                            ActiveTimerChip(open: openTimers).padding(.trailing, 10)
+                        }
                     }
                     if !bars.isEmpty {
                         SKGroove()

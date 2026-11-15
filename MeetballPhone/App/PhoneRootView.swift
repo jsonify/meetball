@@ -293,7 +293,7 @@ struct PhoneRootView: View {
         if tab == .day {
             // The time grid scrolls itself, under its pinned dates and all-day strip.
             DayGridView(open: { openDetail($0) }, add: { compose = ComposeRequest(start: $0) }, jump: $dayJump,
-                        markWork: showCalendars)
+                        markWork: showCalendars, openTimers: { tab = .timers })
                 .frame(maxWidth: 700)
                 .frame(maxWidth: .infinity)
         } else if tab == .todo {

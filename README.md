@@ -128,7 +128,9 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   bars that fill by themselves (the hour before, then the meeting, with the start marked between), over an orange
   Join key. iOS only lets it start while Meetball is open, so open Meetball in that hour;
   background refreshes then keep it right (a moved meeting moves it, a cancelled one ends it). Switch it off in
-  Settings › Alerts.
+  Settings › Alerts. A **running timer** shows there too (the MT-1's LCD: name, end time, time left and a bar), and
+  takes the Dynamic Island's compact view; when a timer runs during a meeting's countdown, the card splits into the
+  meeting's LCD and the timer's, side by side. Timers show whatever that switch says.
 
 - **Siri, Shortcuts, Action Button**: "Join my meeting in Meetball" opens the meeting that's on or starts within 10
   minutes; "What's my next meeting in Meetball" says it (good in the car). Both are App Shortcuts, so they can go on the
@@ -144,7 +146,9 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   ◀ ▶ from the alert sounds that come with iOS (Tri-tone, Chime, Bamboo, Fanfare, Bloom…, read from the iPhone's own
   system sound folder; each plays as you step to it). **Recent** (your last five) and the presets (🍅 Pomodoro 25,
   🧠 Deep work 50, and plain lengths) start a one-off timer that goes away once stopped. **Settings** under them:
-  snooze length, auto-stop (how long an ignored alarm rings) and the sound new timers start with.
+  snooze length, auto-stop (how long an ignored alarm rings) and the sound new timers start with. The running timer
+  that goes off first also shows as a small LCD at the top of the Day grid (beside today's date, or under the header in
+  3 Day; tap it for Timers) and on the Lock Screen (see Live Activity).
   With Meetball open, a timer that goes off takes over the screen like the MT-1's alarm window: the LCD flashes 00:00
   with the backlight pulsing and counts how long it has rung, with **Again**, **Snooze** and **Stop**, and "Auto-stop in".
   Its sound loops with a buzz, even with the ring switch on silent. With Meetball closed, a Time Sensitive notification

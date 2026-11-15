@@ -11,7 +11,7 @@ import UserNotifications
 /// handed to iOS when a timer starts, so they fire on time even if Meetball isn't running.
 @MainActor
 final class TimerStore: ObservableObject {
-    static let shared = TimerStore()
+    static let shared = TimerStore(publishesLiveActivity: true)
 
     @Published private(set) var timers: [MeetballTimer] = []
     /// Timers that went off while Meetball was open and are ringing now, oldest first.
@@ -19,7 +19,11 @@ final class TimerStore: ObservableObject {
     /// The last few timers started from Quick start or the new-timer sheet, newest first (the MT-1's Recent).
     @Published private(set) var recent: [TimerPreset] = []
     @Published var settings = TimerSettings() {
-        didSet { if settings != oldValue { saveSettings() } }
+        didSet {
+            guard settings != oldValue else { return }
+            saveSettings()
+            if settings.soundID != oldValue.soundID { Self.prepareSounds([settings.soundID]) }
+        }
     }
 
     private static let notificationPrefix = PhoneNotifications.timerPrefix
@@ -37,8 +41,12 @@ final class TimerStore: ObservableObject {
     private var autoStop: Task<Void, Never>?
     private var active = true
 
-    init(defaults: UserDefaults = .standard) {
+    /// Whether this store's running timers show on the Lock Screen (the shared one's do; a test's don't).
+    private let publishesLiveActivity: Bool
+
+    init(defaults: UserDefaults = .standard, publishesLiveActivity: Bool = false) {
         self.defaults = defaults
+        self.publishesLiveActivity = publishesLiveActivity
         if let data = defaults.data(forKey: Self.storageKey),
            let saved = try? JSONDecoder().decode([MeetballTimer].self, from: data) {
             timers = saved
@@ -52,6 +60,10 @@ final class TimerStore: ObservableObject {
         if let data = defaults.data(forKey: Self.settingsKey),
            let saved = try? JSONDecoder().decode(TimerSettings.self, from: data) { settings = saved }
         rewatch()
+        // Off the main thread, ahead of the first start: the list of the iPhone's sounds, and the copies of the sounds
+        // in use that notifications ring with (see `notificationSound(for:)`).
+        Self.prepareSounds(timers.map(\.soundID) + [settings.soundID])
+        publishLiveActivity()
     }
 
     func timer(_ id: UUID) -> MeetballTimer? { timers.first { $0.id == id } }
@@ -88,6 +100,7 @@ final class TimerStore: ObservableObject {
     /// Saves changes to an existing timer (name, length, sound). A running one keeps running, to its new sound.
     func update(_ timer: MeetballTimer) {
         guard let i = timers.firstIndex(where: { $0.id == timer.id }) else { return }
+        if timers[i].soundID != timer.soundID { Self.prepareSounds([timer.soundID]) }
         timers[i] = timer
         commit(timers[i])
     }
@@ -171,6 +184,8 @@ final class TimerStore: ObservableObject {
         // One still ringing from before Meetball went away picks its sound back up.
         if let last = ringing.last, let t = timer(last) { ringer.play(TimerSound.find(t.soundID)) }
         rewatch()
+        // Timers that went off while Meetball was away leave the Lock Screen.
+        publishLiveActivity()
     }
 
     /// Meetball went to the background: the sound stops (iOS would cut it off anyway) and notifications take over.
@@ -199,8 +214,14 @@ final class TimerStore: ObservableObject {
         if let data = try? JSONEncoder().encode(settings) { defaults.set(data, forKey: Self.settingsKey) }
     }
 
+    /// Saves the timers, and brings the Lock Screen's countdown into line with them.
     private func save() {
         if let data = try? JSONEncoder().encode(timers) { defaults.set(data, forKey: Self.storageKey) }
+        publishLiveActivity()
+    }
+
+    private func publishLiveActivity() {
+        if publishesLiveActivity { LiveActivityController.timersChanged(timers) }
     }
 
     /// Sleeps until the next running timer goes off, then rings it (and goes back to sleep for the one after).
@@ -214,6 +235,8 @@ final class TimerStore: ObservableObject {
             guard !Task.isCancelled, let self else { return }
             let now = Date()
             for t in self.timers where t.state(at: now) == .done && t.overtime(at: now) < 5 { self.ring(t.id) }
+            // The one that went off leaves the Lock Screen (the next running one, if any, takes its place).
+            self.publishLiveActivity()
             self.rewatch()
         }
     }
@@ -295,9 +318,18 @@ final class TimerStore: ObservableObject {
         PhoneNotifications.center.removePendingNotificationRequests(withIdentifiers: Self.notificationIDs(id))
     }
 
+    /// Reads the iPhone's sound list and copies the sounds `ids` into Library/Sounds in the background, so starting a
+    /// timer doesn't wait on the disk.
+    nonisolated static func prepareSounds(_ ids: [String]) {
+        let unique = Array(Set(ids))
+        Task.detached(priority: .utility) {
+            for id in unique { _ = notificationSound(for: TimerSound.find(id)) }
+        }
+    }
+
     /// Notifications only play sounds kept in the app's Library/Sounds folder, so the iPhone's own sound is copied
     /// there first. Falls back to the default sound when it can't be.
-    static func notificationSound(for sound: TimerSound) -> UNNotificationSound {
+    nonisolated static func notificationSound(for sound: TimerSound) -> UNNotificationSound {
         guard let source = sound.fileURL, let name = sound.notificationFileName,
               let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first else { return .default }
         let folder = library.appendingPathComponent("Sounds", isDirectory: true)
@@ -332,13 +364,18 @@ final class TimerStore: ObservableObject {
 
 /// Plays a timer's sound: on a loop with a buzz while it rings, once for a preview. Uses the playback audio session, so
 /// it's heard with the ring switch on silent, as a timer should be.
+///
+/// The audio session and the player live on `TimerAudio`'s own queue: switching the session on or off talks to the
+/// iPhone's media server and can hold the main thread for a noticeable moment, which made the Timers screen stall the
+/// first time a timer was started, stopped or previewed.
 @MainActor
 final class TimerRinger {
-    private var player: AVAudioPlayer?
+    private let audio = TimerAudio()
     private var buzz: Task<Void, Never>?
 
     func play(_ sound: TimerSound) {
-        let looping = start(sound, loops: -1)
+        let looping = sound.hasFile
+        audio.play(sound.fileURL, loops: -1)
         buzz?.cancel()
         buzz = Task {
             while !Task.isCancelled {
@@ -351,34 +388,66 @@ final class TimerRinger {
 
     func preview(_ sound: TimerSound) {
         buzz?.cancel()
-        if !start(sound, loops: 0) { AudioServicesPlaySystemSound(Self.defaultAlert) }
+        if sound.hasFile {
+            audio.play(sound.fileURL, loops: 0)
+        } else {
+            audio.stop()
+            AudioServicesPlaySystemSound(Self.defaultAlert)
+        }
     }
 
     func stop() {
         buzz?.cancel()
         buzz = nil
-        player?.stop()
-        player = nil
-        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+        audio.stop()
     }
 
     /// The system sound iOS plays for a default notification (Tri-tone).
     private static let defaultAlert = SystemSoundID(1007)
+}
 
-    /// Starts the sound's file playing; false when there's no file to play (the default sound, or one this iPhone
-    /// lacks).
-    @discardableResult
-    private func start(_ sound: TimerSound, loops: Int) -> Bool {
+/// The audio session and player for `TimerRinger`, used only on `queue`. The session is switched on only while a sound
+/// file plays and off again only if it was on, so stopping a timer that never rang costs nothing.
+final class TimerAudio: @unchecked Sendable {
+    private let queue = DispatchQueue(label: "app.meetball.timer-audio", qos: .userInitiated)
+    private var player: AVAudioPlayer?
+    private var sessionActive = false
+
+    /// Plays the file at `url` (`loops` -1 for until stopped); nothing when there's no file.
+    func play(_ url: URL?, loops: Int) {
+        queue.async { [self] in
+            stopPlayer()
+            guard let url, let p = try? AVAudioPlayer(contentsOf: url) else { deactivate(); return }
+            activate()
+            p.numberOfLoops = loops
+            p.prepareToPlay()
+            p.play()
+            player = p
+        }
+    }
+
+    func stop() {
+        queue.async { [self] in
+            stopPlayer()
+            deactivate()
+        }
+    }
+
+    private func stopPlayer() {
         player?.stop()
         player = nil
+    }
+
+    private func activate() {
+        guard !sessionActive else { return }
         let session = AVAudioSession.sharedInstance()
         try? session.setCategory(.playback, mode: .default, options: [.duckOthers])
-        try? session.setActive(true)
-        guard let url = sound.fileURL, let p = try? AVAudioPlayer(contentsOf: url) else { return false }
-        p.numberOfLoops = loops
-        p.prepareToPlay()
-        p.play()
-        player = p
-        return true
+        sessionActive = (try? session.setActive(true)) != nil
+    }
+
+    private func deactivate() {
+        guard sessionActive else { return }
+        sessionActive = false
+        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
     }
 }
