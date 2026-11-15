@@ -218,7 +218,7 @@ final class TimerTests: XCTestCase {
 
     func testLiveActivityStateDecodesTheOlderShape() throws {
         // What builds before timers saved: the meeting's fields at the top level.
-        let legacy = #"{"title":"Standup","start":0,"end":1800,"colorHex":"#4285F4"}"#
+        let legacy = ##"{"title":"Standup","start":0,"end":1800,"colorHex":"#4285F4"}"##
         let old = try JSONDecoder().decode(MeetingActivityAttributes.ContentState.self, from: Data(legacy.utf8))
         XCTAssertEqual(old.meeting?.title, "Standup")
         XCTAssertNil(old.timer)
