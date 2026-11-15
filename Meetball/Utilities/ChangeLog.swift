@@ -68,6 +68,8 @@ enum ChangeLog {
         Entry(day: "2026-11-15", changes: [
             new(.iPhone, "A running timer shows on the Lock Screen and in the Dynamic Island. During a meeting's countdown, the card splits: the meeting on one side, the timer on the other."),
             new(.iPhone, "A running timer shows at the top of the Day grid, beside today's date (under the header in 3 Day). Tap it to open Timers."),
+            new(.iPhone, "Swipe a timer left to delete it (with Undo), and touch and hold one, then drag, to put your timers in the order you like."),
+            fixed(.iPhone, "The + key on Timers opens a new timer every time; timer keys no longer miss a tap now and then."),
             fixed(.iPhone, "Timers no longer stall the first time you start, stop or preview one, and the new-timer sheet no longer plays a sound as it opens."),
         ]),
         Entry(day: "2026-11-14", changes: [

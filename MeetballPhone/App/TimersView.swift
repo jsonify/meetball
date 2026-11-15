@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 import SK1Tokens
 import SK1UI
 
@@ -9,18 +11,27 @@ import SK1UI
 struct TimersView: View {
     @EnvironmentObject private var timers: TimerStore
     @State private var editing: TimerEditRequest?
+    /// The timer being dragged to a new place (touch and hold, then move).
+    @State private var dragging: UUID?
+    /// The timer just deleted with a swipe, and where it was, for Undo.
+    @State private var deleted: (timer: MeetballTimer, index: Int)?
+    @State private var undoTimeout: Task<Void, Never>?
 
     var body: some View {
-        // Only the parts that show the time tick each second (the header, the display and each card's LCD), so the
-        // keys, presets and settings below aren't rebuilt every second.
+        // Only the parts that show the time tick each second (the display and each card's LCD). Keys are never inside
+        // a per-second TimelineView: a redraw between touching a key and letting go can lose the tap (the + key gave
+        // its click but no new timer). The header's count changes only when a timer starts, stops or goes off.
         PhoneScrollScreen {
-            TimelineView(.periodic(from: .now, by: 1)) { tl in
+            TimelineView(.explicit(timers.timers.compactMap(\.endDate))) { tl in
                 let count = timers.timers.filter { $0.state(at: tl.date) == .running }.count
                 PhoneScreenHeader(title: "Timers", detail: count == 0 ? "None running" : "\(count) running") {
-                    Button { editing = TimerEditRequest(timer: nil) } label: { Image(systemName: "plus") }
-                        .buttonStyle(.sk1Key())
-                        .accessibilityLabel("New timer")
+                    EmptyView()
                 }
+            }
+            .overlay(alignment: .trailing) {
+                Button { editing = TimerEditRequest(timer: nil) } label: { Image(systemName: "plus") }
+                    .buttonStyle(.sk1Key())
+                    .accessibilityLabel("New timer")
             }
         } content: {
             VStack(alignment: .leading, spacing: SK1.Metrics.groupSpacing) {
@@ -29,7 +40,17 @@ struct TimersView: View {
                     Text("No timers yet. Press + to make one, or start one from Recent or the presets below.").sk1Hint()
                 }
                 ForEach(timers.timers) { t in
-                    TimerCard(timer: t) { editing = TimerEditRequest(timer: t) }
+                    TimerCard(timer: t, edit: { editing = TimerEditRequest(timer: t) }, delete: { swipeDelete(t) })
+                        .opacity(dragging == t.id ? 0.35 : 1)
+                        // Touch and hold, then move: the card lifts and the others make room as it passes them.
+                        .onDrag {
+                            dragging = t.id
+                            return NSItemProvider(object: t.id.uuidString as NSString)
+                        }
+                        .onDrop(of: [.text], delegate: TimerDropDelegate(target: t.id, dragging: $dragging, timers: timers))
+                }
+                if timers.timers.count > 1 {
+                    Text("Swipe a timer left to delete it. Touch and hold one, then drag, to move it.").sk1Hint()
                 }
                 quickStart
                 TimerSettingsGroup()
@@ -39,9 +60,69 @@ struct TimersView: View {
                     .sk1Hint()
             }
         }
+        // A drop anywhere else ends the drag too, so the card doesn't stay faded.
+        .onDrop(of: [.text], isTargeted: nil) { _ in dragging = nil; return false }
+        .overlay(alignment: .bottom) { undoBar }
+        .animation(.snappy, value: deleted?.timer.id)
         .sheet(item: $editing) { request in
             TimerEditSheet(original: request.timer, newSound: timers.settings.soundID).environmentObject(timers)
         }
+    }
+
+    /// A swipe deletes at once; Undo (for a few seconds) puts it back where it was.
+    private func swipeDelete(_ t: MeetballTimer) {
+        let index = timers.timers.firstIndex { $0.id == t.id } ?? 0
+        withAnimation(.snappy) { timers.delete(t.id) }
+        deleted = (t, index)
+        undoTimeout?.cancel()
+        undoTimeout = Task {
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            deleted = nil
+        }
+    }
+
+    @ViewBuilder
+    private var undoBar: some View {
+        if let deleted {
+            HStack(spacing: 12) {
+                Text("Deleted \u{201C}\(deleted.timer.displayName)\u{201D}").font(.callout.weight(.medium)).lineLimit(1)
+                Spacer(minLength: 8)
+                Button("Undo") {
+                    withAnimation(.snappy) { timers.restore(deleted.timer, at: deleted.index) }
+                    undoTimeout?.cancel()
+                    self.deleted = nil
+                }
+                .buttonStyle(.sk1Key(.orange))
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .padding(.horizontal, 16)
+            // Above the floating dock.
+            .padding(.bottom, PhoneDock.clearance)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+    }
+}
+
+/// Moves the dragged timer to each card it passes over, so the list reorders as you drag.
+struct TimerDropDelegate: DropDelegate {
+    let target: UUID
+    @Binding var dragging: UUID?
+    let timers: TimerStore
+
+    func dropEntered(info: DropInfo) {
+        guard let dragging, dragging != target else { return }
+        withAnimation(.snappy) { timers.move(dragging, onto: target) }
+        UISelectionFeedbackGenerator().selectionChanged()
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? { DropProposal(operation: .move) }
+
+    func performDrop(info: DropInfo) -> Bool {
+        dragging = nil
+        return true
     }
 
     /// The next timer to go off, and how many are running.
@@ -126,38 +207,95 @@ struct TimerEditRequest: Identifiable {
 }
 
 /// One timer as an MT-1: lamps, the LCD, and the captioned keys.
+///
+/// Swipe it left to show Delete (a long swipe deletes straight away).
 struct TimerCard: View {
     @EnvironmentObject private var timers: TimerStore
     let timer: MeetballTimer
     let edit: () -> Void
+    let delete: () -> Void
+    /// How far the card is swiped left (negative), and whether it rests open on its Delete key.
+    @State private var swipe: CGFloat = 0
+    @State private var open = false
+
+    private static let keyWidth: CGFloat = 92
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { tl in card(now: tl.date) }
+        ZStack(alignment: .trailing) {
+            // The Delete key behind the card, uncovered as it slides left.
+            if swipe < 0 {
+                Button(role: .destructive) { delete() } label: {
+                    Label("Delete", systemImage: "trash").labelStyle(.iconOnly).font(.title3)
+                        .frame(width: Self.keyWidth - 16).frame(maxHeight: .infinity)
+                }
+                .buttonStyle(.sk1Key(.charcoal))
+                .padding(.vertical, 8)
+                .opacity(min(1, -swipe / Self.keyWidth))
+                .accessibilityLabel("Delete \(timer.displayName)")
+            }
+            card
+                .offset(x: swipe)
+                .simultaneousGesture(swipeGesture)
+        }
+        .accessibilityAction(named: "Delete", delete)
     }
 
-    private func card(now: Date) -> some View {
-        let state = timer.state(at: now)
-        return SKWell {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 10) {
-                    Text(timer.displayName).font(.headline).lineLimit(1)
-                    Spacer(minLength: 8)
-                    legend("Run", .success, state == .running)
-                    legend("Pause", .warning, state == .paused)
-                    legend("Ring", .danger, state == .done)
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { g in
+                // Sideways only, so scrolling the list up and down isn't caught.
+                guard abs(g.translation.width) > abs(g.translation.height) * 1.4 else { return }
+                let base: CGFloat = open ? -Self.keyWidth : 0
+                swipe = min(0, base + g.translation.width)
+            }
+            .onEnded { g in
+                let far = swipe < -220 || g.predictedEndTranslation.width < -420
+                if far {
+                    swipe = 0
+                    open = false
+                    delete()
+                    return
                 }
-                Button(action: edit) { TimerLCD(timer: timer, now: now) }
-                    .buttonStyle(.plain)
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel(Text(TimerLCD.spoken(timer, now: now)))
-                    .accessibilityHint("Edits the timer")
-                keys(state)
+                withAnimation(.spring(duration: 0.3)) {
+                    open = swipe < -Self.keyWidth / 2
+                    swipe = open ? -Self.keyWidth : 0
+                }
+            }
+    }
+
+    private func close() {
+        withAnimation(.spring(duration: 0.3)) { swipe = 0; open = false }
+    }
+
+    /// The lamps and LCD tick each second; the keys below are redrawn only when the timer changes or goes off, so a
+    /// tap on them is never lost to a redraw.
+    private var card: some View {
+        SKWell {
+            VStack(alignment: .leading, spacing: 10) {
+                TimelineView(.periodic(from: .now, by: 1)) { tl in
+                    let state = timer.state(at: tl.date)
+                    HStack(spacing: 10) {
+                        Text(timer.displayName).font(.headline).lineLimit(1)
+                        Spacer(minLength: 8)
+                        legend("Run", .success, state == .running)
+                        legend("Pause", .warning, state == .paused)
+                        legend("Ring", .danger, state == .done)
+                    }
+                }
+                Button { if open { close() } else { edit() } } label: {
+                    TimelineView(.periodic(from: .now, by: 1)) { tl in TimerLCD(timer: timer, now: tl.date) }
+                }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(TimerLCD.spoken(timer, now: Date())))
+                .accessibilityHint("Edits the timer")
+                TimelineView(.explicit(timer.endDate.map { [$0] } ?? [])) { tl in keys(timer.state(at: tl.date)) }
             }
             .padding(12)
         }
         .contextMenu {
             Button("Edit", systemImage: "slider.horizontal.3", action: edit)
-            Button("Delete", systemImage: "trash", role: .destructive) { timers.delete(timer.id) }
+            Button("Delete", systemImage: "trash", role: .destructive, action: delete)
         }
     }
 

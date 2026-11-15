@@ -146,7 +146,9 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   ◀ ▶ from the alert sounds that come with iOS (Tri-tone, Chime, Bamboo, Fanfare, Bloom…, read from the iPhone's own
   system sound folder; each plays as you step to it). **Recent** (your last five) and the presets (🍅 Pomodoro 25,
   🧠 Deep work 50, and plain lengths) start a one-off timer that goes away once stopped. **Settings** under them:
-  snooze length, auto-stop (how long an ignored alarm rings) and the sound new timers start with. The running timer
+  snooze length, auto-stop (how long an ignored alarm rings) and the sound new timers start with. **Swipe a timer
+  left** for its Delete key (a long swipe deletes at once; Undo puts it back for a few seconds), and **touch and hold**
+  one, then drag, to reorder them. Keys sit outside the per-second redraw, so a tap is never lost to a tick. The running timer
   that goes off first also shows as a small LCD at the top of the Day grid (beside today's date, or under the header in
   3 Day; tap it for Timers) and on the Lock Screen (see Live Activity).
   With Meetball open, a timer that goes off takes over the screen like the MT-1's alarm window: the LCD flashes 00:00
