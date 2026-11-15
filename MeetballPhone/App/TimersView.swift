@@ -85,19 +85,20 @@ struct TimersView: View {
     @ViewBuilder
     private var undoBar: some View {
         if let deleted {
-            HStack(spacing: 12) {
-                Text("Deleted \u{201C}\(deleted.timer.displayName)\u{201D}").font(.callout.weight(.medium)).lineLimit(1)
-                Spacer(minLength: 8)
-                Button("Undo") {
-                    withAnimation(.snappy) { timers.restore(deleted.timer, at: deleted.index) }
-                    undoTimeout?.cancel()
-                    self.deleted = nil
+            SKPlate(radius: 16) {
+                HStack(spacing: 12) {
+                    Text("Deleted \u{201C}\(deleted.timer.displayName)\u{201D}").font(.callout.weight(.medium)).lineLimit(1)
+                    Spacer(minLength: 8)
+                    Button("Undo") {
+                        withAnimation(.snappy) { timers.restore(deleted.timer, at: deleted.index) }
+                        undoTimeout?.cancel()
+                        self.deleted = nil
+                    }
+                    .buttonStyle(.sk1Key(.orange))
                 }
-                .buttonStyle(.sk1Key(.orange))
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
             }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
             .padding(.horizontal, 16)
             // Above the floating dock.
             .padding(.bottom, PhoneDock.clearance)
