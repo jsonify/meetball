@@ -256,4 +256,42 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(ActiveTimerChip.pick([tea, idle], now: t0.addingTimeInterval(300))?.timer.label, "Tea")
         XCTAssertNil(ActiveTimerChip.pick([idle], now: t0))
     }
+
+    // MARK: Your presets
+
+    func testSavingPresetsFromTimers() {
+        let tea = MeetballTimer(label: "  Tea ", duration: 240)
+        var saved = TimerPresets.save(TimerPreset(tea), in: [])
+        XCTAssertEqual(saved, [TimerPreset(label: "Tea", seconds: 240)])
+        // Never twice; a different length is a different preset.
+        saved = TimerPresets.save(TimerPreset(label: "Tea", seconds: 240), in: saved)
+        XCTAssertEqual(saved.count, 1)
+        saved = TimerPresets.save(TimerPreset(label: "Tea", seconds: 300), in: saved)
+        XCTAssertEqual(saved.count, 2)
+        // A zero length isn't kept; past the limit the oldest goes.
+        XCTAssertEqual(TimerPresets.save(TimerPreset(label: "x", seconds: 0), in: saved), saved)
+        let many = (1...TimerPresets.savedLimit).map { TimerPreset(label: "", seconds: TimeInterval($0 * 60)) }
+        let full = TimerPresets.save(TimerPreset(label: "Last", seconds: 999), in: many)
+        XCTAssertEqual(full.count, TimerPresets.savedLimit)
+        XCTAssertEqual(full.first?.seconds, 120)
+        XCTAssertEqual(full.last?.label, "Last")
+    }
+
+    @MainActor
+    func testStoreKeepsYourPresets() throws {
+        let suite = "TimerTests.presets.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+
+        let store = TimerStore(defaults: defaults)
+        let pasta = TimerPreset(label: "Pasta", seconds: 600)
+        store.savePreset(pasta)
+        XCTAssertTrue(store.isSaved(TimerPreset(label: " Pasta ", seconds: 600)))
+        // Still there next launch.
+        XCTAssertEqual(TimerStore(defaults: defaults).saved, [pasta])
+
+        store.removePreset(pasta)
+        XCTAssertFalse(store.isSaved(pasta))
+        XCTAssertEqual(TimerStore(defaults: defaults).saved, [])
+    }
 }

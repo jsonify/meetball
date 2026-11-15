@@ -66,6 +66,7 @@ enum ChangeLog {
 
     static let all: [Entry] = [
         Entry(day: "2026-11-15", changes: [
+            new(.iPhone, "Your own timer presets: tap ★ beside a timer's name (or Add to Presets in the timer editor, or touch and hold a recent one) to keep it under Presets, ready to start with one tap. Touch and hold one of yours to remove it."),
             better(.iPhone, "The timer editor opens as an SK-1 panel from the + or the timer you tap (no more sheet), with the knobs in rows so nothing is cut off at the sides, and Start and Save at the bottom."),
             new(.iPhone, "A running timer shows on the Lock Screen and in the Dynamic Island. During a meeting's countdown, the card splits: the meeting on one side, the timer on the other."),
             new(.iPhone, "A running timer shows at the top of the Day grid, beside today's date (under the header in 3 Day). Tap it to open Timers."),

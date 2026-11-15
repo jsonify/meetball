@@ -247,6 +247,16 @@ struct TimerPreset: Hashable, Codable {
     let label: String
     let seconds: TimeInterval
 
+    /// The preset a timer makes: its label (trimmed) and length.
+    init(_ timer: MeetballTimer) {
+        self.init(label: timer.label.trimmingCharacters(in: .whitespacesAndNewlines), seconds: timer.duration)
+    }
+
+    init(label: String, seconds: TimeInterval) {
+        self.label = label
+        self.seconds = seconds
+    }
+
     /// "🍅 Pomodoro · 25 min", or just "5 min" when the label is the length.
     var title: String {
         let length = TimerFormat.spoken(seconds)
@@ -268,6 +278,17 @@ enum TimerPresets {
 
     /// How many recent timers are kept.
     static let recentLimit = 5
+
+    /// How many of your own presets are kept.
+    static let savedLimit = 12
+
+    /// `saved` with `preset` added at the end: its label trimmed, never twice (the same label and length), at most
+    /// `savedLimit` (the oldest goes).
+    static func save(_ preset: TimerPreset, in saved: [TimerPreset]) -> [TimerPreset] {
+        let p = TimerPreset(label: preset.label.trimmingCharacters(in: .whitespacesAndNewlines), seconds: preset.seconds)
+        guard p.seconds > 0, !saved.contains(p) else { return saved }
+        return Array((saved + [p]).suffix(savedLimit))
+    }
 
     /// `recent` with `started` put first, no duplicates, at most `recentLimit`.
     static func remember(_ started: TimerPreset, in recent: [TimerPreset]) -> [TimerPreset] {

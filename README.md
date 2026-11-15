@@ -146,7 +146,8 @@ styling and confetti (the shared files are listed under `MeetballPhone` in `proj
   **Hours / Minutes / Seconds knobs** (or a microwave-style keypad: 1-3-0 is 1:30), a label, and the sound, picked with
   ◀ ▶ from the alert sounds that come with iOS (Tri-tone, Chime, Bamboo, Fanfare, Bloom…, read from the iPhone's own
   system sound folder; each plays as you step to it). **Recent** (your last five) and the presets (🍅 Pomodoro 25,
-  🧠 Deep work 50, and plain lengths) start a one-off timer that goes away once stopped. **Settings** under them:
+  🧠 Deep work 50, and plain lengths) start a one-off timer that goes away once stopped. **Your own presets** sit first under Presets: tap ★ beside a timer's name, use
+  **Add to Presets** in the timer editor, or touch and hold a recent one; touch and hold one of yours to remove it. **Settings** under them:
   snooze length, auto-stop (how long an ignored alarm rings) and the sound new timers start with. **Swipe a timer
   left** for its Delete key (a long swipe deletes at once; Undo puts it back for a few seconds), and **touch and hold**
   one, then drag, to reorder them. Keys sit outside the per-second redraw, so a tap is never lost to a tick. The running timer
