@@ -118,6 +118,30 @@ final class TimerStore: ObservableObject {
         save()
     }
 
+    /// Long-press reordering: puts the timer `id` where `target` is (the others shift up or down one).
+    func move(_ id: UUID, onto target: UUID) {
+        let reordered = Self.moved(timers, id: id, onto: target)
+        guard reordered.map(\.id) != timers.map(\.id) else { return }
+        timers = reordered
+        save()
+    }
+
+    /// `list` with the timer `id` moved to `target`'s place: after it when moving down the list, before it when up.
+    nonisolated static func moved(_ list: [MeetballTimer], id: UUID, onto target: UUID) -> [MeetballTimer] {
+        guard id != target, let from = list.firstIndex(where: { $0.id == id }),
+              let to = list.firstIndex(where: { $0.id == target }) else { return list }
+        var out = list
+        out.move(fromOffsets: [from], toOffset: to > from ? to + 1 : to)
+        return out
+    }
+
+    /// Puts back a timer just deleted (Undo), where it was, running on if it was running.
+    func restore(_ timer: MeetballTimer, at index: Int) {
+        guard self.timer(timer.id) == nil else { return }
+        timers.insert(timer, at: min(max(index, 0), timers.count))
+        commit(timer)
+    }
+
     // MARK: Running
 
     func start(_ id: UUID, now: Date = Date()) {

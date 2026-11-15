@@ -143,6 +143,17 @@ final class TimerTests: XCTestCase {
         XCTAssertEqual(TimerUrgency.of(t, at: t0.addingTimeInterval(200)), .alarm)
     }
 
+    func testMovingATimerOntoAnother() {
+        let list = ["A", "B", "C", "D"].map { MeetballTimer(label: $0, duration: 60) }
+        let names = { (l: [MeetballTimer]) in l.map(\.label) }
+        // Down the list: it lands after the one it's dropped on.
+        XCTAssertEqual(names(TimerStore.moved(list, id: list[0].id, onto: list[2].id)), ["B", "C", "A", "D"])
+        // Up the list: before it.
+        XCTAssertEqual(names(TimerStore.moved(list, id: list[3].id, onto: list[1].id)), ["A", "D", "B", "C"])
+        XCTAssertEqual(names(TimerStore.moved(list, id: list[1].id, onto: list[1].id)), ["A", "B", "C", "D"])
+        XCTAssertEqual(names(TimerStore.moved(list, id: UUID(), onto: list[1].id)), ["A", "B", "C", "D"])
+    }
+
     @MainActor
     func testBackgroundAlarmRepeatsUntilAutoStop() {
         XCTAssertEqual(TimerStore.ringOffsets(left: 60, ringFor: 90), [60, 90, 120, 150])
