@@ -40,6 +40,9 @@ struct PhoneRootView: View {
     /// The event screen, open over everything, and the point it grew out of (the tap that opened it).
     @State private var detail: CalendarEvent?
     @State private var detailAnchor: UnitPoint = .center
+    /// The timer editor, open over everything, and where it grew out of.
+    @State private var timerEdit: TimerEditRequest?
+    @State private var timerEditAnchor: UnitPoint = .center
     @State private var tapSpot = TapSpot()
     /// The composer, open; `start` when a slot on the day grid picked the time.
     @State private var compose: ComposeRequest?
@@ -82,13 +85,17 @@ struct PhoneRootView: View {
                 .zIndex(tab.isLid ? 1 : 0)
         }
         .animation(course.animation, value: tab)
+        .environment(\.openTimerEditor) { t in
+            timerEditAnchor = tapSpot.anchor(in: course.stage)
+            timerEdit = TimerEditRequest(timer: t)
+        }
         // Every screen's title says WORK while "Work only" is on.
         .environment(\.phoneWorkOnly, store.settings.isWorkOnly)
         // Remembers where each tap lands, for the event screen to grow out of. Alongside the screens' own taps.
         .simultaneousGesture(SpatialTapGesture(coordinateSpace: .global).onEnded { tapSpot.record($0.location) })
         // The app sinks back a little under an open event.
-        .scaleEffect(detail == nil ? 1 : 0.94)
-        .brightness(detail == nil ? 0 : -0.06)
+        .scaleEffect(detail == nil && timerEdit == nil ? 1 : 0.94)
+        .brightness(detail == nil && timerEdit == nil ? 0 : -0.06)
         .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { course.stage = $0 }
         // Content runs under the floating dock, and scrolls far enough to clear it.
         .contentMargins(.bottom, PhoneDock.clearance, for: .scrollContent)
@@ -125,6 +132,18 @@ struct PhoneRootView: View {
             }
         }
         .animation(.spring(duration: 0.42, bounce: 0.12), value: detail?.id)
+        // The timer editor: like the event screen, a full panel over the app that grows out of the + or the timer.
+        .overlay {
+            if let request = timerEdit {
+                TimerEditSheet(original: request.timer, newSound: timers.settings.soundID) { timerEdit = nil }
+                    .environmentObject(timers)
+                    .background { Color.clear.sk1Chassis().ignoresSafeArea() }
+                    .accessibilityAddTraits(.isModal)
+                    .id(request.id)
+                    .transition(EventOpenTransition(anchor: timerEditAnchor))
+            }
+        }
+        .animation(.spring(duration: 0.42, bounce: 0.12), value: timerEdit?.id)
         .sheet(item: $compose) { request in
             QuickAddSheet(start: request.start).environmentObject(store)
         }
